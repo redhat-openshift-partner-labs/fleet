@@ -21,16 +21,18 @@ It does **not** hold: day-2 workloads, tenant application manifests, or anything
 
 The guiding rule: *ArgoCD reconciles declarative state. Tekton runs ordered workflows. ACM/Hive controls cluster lifecycle.* Each tool does one job.
 
-## Repo layout (planned)
+## Repo layout
 
 ```
 .
-├── bootstrap/          # Hub bootstrap (ArgoCD, Tekton install, ACM config)
+├── bootstrap/          # Hub bootstrap (ArgoCD Application for hub-config)
+├── hub-config/         # Hub operators: Tekton, cert-manager, Crossplane provider
 ├── tekton/             # Pipeline, Task, EventListener, Trigger definitions
 ├── clusters/           # One directory per cluster (spec, tier label, overrides)
-├── hub-config/         # cert-manager, baseline hub operators
 ├── cluster-templates/  # Kustomize bases for cluster specs (by tier)
 ├── workloads/          # Tier-specific day-2 overlays (base / virt / ai)
+├── fleet/              # Python CLI tools for Tekton pipeline tasks
+├── tests/              # Unit, validation, and fixture data
 └── docs/               # Architecture, runbooks, diagrams
 ```
 
@@ -39,8 +41,9 @@ The guiding rule: *ArgoCD reconciles declarative state. Tekton runs ordered work
 | Area | State |
 |---|---|
 | Architecture direction | ✅ Agreed |
-| Repo structure | ⏳ Planned |
-| Hub bootstrap (Tekton, cert-manager) | ⏳ Planned |
+| Repo structure | ✅ Done |
+| Hub bootstrap (Tekton, cert-manager, Crossplane) | ✅ Done (manifests ready, not yet applied) |
+| Development tooling (yamllint, tox, pytest) | ✅ Done |
 | Provision pipeline | ⏳ Planned |
 | Post-provision pipeline (base tier) | ⏳ Planned |
 | Post-provision pipeline (virt, ai tiers) | ⏳ Planned |
