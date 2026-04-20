@@ -3,8 +3,13 @@ extends: default
 rules:
   line-length:
     max: 180
+  document-start: disable
+  truthy:
+    check-keys: true
+    allowed-values: ["true", "false", "on", "off"]
 
 ignore: |
   .tox/
   .venv/
   tmp/
+  .serena/
