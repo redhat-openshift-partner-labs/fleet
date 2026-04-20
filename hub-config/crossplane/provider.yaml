@@ -1,0 +1,16 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-iam
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-iam:v1.20.0
+  controllerConfigRef:
+    name: provider-aws-iam
+---
+apiVersion: pkg.crossplane.io/v1alpha1
+kind: ControllerConfig
+metadata:
+  name: provider-aws-iam
+spec:
+  securityContext:
+    runAsNonRoot: true
