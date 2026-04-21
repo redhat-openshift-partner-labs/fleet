@@ -1,0 +1,134 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: provision
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: tier
+      type: string
+      default: base
+    - name: region
+      type: string
+      default: us-east-1
+    - name: git-repo-url
+      type: string
+      default: https://github.com/redhat-openshift-partner-labs/fleet.git
+    - name: git-revision
+      type: string
+      default: main
+    - name: pipeline-image
+      type: string
+      default: quay.io/redhat-openshift-partner-labs/fleet-pipeline:latest
+  workspaces:
+    - name: shared-workspace
+
+  tasks:
+    - name: create-cluster-namespace
+      taskRef:
+        name: create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: apply-crossplane-credentials
+      taskRef:
+        name: apply-crossplane-credentials
+      runAfter:
+        - create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: wait-for-aws-credentials
+      taskRef:
+        name: wait-for-aws-credentials
+      runAfter:
+        - apply-crossplane-credentials
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: validate-cluster-inputs
+      taskRef:
+        name: validate-cluster-inputs
+      runAfter:
+        - wait-for-aws-credentials
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: apply-cluster-crs
+      taskRef:
+        name: apply-cluster-crs
+      runAfter:
+        - validate-cluster-inputs
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: wait-for-hive-ready
+      taskRef:
+        name: wait-for-hive-ready
+      runAfter:
+        - apply-cluster-crs
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      timeout: "1h15m"
+
+    - name: wait-for-managed-cluster
+      taskRef:
+        name: wait-for-managed-cluster
+      runAfter:
+        - wait-for-hive-ready
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: extract-spoke-kubeconfig
+      taskRef:
+        name: extract-spoke-kubeconfig
+      runAfter:
+        - wait-for-managed-cluster
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: label-for-post-provision
+      taskRef:
+        name: label-for-post-provision
+      runAfter:
+        - extract-spoke-kubeconfig
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
