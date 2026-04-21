@@ -1,3 +1,9 @@
+"""Wait for the spoke to join ACM as a ManagedCluster.
+
+CLI: fleet-wait-for-managed-cluster --cluster-name NAME [--timeout 15m]
+Runs oc wait --for=condition=ManagedClusterJoined on managedcluster/{cluster}. Exits 1 on timeout.
+"""
+
 import argparse
 import subprocess
 import sys

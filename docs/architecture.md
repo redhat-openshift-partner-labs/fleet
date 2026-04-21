@@ -508,11 +508,7 @@ Recommended sequence (each step delivers value and is reversible if needed):
   - `cluster-deletion-workflow.md`
   - `bootstrap/argocd-app-of-apps.yaml`
   - `bootstrap/deprovision-cleanup-cronjob.yaml`
-- Target architecture diagrams (source):
-  - [`docs/mermaid/01-target-architecture.mermaid`](./docs/mermaid/01-target-architecture.mermaid)
-  - [`docs/mermaid/02-provision-pipeline.mermaid`](./docs/mermaid/02-provision-pipeline.mermaid)
-  - [`docs/mermaid/03-post-provision-pipeline.mermaid`](./docs/mermaid/03-post-provision-pipeline.mermaid)
-  - [`docs/mermaid/04-deprovision-pipeline.mermaid`](./docs/mermaid/04-deprovision-pipeline.mermaid)
+- Target architecture diagrams are embedded inline in sections 2.2, 3.1, 3.2, and 3.3 above (mermaid format).
 - External:
   - [OpenShift Pipelines (Tekton) docs](https://docs.openshift.com/pipelines/)
   - [OpenShift GitOps (ArgoCD) docs](https://docs.openshift.com/gitops/)

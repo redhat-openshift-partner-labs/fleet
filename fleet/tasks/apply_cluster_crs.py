@@ -1,3 +1,9 @@
+"""Apply Hive cluster CRs (ClusterDeployment, MachinePool, ManagedCluster, etc.).
+
+CLI: fleet-apply-cluster-crs --cluster-name NAME --source-dir DIR
+Builds clusters/{cluster}/ with kustomize and applies via oc. Exits 1 on build or apply failure.
+"""
+
 import argparse
 import subprocess
 import sys

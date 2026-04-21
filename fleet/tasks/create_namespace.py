@@ -1,3 +1,9 @@
+"""Create the cluster namespace on the hub (idempotent).
+
+CLI: fleet-create-namespace --cluster-name NAME
+Creates namespace {cluster} via oc. No-op if it already exists. Exits 1 on failure.
+"""
+
 import argparse
 import subprocess
 import sys

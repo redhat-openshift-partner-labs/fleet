@@ -1,3 +1,9 @@
+"""Wait for Hive to finish provisioning the cluster.
+
+CLI: fleet-wait-for-hive-ready --cluster-name NAME [--timeout 60m]
+Runs oc wait --for=condition=Provisioned on ClusterDeployment/{cluster}. Exits 1 on timeout.
+"""
+
 import argparse
 import subprocess
 import sys
