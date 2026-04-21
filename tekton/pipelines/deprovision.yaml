@@ -9,7 +9,7 @@ spec:
       type: string
     - name: pipeline-image
       type: string
-      default: quay.io/redhat-openshift-partner-labs/fleet-pipeline:latest
+      default: quay.io/rhopl/fleet-pipeline:latest
   tasks:
     - name: delete-cluster-resources
       taskRef:
