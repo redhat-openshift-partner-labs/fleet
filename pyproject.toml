@@ -20,8 +20,15 @@ pylint = "^3.0"
 bandit = "^1.7"
 
 [tool.poetry.scripts]
-# Entry points added as tasks are built, e.g.:
-# fleet-validate-inputs = "fleet.tasks.validate_inputs:main"
+fleet-create-namespace = "fleet.tasks.create_namespace:main"
+fleet-apply-crossplane-creds = "fleet.tasks.apply_crossplane_creds:main"
+fleet-wait-for-aws-creds = "fleet.tasks.wait_for_aws_creds:main"
+fleet-validate-inputs = "fleet.tasks.validate_inputs:main"
+fleet-apply-cluster-crs = "fleet.tasks.apply_cluster_crs:main"
+fleet-wait-for-hive-ready = "fleet.tasks.wait_for_hive_ready:main"
+fleet-wait-for-managed-cluster = "fleet.tasks.wait_for_managed_cluster:main"
+fleet-extract-kubeconfig = "fleet.tasks.extract_kubeconfig:main"
+fleet-label-post-provision = "fleet.tasks.label_post_provision:main"
 
 [build-system]
 requires = ["poetry-core"]
