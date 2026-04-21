@@ -1,0 +1,165 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: test-cluster-01
+
+resources:
+  - ../../cluster-templates/aws-ha/base
+
+patches:
+  - path: patches/install-config.yaml
+  - target:
+      kind: Namespace
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01
+  - target:
+      kind: ClusterDeployment
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+      - op: replace
+        path: /spec/clusterName
+        value: test-cluster-01
+      - op: replace
+        path: /spec/provisioning/installConfigSecretRef/name
+        value: test-cluster-01-install-config
+      - op: replace
+        path: /spec/provisioning/sshPrivateKeySecretRef/name
+        value: test-cluster-01-ssh-key
+  - target:
+      kind: MachinePool
+      name: cluster-placeholder-worker
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-worker
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+      - op: replace
+        path: /spec/clusterDeploymentRef/name
+        value: test-cluster-01
+  - target:
+      kind: ManagedCluster
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01
+      - op: add
+        path: /metadata/labels/tier
+        value: base
+      - op: add
+        path: /metadata/labels/environment
+        value: development
+  - target:
+      kind: KlusterletAddonConfig
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+      - op: replace
+        path: /spec/clusterName
+        value: test-cluster-01
+      - op: replace
+        path: /spec/clusterNamespace
+        value: test-cluster-01
+  - target:
+      kind: Secret
+      name: cluster-placeholder-install-config
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-install-config
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+  - target:
+      kind: User
+      name: cluster-placeholder-ocp-installer
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-ocp-installer
+  - target:
+      kind: Policy
+      name: cluster-placeholder-openshift4installerpolicy
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-openshift4installerpolicy
+      - op: replace
+        path: /spec/forProvider/name
+        value: test-cluster-01-OpenShift4InstallerPolicy
+  - target:
+      kind: UserPolicyAttachment
+      name: cluster-placeholder-policy-attachment
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-policy-attachment
+      - op: replace
+        path: /spec/forProvider/policyArnRef/name
+        value: test-cluster-01-openshift4installerpolicy
+      - op: replace
+        path: /spec/forProvider/userRef/name
+        value: test-cluster-01-ocp-installer
+  - target:
+      kind: AccessKey
+      name: cluster-placeholder-access-key
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-access-key
+      - op: replace
+        path: /spec/forProvider/userRef/name
+        value: test-cluster-01-ocp-installer
+      - op: replace
+        path: /spec/writeConnectionSecretToRef/namespace
+        value: test-cluster-01
+  - target:
+      kind: Job
+      name: cluster-placeholder-credentials-transformer
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-credentials-transformer
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+  - target:
+      kind: ServiceAccount
+      name: credentials-transformer-sa
+    patch: |
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+  - target:
+      kind: Role
+      name: credentials-transformer
+    patch: |
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+  - target:
+      kind: RoleBinding
+      name: credentials-transformer
+    patch: |
+      - op: replace
+        path: /metadata/namespace
+        value: test-cluster-01
+      - op: replace
+        path: /subjects/0/namespace
+        value: test-cluster-01
