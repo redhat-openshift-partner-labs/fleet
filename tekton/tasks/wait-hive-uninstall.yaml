@@ -1,0 +1,24 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-hive-uninstall
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: timeout
+      type: string
+      default: "25m"
+  steps:
+    - name: wait
+      image: $(params.pipeline-image)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-wait-hive-uninstall \
+          --cluster-name "$(params.cluster-name)" \
+          --timeout "$(params.timeout)"
