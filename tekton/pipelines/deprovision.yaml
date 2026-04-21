@@ -1,0 +1,13 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: deprovision
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+      default: quay.io/redhat-openshift-partner-labs/fleet-pipeline:latest
+  tasks: []
