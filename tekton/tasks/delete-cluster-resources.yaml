@@ -1,0 +1,19 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: delete-cluster-resources
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  steps:
+    - name: delete
+      image: $(params.pipeline-image)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-delete-cluster-resources --cluster-name "$(params.cluster-name)"
