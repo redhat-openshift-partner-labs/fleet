@@ -395,7 +395,6 @@ def test_kustomize_build(kustomization):
 - [ ] cert-manager operator running (`oc get csv -n openshift-operators | grep cert-manager`)
 - [ ] Crossplane Provider healthy (`oc get provider.pkg`)
 - [ ] ArgoCD Application `fleet-hub-config` synced and healthy
-- [ ] No impact on labargocd clusters
 - [ ] `tox` passes (yamllint, tekton-lint)
 - [ ] pre-commit hooks installed and gitleaks runs on push
 - [ ] `tests/` directory exists with validation scaffolding
@@ -1824,14 +1823,12 @@ spec:
 
 ### Acceptance criteria
 
-- [ ] `kustomize build clusters/test-cluster-01/` produces valid YAML matching labargocd output
+- [ ] `kustomize build clusters/test-cluster-01/` produces valid YAML
 - [ ] Provision pipeline deploys and runs (`tkn pipeline start provision`)
 - [ ] Crossplane creates IAM user + credentials-transformer produces `aws-credentials`
 - [ ] ClusterDeployment reaches Provisioned=True
 - [ ] ManagedCluster joins hub
 - [ ] Spoke kubeconfig extracted to workspace
-- [ ] No impact on labargocd clusters
-
 ### Rollback
 
 Delete fleet cluster definition. If cluster was partially provisioned, manually clean up with `oc delete clusterdeployment -n test-cluster-01 test-cluster-01`.
@@ -3271,54 +3268,6 @@ spec:
 - [ ] Test cluster with `bootstrapped=true` + `tier=base` gets base workloads via ApplicationSet
 - [ ] ArgoCD UI shows auto-generated Applications
 - [ ] No per-cluster Application YAML needed
-
----
-
-## Phase 6: Migrate Existing Clusters
-
-**Goal**: Move real clusters from labargocd to fleet one at a time, zero downtime.
-
-**Order** (lowest to highest risk):
-1. `dev-cluster-01`
-2. `mhillsma-cluster`
-3. `2dc91c27-rhsplunk`
-4. `4042198f-isarnetvirt` (virt tier)
-5. `ceca32aa-redisaiqs` (ai tier)
-
-### Per-cluster migration runbook
-
-1. **Determine tier** from labargocd config (check ManagedCluster labels, installed operators)
-2. **Create `clusters/<name>/`** in fleet repo (copy kustomization.yaml + patches from labargocd, adapt to fleet template format)
-3. **Dry-run**: `kustomize build clusters/<name>/` -- compare with labargocd output
-4. **Label cluster** with `tier` and `bootstrapped=true` on ManagedCluster (if not already present)
-5. **Verify ApplicationSet** picks up cluster and delivers workloads
-6. **Remove from labargocd**: `git rm clusters/<name>/` in labargocd repo
-7. **Verify** cluster still healthy, workloads stable, no drift
-
-### Rollback (per cluster)
-
-Restore labargocd cluster directory from git history. Remove fleet cluster definition. Re-sync labargocd Application.
-
----
-
-## Phase 7: Retire Legacy Components
-
-**Goal**: Remove labargocd-specific workarounds after all clusters are on fleet.
-
-### Components to retire
-
-1. `bootstrap/deprovision-cleanup-cronjob.yaml` -- replaced by deprovision pipeline
-2. `cluster-templates/aws-ha/base/deprovision-finalizer-job.yaml` -- replaced by pipeline ordering
-3. Custom finalizer `openshiftpartnerlabs.com/deprovision` on any remaining Secrets
-4. Per-cluster `argocd-application.yaml` files -- replaced by ApplicationSet
-5. `bootstrap/argocd-app-of-apps.yaml` -- no longer needed
-
-### Steps
-
-1. Verify all clusters migrated and stable for 1+ weeks
-2. Remove CronJob from hub: `oc delete cronjob deprovision-cleanup -n openshift-gitops`
-3. Remove finalizers from any remaining Secrets: `oc get secrets -A -l openshiftpartnerlabs.com/deprovision-pending=true` and patch
-4. Archive labargocd repo (mark read-only, update README)
 
 ---
 
