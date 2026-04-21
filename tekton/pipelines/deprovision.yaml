@@ -10,4 +10,46 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/redhat-openshift-partner-labs/fleet-pipeline:latest
-  tasks: []
+  tasks:
+    - name: delete-cluster-resources
+      taskRef:
+        name: delete-cluster-resources
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: wait-hive-uninstall
+      taskRef:
+        name: wait-hive-uninstall
+      runAfter:
+        - delete-cluster-resources
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      timeout: "30m"
+
+    - name: cleanup-hub-artifacts
+      taskRef:
+        name: cleanup-hub-artifacts
+      runAfter:
+        - wait-hive-uninstall
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: verify-deprovision
+      taskRef:
+        name: verify-deprovision
+      runAfter:
+        - cleanup-hub-artifacts
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
