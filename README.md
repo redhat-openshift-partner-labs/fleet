@@ -44,6 +44,7 @@ The guiding rule: *ArgoCD reconciles declarative state. Tekton runs ordered work
 | Repo structure | ✅ Done |
 | Hub bootstrap (Tekton, cert-manager, Crossplane) | ✅ Done (manifests ready, not yet applied) |
 | Development tooling (yamllint, tox, pytest) | ✅ Done |
+| CI (GitHub Actions) | ✅ Done |
 | Cluster templates (AWS HA base tier) | ✅ Done |
 | Provision pipeline (9 tasks, triggers) | ✅ Done |
 | Post-provision pipeline (base tier) | ⏳ Planned |
