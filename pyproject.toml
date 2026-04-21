@@ -29,6 +29,10 @@ fleet-wait-for-hive-ready = "fleet.tasks.wait_for_hive_ready:main"
 fleet-wait-for-managed-cluster = "fleet.tasks.wait_for_managed_cluster:main"
 fleet-extract-kubeconfig = "fleet.tasks.extract_kubeconfig:main"
 fleet-label-post-provision = "fleet.tasks.label_post_provision:main"
+fleet-delete-cluster-resources = "fleet.tasks.delete_cluster_resources:main"
+fleet-wait-hive-uninstall = "fleet.tasks.wait_hive_uninstall:main"
+fleet-cleanup-hub-artifacts = "fleet.tasks.cleanup_hub_artifacts:main"
+fleet-verify-deprovision = "fleet.tasks.verify_deprovision:main"
 
 [tool.pylint.messages_control]
 disable = [
