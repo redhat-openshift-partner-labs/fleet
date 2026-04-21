@@ -12,9 +12,7 @@ def _run(args, **kwargs):
 
 
 def _run_fail(args, **kwargs):
-    return subprocess.CompletedProcess(
-        args, returncode=1, stdout="", stderr="error"
-    )
+    return subprocess.CompletedProcess(args, returncode=1, stdout="", stderr="error")
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -130,12 +128,8 @@ def test_sleep_called_after_crossplane_deletes(mock_run, mock_sleep):
     mock_sleep.side_effect = track_sleep
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    sleep_idx = next(
-        i for i, c in enumerate(call_order) if c[0] == "sleep"
-    )
+    sleep_idx = next(i for i, c in enumerate(call_order) if c[0] == "sleep")
     ns_idx = next(
-        i
-        for i, c in enumerate(call_order)
-        if c[0] == "run" and "namespace" in c[1]
+        i for i, c in enumerate(call_order) if c[0] == "run" and "namespace" in c[1]
     )
     assert sleep_idx < ns_idx

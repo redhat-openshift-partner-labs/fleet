@@ -17,9 +17,7 @@ def main() -> None:
 
     cluster = args.cluster_name
 
-    print(
-        f"Waiting for Hive uninstall to complete (timeout: {args.timeout})..."
-    )
+    print(f"Waiting for Hive uninstall to complete (timeout: {args.timeout})...")
 
     result = subprocess.run(
         [
