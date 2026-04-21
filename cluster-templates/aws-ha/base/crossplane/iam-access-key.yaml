@@ -1,0 +1,14 @@
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: AccessKey
+metadata:
+  name: cluster-placeholder-access-key
+  namespace: cluster-placeholder
+spec:
+  forProvider:
+    userRef:
+      name: cluster-placeholder-ocp-installer
+  providerConfigRef:
+    name: default
+  writeConnectionSecretToRef:
+    name: aws-credentials-raw
+    namespace: cluster-placeholder

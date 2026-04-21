@@ -1,0 +1,32 @@
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: cluster-placeholder-openshift4installerpolicy
+  namespace: cluster-placeholder
+spec:
+  forProvider:
+    name: cluster-placeholder-OpenShift4InstallerPolicy
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ec2:*",
+              "elasticloadbalancing:*",
+              "iam:*",
+              "route53:*",
+              "s3:*",
+              "sts:*",
+              "tag:*",
+              "cloudformation:*",
+              "autoscaling:*",
+              "servicequotas:*"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+  providerConfigRef:
+    name: default

@@ -1,0 +1,13 @@
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: UserPolicyAttachment
+metadata:
+  name: cluster-placeholder-policy-attachment
+  namespace: cluster-placeholder
+spec:
+  forProvider:
+    policyArnRef:
+      name: cluster-placeholder-openshift4installerpolicy
+    userRef:
+      name: cluster-placeholder-ocp-installer
+  providerConfigRef:
+    name: default

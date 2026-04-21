@@ -1,0 +1,9 @@
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: User
+metadata:
+  name: cluster-placeholder-ocp-installer
+  namespace: cluster-placeholder
+spec:
+  forProvider: {}
+  providerConfigRef:
+    name: default
