@@ -25,6 +25,9 @@ spec:
   workspaces:
     - name: shared-workspace
 
+  taskRunTemplate:
+    serviceAccountName: fleet-pipeline
+
   tasks:
     - name: create-cluster-namespace
       taskRef:

@@ -10,6 +10,9 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
+  taskRunTemplate:
+    serviceAccountName: fleet-pipeline
+
   tasks:
     - name: delete-cluster-resources
       taskRef:
