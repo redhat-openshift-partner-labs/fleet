@@ -1,3 +1,10 @@
+"""Extract the spoke admin kubeconfig from Hive into the pipeline workspace.
+
+CLI: fleet-extract-kubeconfig --cluster-name NAME --output-dir DIR
+Reads adminKubeconfigSecretRef from ClusterDeployment, extracts the kubeconfig key to output-dir.
+Exits 1 if extraction fails.
+"""
+
 import argparse
 import subprocess
 import sys

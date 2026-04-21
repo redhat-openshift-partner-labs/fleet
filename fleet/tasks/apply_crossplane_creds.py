@@ -1,3 +1,9 @@
+"""Apply Crossplane IAM resources for a cluster via kustomize build + oc apply.
+
+CLI: fleet-apply-crossplane-creds --cluster-name NAME --source-dir DIR
+Builds clusters/{cluster}/ with kustomize and applies the output. Exits 1 on build or apply failure.
+"""
+
 import argparse
 import subprocess
 import sys

@@ -32,7 +32,6 @@ fleet-label-post-provision = "fleet.tasks.label_post_provision:main"
 
 [tool.pylint.messages_control]
 disable = [
-    "missing-module-docstring",
     "missing-function-docstring",
     "subprocess-run-check",
     "duplicate-code",

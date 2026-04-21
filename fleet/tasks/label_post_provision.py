@@ -1,3 +1,9 @@
+"""Label the ManagedCluster as provisioned to signal post-provision readiness.
+
+CLI: fleet-label-post-provision --cluster-name NAME
+Sets provisioned=true on managedcluster/{cluster}. Exits 1 on failure.
+"""
+
 import argparse
 import subprocess
 import sys

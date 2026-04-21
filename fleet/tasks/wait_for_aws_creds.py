@@ -1,3 +1,9 @@
+"""Poll for the Crossplane-generated aws-credentials Secret.
+
+CLI: fleet-wait-for-aws-creds --cluster-name NAME [--timeout-seconds 600]
+Polls every 10s until Secret aws-credentials exists in namespace {cluster}. Exits 1 on timeout.
+"""
+
 import argparse
 import subprocess
 import sys
