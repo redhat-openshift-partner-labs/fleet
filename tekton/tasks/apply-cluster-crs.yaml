@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: apply-cluster-crs
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: apply
+      image: $(params.pipeline-image)
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-apply-cluster-crs \
+          --cluster-name "$(params.cluster-name)" \
+          --source-dir "$(workspaces.source.path)/clusters/$(params.cluster-name)"

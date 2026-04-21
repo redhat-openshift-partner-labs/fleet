@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-for-hive-ready
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: timeout
+      type: string
+      default: "60m"
+    - name: pipeline-image
+      type: string
+  steps:
+    - name: wait
+      image: $(params.pipeline-image)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-wait-for-hive-ready \
+          --cluster-name "$(params.cluster-name)" \
+          --timeout "$(params.timeout)"

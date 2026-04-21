@@ -1,0 +1,18 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: validate-cluster-inputs
+  namespace: openshift-pipelines
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  steps:
+    - name: validate
+      image: $(params.pipeline-image)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-validate-inputs --cluster-name "$(params.cluster-name)"
