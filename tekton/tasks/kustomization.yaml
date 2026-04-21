@@ -11,3 +11,7 @@ resources:
   - wait-for-managed-cluster.yaml
   - extract-spoke-kubeconfig.yaml
   - label-for-post-provision.yaml
+  - delete-cluster-resources.yaml
+  - wait-hive-uninstall.yaml
+  - cleanup-hub-artifacts.yaml
+  - verify-deprovision.yaml
