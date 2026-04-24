@@ -3,7 +3,6 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: wait-hive-uninstall
-  namespace: openshift-pipelines
 spec:
   params:
     - name: cluster-name

@@ -2,7 +2,6 @@ apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
   name: fleet-cluster-lifecycle
-  namespace: openshift-pipelines
 spec:
   serviceAccountName: fleet-pipeline
   triggers:
