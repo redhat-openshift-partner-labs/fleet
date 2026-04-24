@@ -2,7 +2,6 @@ apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: provision-template
-  namespace: openshift-pipelines
 spec:
   params:
     - name: git-repo-url
@@ -13,7 +12,6 @@ spec:
       kind: PipelineRun
       metadata:
         generateName: provision-$(tt.params.cluster-name)-
-        namespace: openshift-pipelines
       spec:
         pipelineRef:
           name: provision
@@ -24,7 +22,18 @@ spec:
             value: $(tt.params.git-repo-url)
           - name: git-revision
             value: $(tt.params.git-revision)
+        taskRunTemplate:
+          serviceAccountName: fleet-pipeline
+          podTemplate:
+            securityContext:
+              fsGroup: 0
         workspaces:
           - name: shared-workspace
-            emptyDir: {}
-        serviceAccountName: fleet-pipeline
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+                storageClassName: gp3-csi
