@@ -2,7 +2,6 @@ apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: deprovision
-  namespace: openshift-pipelines
 spec:
   params:
     - name: cluster-name
@@ -10,9 +9,6 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
-  taskRunTemplate:
-    serviceAccountName: fleet-pipeline
-
   tasks:
     - name: delete-cluster-resources
       taskRef:
