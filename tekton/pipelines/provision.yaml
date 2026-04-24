@@ -6,12 +6,6 @@ spec:
   params:
     - name: cluster-name
       type: string
-    - name: tier
-      type: string
-      default: base
-    - name: region
-      type: string
-      default: us-east-1
     - name: git-repo-url
       type: string
       default: https://github.com/redhat-openshift-partner-labs/fleet.git
