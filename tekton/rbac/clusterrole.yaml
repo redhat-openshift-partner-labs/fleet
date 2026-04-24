@@ -39,3 +39,6 @@ rules:
   - apiGroups: ["tekton.dev"]
     resources: ["pipelineruns"]
     verbs: ["create"]
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["*"]
+    verbs: ["*"]
