@@ -7,7 +7,6 @@ resources:
   - crossplane/iam-policy.yaml
   - crossplane/iam-attachment.yaml
   - crossplane/iam-access-key.yaml
-  - crossplane/credentials-transformer-job.yaml
   - install-config-secret.yaml
   - clusterdeployment.yaml
   - machinepool-worker.yaml
