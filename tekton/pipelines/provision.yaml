@@ -2,7 +2,6 @@ apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: provision
-  namespace: openshift-pipelines
 spec:
   params:
     - name: cluster-name
@@ -25,13 +24,26 @@ spec:
   workspaces:
     - name: shared-workspace
 
-  taskRunTemplate:
-    serviceAccountName: fleet-pipeline
-
   tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: URL
+          value: $(params.git-repo-url)
+        - name: REVISION
+          value: $(params.git-revision)
+        - name: DEPTH
+          value: "1"
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
     - name: create-cluster-namespace
       taskRef:
         name: create-cluster-namespace
+      runAfter:
+        - git-clone
       params:
         - name: cluster-name
           value: $(params.cluster-name)
