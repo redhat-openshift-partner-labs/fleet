@@ -2,7 +2,6 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: create-cluster-namespace
-  namespace: openshift-pipelines
 spec:
   params:
     - name: cluster-name

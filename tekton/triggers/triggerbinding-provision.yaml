@@ -2,7 +2,6 @@ apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: provision-binding
-  namespace: openshift-pipelines
 spec:
   params:
     - name: git-repo-url
