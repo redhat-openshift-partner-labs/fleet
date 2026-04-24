@@ -69,11 +69,22 @@ spec:
         - name: pipeline-image
           value: $(params.pipeline-image)
 
+    - name: transform-aws-credentials
+      taskRef:
+        name: transform-aws-credentials
+      runAfter:
+        - wait-for-aws-credentials
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: validate-cluster-inputs
       taskRef:
         name: validate-cluster-inputs
       runAfter:
-        - wait-for-aws-credentials
+        - transform-aws-credentials
       params:
         - name: cluster-name
           value: $(params.cluster-name)
