@@ -16,6 +16,11 @@ def test_secret_found_immediately(mock_run, mock_sleep):
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
     mock_sleep.assert_not_called()
+    mock_run.assert_called_with(
+        ["oc", "get", "secret", "aws-credentials-raw", "-n", "test-cluster"],
+        capture_output=True,
+        text=True,
+    )
 
 
 @mock.patch("fleet.tasks.wait_for_aws_creds.time.sleep")
