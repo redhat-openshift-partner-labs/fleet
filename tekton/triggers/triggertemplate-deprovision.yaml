@@ -2,7 +2,6 @@ apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: deprovision-template
-  namespace: openshift-pipelines
 spec:
   params:
     - name: cluster-name
@@ -11,11 +10,11 @@ spec:
       kind: PipelineRun
       metadata:
         generateName: deprovision-$(tt.params.cluster-name)-
-        namespace: openshift-pipelines
       spec:
         pipelineRef:
           name: deprovision
         params:
           - name: cluster-name
             value: $(tt.params.cluster-name)
-        serviceAccountName: fleet-pipeline
+        taskRunTemplate:
+          serviceAccountName: fleet-pipeline
