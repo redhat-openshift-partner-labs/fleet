@@ -6,4 +6,3 @@ resources:
   - iam-policy.yaml
   - iam-attachment.yaml
   - iam-access-key.yaml
-  - credentials-transformer-job.yaml
