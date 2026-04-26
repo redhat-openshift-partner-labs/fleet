@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: register-keycloak-client
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: keycloak-url
+      type: string
+    - name: keycloak-realm
+      type: string
+    - name: keycloak-admin-secret
+      type: string
+  steps:
+    - name: register
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-register-keycloak-client \
+          --cluster-name "$(params.cluster-name)" \
+          --keycloak-url "$(params.keycloak-url)" \
+          --keycloak-realm "$(params.keycloak-realm)" \
+          --keycloak-admin-secret "$(params.keycloak-admin-secret)"

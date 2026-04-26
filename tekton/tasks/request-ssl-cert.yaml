@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: request-ssl-cert
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: dns-zones
+      type: string
+  steps:
+    - name: request
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-request-ssl-cert \
+          --cluster-name "$(params.cluster-name)" \
+          --dns-zones "$(params.dns-zones)"
