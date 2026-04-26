@@ -142,6 +142,17 @@ spec:
         - name: shared
           workspace: shared-workspace
 
+    - name: read-cluster-tier
+      taskRef:
+        name: read-cluster-tier
+      runAfter:
+        - wait-for-managed-cluster
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: label-for-post-provision
       taskRef:
         name: label-for-post-provision
@@ -152,3 +163,17 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
+
+    - name: trigger-post-provision
+      taskRef:
+        name: trigger-post-provision
+      runAfter:
+        - label-for-post-provision
+        - read-cluster-tier
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: tier
+          value: $(tasks.read-cluster-tier.results.tier)
