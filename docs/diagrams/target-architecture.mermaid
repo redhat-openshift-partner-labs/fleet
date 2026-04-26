@@ -1,0 +1,90 @@
+%% Target architecture: Tekton + ArgoCD + ACM on the hub, spoke is third-party accessible
+flowchart TB
+    subgraph Git["Git (source of truth)"]
+        direction TB
+        GitClusters["clusters/NAME/<br/>(ClusterDeployment, MachinePool,<br/>install-config, tier label)"]
+        GitPipelines["tekton/pipelines/<br/>(provision, post-provision, deprovision)"]
+        GitWorkloads["workloads/TIER/<br/>(day-2 manifests)"]
+        GitHubConfig["hub-config/<br/>(ACM, Tekton, cert-manager)"]
+    end
+
+    subgraph Hub["HUB CLUSTER (trusted)"]
+        direction TB
+
+        subgraph ArgoCD["ArgoCD (manifest delivery only)"]
+            HubApp["Application: hub-config<br/>(delivers Tekton, ACM, cert-manager)"]
+            AppSet["ApplicationSet + ACM<br/>cluster generator<br/>(day-2 workload delivery)"]
+        end
+
+        subgraph ACM["ACM / Hive"]
+            Hive["Hive controller<br/>(provisions via cloud API)"]
+            Placement["Placement / ManagedCluster<br/>(tier label, bootstrapped=true)"]
+        end
+
+        subgraph Tekton["Tekton (workflow engine)"]
+            EL["EventListener<br/>(git webhook)"]
+            ProvisionPipeline["Provision Pipeline"]
+            PostProvisionPipeline["Post-Provision Pipeline<br/>(tier: virt / ai / base)"]
+            DeprovisionPipeline["Deprovision Pipeline"]
+        end
+
+        subgraph SecretAuthority["Hub-only secret authority"]
+            CertMgr["cert-manager<br/>(ClusterIssuer: internal-ca)"]
+        end
+
+        subgraph Crossplane["Crossplane (pre-installed)"]
+            IAMGen["AWS IAM user generation<br/>(per-cluster credentials)"]
+        end
+    end
+
+    subgraph Spoke["SPOKE (third-party accessible)"]
+        direction TB
+        SpokeLeaf["Leaf cert + key only<br/>(no CA material)"]
+        SpokeBaseline["Baseline operators<br/>(by tier: CNV | GPU+OAI | base)"]
+        SpokeIDP["IDP config<br/>(no hub client secret)"]
+        SpokeWorkloads["Day-2 workloads<br/>(via ArgoCD ApplicationSet)"]
+    end
+
+    Git -->|ArgoCD sync| HubApp
+    Git -->|webhook on commit| EL
+    Git -->|repo read during pipeline| ProvisionPipeline
+
+    EL -->|trigger by path| ProvisionPipeline
+    EL -->|trigger by path| PostProvisionPipeline
+    EL -->|trigger on deletion PR| DeprovisionPipeline
+
+    ProvisionPipeline -->|applies Crossplane CRs| IAMGen
+    IAMGen -->|generates AWS creds| Hive
+    ProvisionPipeline -->|applies CRs| Hive
+    ProvisionPipeline -.->|waits for ready| Hive
+    Hive -->|cloud API| Spoke
+
+    PostProvisionPipeline -->|requests cert on hub| CertMgr
+    PostProvisionPipeline -->|derives + pushes<br/>leaf cert + key ONLY| SpokeLeaf
+    PostProvisionPipeline -->|applies tier manifests<br/>via spoke kubeconfig| SpokeBaseline
+    PostProvisionPipeline -->|configures IDP| SpokeIDP
+    PostProvisionPipeline -->|labels spoke<br/>bootstrapped=true| Placement
+
+    Placement -.->|cluster generator| AppSet
+    AppSet -->|delivers workloads| SpokeWorkloads
+
+    DeprovisionPipeline -->|1. delete cluster CRs| Hive
+    DeprovisionPipeline -.->|2. wait for uninstall| Hive
+    DeprovisionPipeline -->|3. clean hub-side artifacts| CertMgr
+
+    classDef git fill:#f4f4f4,stroke:#444,color:#000
+    classDef hub fill:#e8f0ff,stroke:#2a5db0,color:#000
+    classDef spoke fill:#fff4e8,stroke:#b05d2a,color:#000
+    classDef tekton fill:#e6f7ed,stroke:#2a8050,color:#000
+    classDef argocd fill:#ede8ff,stroke:#5d2ab0,color:#000
+    classDef acm fill:#ffe8ed,stroke:#b02a5d,color:#000
+    classDef authority fill:#fff8d8,stroke:#b0902a,color:#000
+    classDef crossplane fill:#e8fff4,stroke:#2ab06a,color:#000
+
+    class GitClusters,GitPipelines,GitWorkloads,GitHubConfig git
+    class HubApp,AppSet argocd
+    class Hive,Placement acm
+    class EL,ProvisionPipeline,PostProvisionPipeline,DeprovisionPipeline tekton
+    class CertMgr authority
+    class IAMGen crossplane
+    class SpokeLeaf,SpokeBaseline,SpokeIDP,SpokeWorkloads spoke

@@ -1,0 +1,88 @@
+%% Post-provision pipeline: 10 implemented tasks + 1 aspirational
+%% Aspirational tasks shown in grey (not yet implemented)
+sequenceDiagram
+    autonumber
+    participant Prov as Provision Pipeline
+    participant Pipe as Post-Provision PipelineRun
+    participant Git
+    participant K8s as Hub K8s API
+    participant CertMgr as cert-manager (hub)
+    participant KC as Keycloak (hub)
+    participant Spoke as Spoke K8s API
+    participant ACM as ACM / Placement
+
+    Note over Prov,ACM: Triggered by provision pipeline's final task (trigger-post-provision)
+
+    Prov->>Pipe: Create PipelineRun: post-provision<br/>params: cluster-name, tier
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
+        Pipe->>Git: git clone --depth=1
+        Git-->>Pipe: repo in shared workspace
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 2: extract-spoke-kubeconfig<br/>(extract admin kubeconfig from hub Secret)
+        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
+        K8s-->>Pipe: kubeconfig (workspace-scoped)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 3: save-spoke-kubeconfig<br/>(write kubeconfig to workspace for subsequent tasks)
+        Pipe->>Pipe: Save kubeconfig to shared workspace path
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,KC: Task 4: register-keycloak-client<br/>(hub-only, Python CLI entry point)
+        Pipe->>KC: fleet-register-keycloak-client<br/>(idempotent, reads cluster-name)
+        KC-->>K8s: Store client-id + client-secret<br/>in hub Secret
+    end
+
+    rect rgb(255, 240, 240)
+        Note over Pipe,Spoke: Task 5: configure-spoke-oauth<br/>(two identity providers on spoke)
+        Pipe->>K8s: Read htpasswd user list<br/>from cluster definition
+        Pipe->>K8s: Read OIDC client-id + secret<br/>from Keycloak registration
+        Pipe->>Spoke: Create htpasswd Secret<br/>in openshift-config
+        Pipe->>Spoke: Create OIDC client Secret<br/>in openshift-config
+        Pipe->>Spoke: Apply OAuth CR with two providers:<br/>htpasswd (per-cluster users)<br/>openid (hub Keycloak)
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 6: request-ssl-cert<br/>(request via cert-manager on hub)
+        Pipe->>K8s: Apply Certificate CR<br/>(ClusterIssuer, wildcard DNS)
+        CertMgr->>K8s: Sign cert, populate Secret<br/>(CA stays on hub)
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 7: wait-for-ssl-ready<br/>(wait for cert-manager to sign)
+        Pipe->>K8s: oc wait --for=condition=Ready<br/>certificate/NAME --timeout=20m
+        K8s-->>Pipe: Certificate ready
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 8: extract-cert-material<br/>(derive leaf-only, push to spoke)
+        Pipe->>K8s: Extract tls.crt + tls.key ONLY<br/>(no ca.crt, no signing material)
+        Pipe->>Spoke: Create Secret in openshift-ingress
+        Pipe->>Spoke: Patch IngressController default<br/>spec.defaultCertificate.name
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
+        Pipe->>Spoke: kustomize build workloads/TIER<br/>(NetworkPolicies, monitoring)
+    end
+
+    rect rgb(255, 240, 240)
+        Note over Pipe,Spoke: Task 10: configure-spoke-rbac<br/>(local group + ClusterRoleBinding)
+        Pipe->>Spoke: Create Group: cluster-admins
+        Pipe->>Spoke: Add per-cluster users to group
+        Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
+    end
+
+    rect rgb(200, 200, 200)
+        Note over Pipe,ACM: Task 11 (not yet implemented): mark-bootstrapped
+        Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
+        ACM-->>ACM: Placement re-evaluates
+        Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin
+    end
+
+    Note over Prov,ACM: All tasks sequential. Pipeline is idempotent.<br/>No out-of-band manual steps. No sync-wave ordering.

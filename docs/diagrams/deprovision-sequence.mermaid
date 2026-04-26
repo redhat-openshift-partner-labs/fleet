@@ -1,0 +1,70 @@
+%% Deprovision pipeline: 4 implemented tasks + 2 aspirational
+%% Aspirational tasks shown in grey (not yet implemented)
+%% Replaces the finalizer + CronJob mechanism entirely
+sequenceDiagram
+    autonumber
+    participant Dev as Developer
+    participant Git
+    participant EL as Tekton EventListener
+    participant Pipe as Deprovision PipelineRun
+    participant ACM as ACM / Placement
+    participant AppSet as ArgoCD ApplicationSet
+    participant K8s as Hub K8s API
+    participant Hive as Hive Controller
+    participant AWS
+    participant CertMgr as cert-manager
+
+    Note over Dev,CertMgr: Replaces: custom finalizers + cluster-wide 5-min CronJob + namespace-terminating dance
+
+    Dev->>Git: PR: delete clusters/NAME/
+    Git-->>EL: Webhook (path delete under clusters/**)
+    EL->>Pipe: Create PipelineRun: deprovision<br/>params: cluster-name
+
+    rect rgb(200, 200, 200)
+        Note over Pipe,AppSet: (not yet implemented) drain-day2-workloads<br/>(stop new deploys before tearing down cluster)
+        Pipe->>K8s: oc label managedcluster/NAME bootstrapped-<br/>(remove label)
+        K8s-->>ACM: Placement re-evaluates
+        ACM-->>AppSet: Cluster no longer in decisions
+        AppSet->>K8s: Delete Applications targeting spoke
+        Pipe->>K8s: oc wait --for=delete applications<br/>-l target-cluster=NAME --timeout=10m
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,Hive: Task 1: delete-cluster-resources<br/>(explicit order, not sync-wave guessing)
+        Pipe->>K8s: Delete KlusterletAddonConfig
+        Pipe->>K8s: Delete ManagedCluster
+        Pipe->>K8s: oc wait --for=delete managedcluster/NAME<br/>--timeout=5m
+        Pipe->>K8s: Delete MachinePool
+        Pipe->>K8s: Delete ClusterDeployment
+    end
+
+    rect rgb(255, 240, 240)
+        Note over Pipe,AWS: Task 2: wait-hive-uninstall<br/>(direct condition wait, not CronJob polling)
+        Hive->>K8s: Create ClusterDeprovision + uninstall Job
+        Note over Hive: Reads aws-credentials + metadata-json directly<br/>(still in same ns, no finalizer gymnastics needed<br/>because pipeline controls order)
+        Hive->>AWS: Delete EC2, LBs, Route53, VPC, S3, EBS, IAM
+        AWS-->>Hive: All cloud resources deleted (10-15 min)
+        Hive->>K8s: Job status.succeeded=1
+        Hive->>K8s: Remove hive finalizer from ClusterDeployment
+        Pipe->>K8s: oc wait --for=delete clusterdeployment/NAME<br/>--timeout=30m
+        K8s-->>Pipe: ClusterDeployment gone
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,CertMgr: Task 3: cleanup-hub-artifacts
+        Pipe->>CertMgr: Delete Certificate CR for spoke-NAME
+        CertMgr->>K8s: Delete cert Secret on hub
+        Pipe->>K8s: Delete cluster namespace on hub<br/>(takes aws-credentials, ssh-key, pull-secret with it)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 4: verify-deprovision
+        Pipe->>K8s: oc get all,secrets -n NAME<br/>(expect: NotFound)
+    end
+
+    rect rgb(200, 200, 200)
+        Note over Pipe,Git: (not yet implemented) close-the-loop
+        Pipe->>Git: (optional) comment on originating PR:<br/>"Deprovision complete: 14m23s"
+    end
+
+    Note over Dev,CertMgr: Total time: ~15-20 min, deterministic.<br/>No CronJob poll delay. No custom finalizers.<br/>Pipeline failure at any step is visible and resumable.

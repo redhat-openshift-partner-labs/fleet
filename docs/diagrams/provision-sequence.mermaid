@@ -1,0 +1,106 @@
+%% Provision pipeline: 13 tasks
+%% Replaces app-of-apps sync-waves + PostSync polling Job
+sequenceDiagram
+    autonumber
+    participant Dev as Developer
+    participant Git
+    participant EL as Tekton EventListener
+    participant Pipe as Provision PipelineRun
+    participant K8s as Hub K8s API
+    participant XP as Crossplane
+    participant Hive as Hive Controller
+    participant ACM as ACM
+    participant AWS
+
+    Note over Dev,AWS: 13-task linear pipeline replaces sync-waves + PostSync polling Job
+
+    Dev->>Git: PR merged to clusters/NAME/
+    Git-->>EL: Webhook (path filter: clusters/**)
+    EL->>Pipe: Create PipelineRun<br/>params: cluster-name, pipeline-image
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
+        Pipe->>Git: git clone --depth=1
+        Git-->>Pipe: repo in shared workspace
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 2: create-cluster-namespace<br/>(ensure namespace exists for cluster resources)
+        Pipe->>K8s: oc create namespace NAME
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,XP: Task 3: apply-crossplane-credentials<br/>(trigger per-cluster IAM user generation)
+        Pipe->>K8s: Apply Crossplane IAM user CRs<br/>(from cluster-templates)
+        XP->>AWS: Create IAM user + access key
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 4: wait-for-aws-credentials<br/>(wait for Crossplane to populate Secret)
+        Pipe->>K8s: oc wait for Secret aws-credentials-raw<br/>in cluster namespace
+        XP-->>K8s: Secret created with access key
+        K8s-->>Pipe: Secret available
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 5: transform-aws-credentials<br/>(reformat Crossplane output for Hive)
+        Pipe->>K8s: Read aws-credentials-raw Secret
+        Pipe->>K8s: Create aws-credentials Secret<br/>(Hive-compatible format)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 6: validate-cluster-inputs<br/>(fail fast if secrets/config missing)
+        Pipe->>K8s: oc get secrets (aws-creds, pull-secret, ssh-key)
+        K8s-->>Pipe: present
+        Pipe->>Pipe: render install-config (dry-run kustomize)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 7: apply-cluster-crs<br/>(explicit order, not sync-waves)
+        Pipe->>K8s: Apply install-config Secret
+        Pipe->>K8s: Apply ClusterDeployment + MachinePool
+        Pipe->>K8s: Apply ManagedCluster
+        Pipe->>K8s: Apply KlusterletAddonConfig
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,Hive: Task 8: wait-for-hive-ready<br/>(native kubectl wait, not a sleep loop)
+        Pipe->>K8s: oc wait --for=condition=Provisioned<br/>clusterdeployment/NAME --timeout=60m
+        Hive->>AWS: Create VPC, EC2, LBs, Route53
+        AWS-->>Hive: Resources created (30-45 min)
+        Hive->>K8s: Create metadata-json, admin-kubeconfig
+        Hive->>K8s: Update status: Provisioned=True
+        K8s-->>Pipe: Condition met (30-45 min)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 9: wait-for-managed-cluster
+        Pipe->>K8s: oc wait --for=condition=ManagedClusterJoined<br/>managedcluster/NAME --timeout=15m
+        ACM-->>K8s: Klusterlet registered
+        K8s-->>Pipe: Joined
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 10: extract-spoke-kubeconfig<br/>(into pipeline workspace, never to git)
+        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
+        K8s-->>Pipe: kubeconfig (workspace-scoped)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 11: read-cluster-tier<br/>(read tier label from ManagedCluster)
+        Pipe->>K8s: oc get managedcluster/NAME<br/>-o jsonpath tier label
+        K8s-->>Pipe: tier=base|virt|ai (result)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 12: label-for-post-provision
+        Pipe->>K8s: oc label managedcluster/NAME<br/>provisioned=true
+    end
+
+    rect rgb(237, 232, 255)
+        Note over Pipe,EL: Task 13: trigger-post-provision<br/>(chained pipeline, decoupled failure domain)
+        Pipe->>EL: Create PipelineRun: post-provision<br/>params: cluster-name, tier
+        Note over Pipe: Provision pipeline ends cleanly
+    end
+
+    Note over Dev,AWS: No PostSync Jobs, no sleep loops, no finalizer Jobs.<br/>Pipeline is idempotent: re-running skips completed tasks.
