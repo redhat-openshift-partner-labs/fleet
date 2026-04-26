@@ -128,6 +128,10 @@ flowchart TB
         subgraph SecretAuthority["Hub-only secret authority"]
             CertMgr["cert-manager<br/>(ClusterIssuer: internal-ca)"]
         end
+
+        subgraph Crossplane["Crossplane (pre-installed)"]
+            IAMGen["AWS IAM user generation<br/>(per-cluster credentials)"]
+        end
     end
 
     subgraph Spoke["SPOKE (third-party accessible)"]
@@ -146,6 +150,8 @@ flowchart TB
     EL -->|trigger by path| PostProvisionPipeline
     EL -->|trigger on deletion PR| DeprovisionPipeline
 
+    ProvisionPipeline -->|applies Crossplane CRs| IAMGen
+    IAMGen -->|generates AWS creds| Hive
     ProvisionPipeline -->|applies CRs| Hive
     ProvisionPipeline -.->|waits for ready| Hive
     Hive -->|cloud API| Spoke
@@ -159,11 +165,9 @@ flowchart TB
     Placement -.->|cluster generator| AppSet
     AppSet -->|delivers workloads| SpokeWorkloads
 
-    DeprovisionPipeline -->|1. remove placement label| Placement
-    DeprovisionPipeline -.->|2. wait AppSet drains| AppSet
-    DeprovisionPipeline -->|3. delete ClusterDeployment| Hive
-    DeprovisionPipeline -.->|4. verify cloud teardown| Hive
-    DeprovisionPipeline -->|5. clean hub-side artifacts| CertMgr
+    DeprovisionPipeline -->|1. delete cluster CRs| Hive
+    DeprovisionPipeline -.->|2. wait for uninstall| Hive
+    DeprovisionPipeline -->|3. clean hub-side artifacts| CertMgr
 
     classDef git fill:#f4f4f4,stroke:#444,color:#000
     classDef hub fill:#e8f0ff,stroke:#2a5db0,color:#000
@@ -172,14 +176,18 @@ flowchart TB
     classDef argocd fill:#ede8ff,stroke:#5d2ab0,color:#000
     classDef acm fill:#ffe8ed,stroke:#b02a5d,color:#000
     classDef authority fill:#fff8d8,stroke:#b0902a,color:#000
+    classDef crossplane fill:#e8fff4,stroke:#2ab06a,color:#000
 
     class GitClusters,GitPipelines,GitWorkloads,GitHubConfig git
     class HubApp,AppSet argocd
     class Hive,Placement acm
     class EL,ProvisionPipeline,PostProvisionPipeline,DeprovisionPipeline tekton
     class CertMgr authority
+    class IAMGen crossplane
     class SpokeLeaf,SpokeBaseline,SpokeIDP,SpokeWorkloads spoke
 ```
+
+> Diagram source: [diagrams/target-architecture.mermaid](./diagrams/target-architecture.mermaid)
 
 ### 2.3 Trust boundary (why this constraint shapes the design)
 
@@ -198,12 +206,13 @@ This is why a Tekton task owns the derive-and-push step. ArgoCD cannot express "
 
 ### 3.1 Provisioning pipeline
 
-Replaces: sync waves, `PostSync` polling Job, 30-second sleep loops.
+Replaces: sync waves, `PostSync` polling Job, 30-second sleep loops, manual Crossplane credential wiring, out-of-band AWS credential transformation.
 
-Key difference: `oc wait --for=condition=Provisioned` is a native Kubernetes primitive for waiting. A Tekton task using it is dramatically simpler, more observable, and more correct than a bash loop in a `Job`.
+Key difference: `oc wait --for=condition=Provisioned` is a native Kubernetes primitive for waiting. A Tekton task using it is dramatically simpler, more observable, and more correct than a bash loop in a `Job`. The pipeline also handles Crossplane IAM credential generation and transformation into Hive-compatible format automatically — no manual steps.
 
 ```mermaid
-%% Provisioning pipeline: replaces app-of-apps sync-waves + PostSync polling Job
+%% Provision pipeline: 13 tasks
+%% Replaces app-of-apps sync-waves + PostSync polling Job
 sequenceDiagram
     autonumber
     participant Dev as Developer
@@ -211,25 +220,56 @@ sequenceDiagram
     participant EL as Tekton EventListener
     participant Pipe as Provision PipelineRun
     participant K8s as Hub K8s API
+    participant XP as Crossplane
     participant Hive as Hive Controller
     participant ACM as ACM
     participant AWS
 
-    Note over Dev,AWS: Single linear pipeline replaces sync-waves + PostSync polling Job
+    Note over Dev,AWS: 13-task linear pipeline replaces sync-waves + PostSync polling Job
 
     Dev->>Git: PR merged to clusters/NAME/
     Git-->>EL: Webhook (path filter: clusters/**)
-    EL->>Pipe: Create PipelineRun<br/>params: cluster-name, tier, region
+    EL->>Pipe: Create PipelineRun<br/>params: cluster-name, pipeline-image
 
     rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 1: validate-inputs<br/>(fails fast if secrets/config missing)
+        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
+        Pipe->>Git: git clone --depth=1
+        Git-->>Pipe: repo in shared workspace
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 2: create-cluster-namespace<br/>(ensure namespace exists for cluster resources)
+        Pipe->>K8s: oc create namespace NAME
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,XP: Task 3: apply-crossplane-credentials<br/>(trigger per-cluster IAM user generation)
+        Pipe->>K8s: Apply Crossplane IAM user CRs<br/>(from cluster-templates)
+        XP->>AWS: Create IAM user + access key
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 4: wait-for-aws-credentials<br/>(wait for Crossplane to populate Secret)
+        Pipe->>K8s: oc wait for Secret aws-credentials-raw<br/>in cluster namespace
+        XP-->>K8s: Secret created with access key
+        K8s-->>Pipe: Secret available
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 5: transform-aws-credentials<br/>(reformat Crossplane output for Hive)
+        Pipe->>K8s: Read aws-credentials-raw Secret
+        Pipe->>K8s: Create aws-credentials Secret<br/>(Hive-compatible format)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 6: validate-cluster-inputs<br/>(fail fast if secrets/config missing)
         Pipe->>K8s: oc get secrets (aws-creds, pull-secret, ssh-key)
         K8s-->>Pipe: present
         Pipe->>Pipe: render install-config (dry-run kustomize)
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 2: apply-cluster-crs<br/>(explicit order, not sync-waves)
+        Note over Pipe,K8s: Task 7: apply-cluster-crs<br/>(explicit order, not sync-waves)
         Pipe->>K8s: Apply install-config Secret
         Pipe->>K8s: Apply ClusterDeployment + MachinePool
         Pipe->>K8s: Apply ManagedCluster
@@ -237,7 +277,7 @@ sequenceDiagram
     end
 
     rect rgb(255, 248, 220)
-        Note over Pipe,Hive: Task 3: wait-for-hive-ready<br/>(native kubectl wait, not a sleep loop)
+        Note over Pipe,Hive: Task 8: wait-for-hive-ready<br/>(native kubectl wait, not a sleep loop)
         Pipe->>K8s: oc wait --for=condition=Provisioned<br/>clusterdeployment/NAME --timeout=60m
         Hive->>AWS: Create VPC, EC2, LBs, Route53
         AWS-->>Hive: Resources created (30-45 min)
@@ -247,25 +287,31 @@ sequenceDiagram
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 4: wait-for-managed-cluster
+        Note over Pipe,K8s: Task 9: wait-for-managed-cluster
         Pipe->>K8s: oc wait --for=condition=ManagedClusterJoined<br/>managedcluster/NAME --timeout=15m
         ACM-->>K8s: Klusterlet registered
         K8s-->>Pipe: Joined
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 5: extract-spoke-kubeconfig<br/>(into pipeline workspace, never to git)
+        Note over Pipe,K8s: Task 10: extract-spoke-kubeconfig<br/>(into pipeline workspace, never to git)
         Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
         K8s-->>Pipe: kubeconfig (workspace-scoped)
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 6: label-cluster-for-post-provisioning
+        Note over Pipe,K8s: Task 11: read-cluster-tier<br/>(read tier label from ManagedCluster)
+        Pipe->>K8s: oc get managedcluster/NAME<br/>-o jsonpath tier label
+        K8s-->>Pipe: tier=base|virt|ai (result)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 12: label-for-post-provision
         Pipe->>K8s: oc label managedcluster/NAME<br/>provisioned=true
     end
 
     rect rgb(237, 232, 255)
-        Note over Pipe,EL: Task 7: trigger-post-provisioning<br/>(chained pipeline, decoupled failure domain)
+        Note over Pipe,EL: Task 13: trigger-post-provision<br/>(chained pipeline, decoupled failure domain)
         Pipe->>EL: Create PipelineRun: post-provision<br/>params: cluster-name, tier
         Note over Pipe: Provision pipeline ends cleanly
     end
@@ -273,15 +319,19 @@ sequenceDiagram
     Note over Dev,AWS: No PostSync Jobs, no sleep loops, no finalizer Jobs.<br/>Pipeline is idempotent: re-running skips completed tasks.
 ```
 
+> Diagram source: [diagrams/provision-sequence.mermaid](./diagrams/provision-sequence.mermaid)
+
 ### 3.2 Post-provisioning pipeline
 
 Replaces: out-of-band `oc create secret` for IDP, manual SSL setup, no RBAC automation.
 
-The post-provision pipeline is a **linear Tekton pipeline** that runs after the provision pipeline completes and before the cluster is labeled `bootstrapped=true`. It handles three concerns that require imperative, ordered execution across the hub–spoke trust boundary:
+The post-provision pipeline is a **10-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
 
-1. **SSL certificate** — request via cert-manager on hub, derive leaf-only material, push to spoke
-2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
-3. **RBAC** — create a local `cluster-admins` group on spoke, bind to `cluster-admin`
+1. **Workspace setup** — git-clone of fleet repo, extraction and saving of spoke kubeconfig from hub Secret
+2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI entry point, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
+3. **SSL certificate** — request via cert-manager on hub, wait for signing, derive leaf-only material, push to spoke ingress
+4. **Workloads** — apply tier-specific baseline workloads via kustomize
+5. **RBAC** — create a local `cluster-admins` group on spoke, add per-cluster users, bind to `cluster-admin`
 
 Tier-specific workload delivery (CNV, GPU operators) is a separate decision — see section 7.
 
@@ -290,40 +340,48 @@ Tier-specific workload delivery (CNV, GPU operators) is a separate decision — 
 **Keycloak client registration:** An existing idempotent Python script registers a new OIDC client in the hub Keycloak instance. Per CLAUDE.md constraints, this script is packaged as a `pyproject.toml` entry point and invoked by a thin bash stub in the Tekton Task YAML. The task produces a client ID and secret, stored in a hub-side Secret for the OAuth configuration task to consume.
 
 ```mermaid
-%% Post-provisioning pipeline: SSL cert, Keycloak client, OAuth (htpasswd + openid), RBAC
+%% Post-provision pipeline: 10 implemented tasks + 1 aspirational
+%% Aspirational tasks shown in grey (not yet implemented)
 sequenceDiagram
     autonumber
     participant Prov as Provision Pipeline
     participant Pipe as Post-Provision PipelineRun
+    participant Git
     participant K8s as Hub K8s API
     participant CertMgr as cert-manager (hub)
     participant KC as Keycloak (hub)
     participant Spoke as Spoke K8s API
     participant ACM as ACM / Placement
 
-    Note over Prov,ACM: Triggered by provision pipeline's final task
+    Note over Prov,ACM: Triggered by provision pipeline's final task (trigger-post-provision)
 
     Prov->>Pipe: Create PipelineRun: post-provision<br/>params: cluster-name, tier
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,Spoke: Task 1: SSL certificate<br/>(request on hub, derive leaf-only, push to spoke)
-        Pipe->>K8s: Apply Certificate CR<br/>(ClusterIssuer, wildcard DNS)
-        CertMgr->>K8s: Sign cert, populate Secret<br/>(CA stays on hub)
-        Pipe->>K8s: oc wait --for=condition=Ready<br/>certificate/NAME --timeout=10m
-        K8s-->>Pipe: Certificate ready
-        Pipe->>K8s: Extract tls.crt + tls.key ONLY<br/>(no ca.crt, no signing material)
-        Pipe->>Spoke: Create Secret in openshift-ingress
-        Pipe->>Spoke: Patch IngressController default<br/>spec.defaultCertificate.name
+    rect rgb(230, 247, 237)
+        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
+        Pipe->>Git: git clone --depth=1
+        Git-->>Pipe: repo in shared workspace
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,K8s: Task 2: extract-spoke-kubeconfig<br/>(extract admin kubeconfig from hub Secret)
+        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
+        K8s-->>Pipe: kubeconfig (workspace-scoped)
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 3: save-spoke-kubeconfig<br/>(write kubeconfig to workspace for subsequent tasks)
+        Pipe->>Pipe: Save kubeconfig to shared workspace path
     end
 
     rect rgb(255, 248, 220)
-        Note over Pipe,KC: Task 2: Keycloak client registration<br/>(hub-only, Python CLI entry point)
+        Note over Pipe,KC: Task 4: register-keycloak-client<br/>(hub-only, Python CLI entry point)
         Pipe->>KC: fleet-register-keycloak-client<br/>(idempotent, reads cluster-name)
         KC-->>K8s: Store client-id + client-secret<br/>in hub Secret
     end
 
     rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 3: OAuth configuration<br/>(two identity providers on spoke)
+        Note over Pipe,Spoke: Task 5: configure-spoke-oauth<br/>(two identity providers on spoke)
         Pipe->>K8s: Read htpasswd user list<br/>from cluster definition
         Pipe->>K8s: Read OIDC client-id + secret<br/>from Keycloak registration
         Pipe->>Spoke: Create htpasswd Secret<br/>in openshift-config
@@ -331,20 +389,39 @@ sequenceDiagram
         Pipe->>Spoke: Apply OAuth CR with two providers:<br/>htpasswd (per-cluster users)<br/>openid (hub Keycloak)
     end
 
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 6: request-ssl-cert<br/>(request via cert-manager on hub)
+        Pipe->>K8s: Apply Certificate CR<br/>(ClusterIssuer, wildcard DNS)
+        CertMgr->>K8s: Sign cert, populate Secret<br/>(CA stays on hub)
+    end
+
+    rect rgb(255, 248, 220)
+        Note over Pipe,K8s: Task 7: wait-for-ssl-ready<br/>(wait for cert-manager to sign)
+        Pipe->>K8s: oc wait --for=condition=Ready<br/>certificate/NAME --timeout=20m
+        K8s-->>Pipe: Certificate ready
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 8: extract-cert-material<br/>(derive leaf-only, push to spoke)
+        Pipe->>K8s: Extract tls.crt + tls.key ONLY<br/>(no ca.crt, no signing material)
+        Pipe->>Spoke: Create Secret in openshift-ingress
+        Pipe->>Spoke: Patch IngressController default<br/>spec.defaultCertificate.name
+    end
+
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
+        Pipe->>Spoke: kustomize build workloads/TIER<br/>(NetworkPolicies, monitoring)
+    end
+
     rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 4: RBAC setup<br/>(local group + ClusterRoleBinding)
+        Note over Pipe,Spoke: Task 10: configure-spoke-rbac<br/>(local group + ClusterRoleBinding)
         Pipe->>Spoke: Create Group: cluster-admins
         Pipe->>Spoke: Add per-cluster users to group
         Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 5: Apply baseline config<br/>(common to all tiers)
-        Pipe->>Spoke: kustomize build workloads/base<br/>(NetworkPolicies, monitoring)
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,ACM: Task 6: Mark bootstrapped
+    rect rgb(200, 200, 200)
+        Note over Pipe,ACM: Task 11 (not yet implemented): mark-bootstrapped
         Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
         ACM-->>ACM: Placement re-evaluates
         Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin
@@ -353,14 +430,20 @@ sequenceDiagram
     Note over Prov,ACM: All tasks sequential. Pipeline is idempotent.<br/>No out-of-band manual steps. No sync-wave ordering.
 ```
 
+> Diagram source: [diagrams/post-provision-sequence.mermaid](./diagrams/post-provision-sequence.mermaid)
+
 ### 3.3 Deprovisioning pipeline
 
 Replaces: `deprovision-cleanup-cronjob.yaml` + custom finalizer + namespace-terminating dance.
 
 The key insight: **when the pipeline controls the order, finalizers become unnecessary**. The current design needs finalizers because ArgoCD prune can delete `aws-credentials` before Hive has finished using it — the pipeline prevents that by simply not doing those things in parallel.
 
+The implemented pipeline has **4 tasks** with 2 aspirational tasks not yet built (shown in grey below): draining day-2 workloads before teardown and closing the loop with a PR comment.
+
 ```mermaid
-%% Deprovisioning pipeline: replaces the finalizer + CronJob mechanism entirely.
+%% Deprovision pipeline: 4 implemented tasks + 2 aspirational
+%% Aspirational tasks shown in grey (not yet implemented)
+%% Replaces the finalizer + CronJob mechanism entirely
 sequenceDiagram
     autonumber
     participant Dev as Developer
@@ -380,8 +463,8 @@ sequenceDiagram
     Git-->>EL: Webhook (path delete under clusters/**)
     EL->>Pipe: Create PipelineRun: deprovision<br/>params: cluster-name
 
-    rect rgb(237, 232, 255)
-        Note over Pipe,AppSet: Task 1: drain-day2-workloads<br/>(stop new deploys before tearing down cluster)
+    rect rgb(200, 200, 200)
+        Note over Pipe,AppSet: (not yet implemented) drain-day2-workloads<br/>(stop new deploys before tearing down cluster)
         Pipe->>K8s: oc label managedcluster/NAME bootstrapped-<br/>(remove label)
         K8s-->>ACM: Placement re-evaluates
         ACM-->>AppSet: Cluster no longer in decisions
@@ -390,7 +473,7 @@ sequenceDiagram
     end
 
     rect rgb(255, 248, 220)
-        Note over Pipe,Hive: Task 2: delete-cluster-resources<br/>(explicit order, no sync-wave guessing)
+        Note over Pipe,Hive: Task 1: delete-cluster-resources<br/>(explicit order, not sync-wave guessing)
         Pipe->>K8s: Delete KlusterletAddonConfig
         Pipe->>K8s: Delete ManagedCluster
         Pipe->>K8s: oc wait --for=delete managedcluster/NAME<br/>--timeout=5m
@@ -399,38 +482,38 @@ sequenceDiagram
     end
 
     rect rgb(255, 240, 240)
-        Note over Pipe,AWS: Task 3: wait-hive-uninstall<br/>(direct condition wait, not CronJob polling)
+        Note over Pipe,AWS: Task 2: wait-hive-uninstall<br/>(direct condition wait, not CronJob polling)
         Hive->>K8s: Create ClusterDeprovision + uninstall Job
         Note over Hive: Reads aws-credentials + metadata-json directly<br/>(still in same ns, no finalizer gymnastics needed<br/>because pipeline controls order)
         Hive->>AWS: Delete EC2, LBs, Route53, VPC, S3, EBS, IAM
         AWS-->>Hive: All cloud resources deleted (10-15 min)
         Hive->>K8s: Job status.succeeded=1
         Hive->>K8s: Remove hive finalizer from ClusterDeployment
-        Pipe->>K8s: oc wait --for=delete clusterdeployment/NAME<br/>--timeout=20m
+        Pipe->>K8s: oc wait --for=delete clusterdeployment/NAME<br/>--timeout=30m
         K8s-->>Pipe: ClusterDeployment gone
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe,CertMgr: Task 4: cleanup-hub-artifacts
+        Note over Pipe,CertMgr: Task 3: cleanup-hub-artifacts
         Pipe->>CertMgr: Delete Certificate CR for spoke-NAME
         CertMgr->>K8s: Delete cert Secret on hub
         Pipe->>K8s: Delete cluster namespace on hub<br/>(takes aws-credentials, ssh-key, pull-secret with it)
-        Pipe->>K8s: Revoke leaf cert if PKI supports OCSP
     end
 
     rect rgb(230, 247, 237)
-        Note over Pipe: Task 5: verify-clean
+        Note over Pipe,K8s: Task 4: verify-deprovision
         Pipe->>K8s: oc get all,secrets -n NAME<br/>(expect: NotFound)
-        Pipe->>AWS: Optional: aws resource list with cluster tag<br/>(defensive orphan check)
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Git: Task 6: close-the-loop
+    rect rgb(200, 200, 200)
+        Note over Pipe,Git: (not yet implemented) close-the-loop
         Pipe->>Git: (optional) comment on originating PR:<br/>"Deprovision complete: 14m23s"
     end
 
     Note over Dev,CertMgr: Total time: ~15-20 min, deterministic.<br/>No CronJob poll delay. No custom finalizers.<br/>Pipeline failure at any step is visible and resumable.
 ```
+
+> Diagram source: [diagrams/deprovision-sequence.mermaid](./diagrams/deprovision-sequence.mermaid)
 
 ---
 
@@ -508,7 +591,7 @@ Recommended sequence (each step delivers value and is reversible if needed):
   - `cluster-deletion-workflow.md`
   - `bootstrap/argocd-app-of-apps.yaml`
   - `bootstrap/deprovision-cleanup-cronjob.yaml`
-- Target architecture diagrams are embedded inline in sections 2.2, 3.1, 3.2, and 3.3 above (mermaid format).
+- Target architecture diagrams are embedded inline in sections 2.2, 3.1, 3.2, and 3.3 above (mermaid format). Standalone source files live in [`docs/diagrams/`](./diagrams/).
 - External:
   - [OpenShift Pipelines (Tekton) docs](https://docs.openshift.com/pipelines/)
   - [OpenShift GitOps (ArgoCD) docs](https://docs.openshift.com/gitops/)
