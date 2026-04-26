@@ -1,0 +1,19 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-ssh-key
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  steps:
+    - name: create-ssh-key
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-create-ssh-key --cluster-name "$(params.cluster-name)"

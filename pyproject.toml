@@ -22,6 +22,8 @@ bandit = "^1.7"
 
 [tool.poetry.scripts]
 fleet-create-namespace = "fleet.tasks.create_namespace:main"
+fleet-create-pull-secret = "fleet.tasks.create_pull_secret:main"
+fleet-create-ssh-key = "fleet.tasks.create_ssh_key:main"
 fleet-apply-crossplane-creds = "fleet.tasks.apply_crossplane_creds:main"
 fleet-wait-for-aws-creds = "fleet.tasks.wait_for_aws_creds:main"
 fleet-transform-aws-creds = "fleet.tasks.transform_aws_creds:main"
