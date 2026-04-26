@@ -44,11 +44,34 @@ spec:
         - name: pipeline-image
           value: $(params.pipeline-image)
 
+    - name: create-ssh-key
+      taskRef:
+        name: create-ssh-key
+      runAfter:
+        - create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: create-pull-secret
+      taskRef:
+        name: create-pull-secret
+      runAfter:
+        - create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: apply-crossplane-credentials
       taskRef:
         name: apply-crossplane-credentials
       runAfter:
-        - create-cluster-namespace
+        - create-ssh-key
+        - create-pull-secret
       params:
         - name: cluster-name
           value: $(params.cluster-name)
