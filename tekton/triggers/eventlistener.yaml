@@ -59,3 +59,15 @@ spec:
         - ref: deprovision-binding
       template:
         ref: deprovision-template
+    - name: post-provision
+      interceptors:
+        - ref:
+            name: cel
+          params:
+            - name: filter
+              value: >-
+                has(body.action) && body.action == 'post-provision'
+      bindings:
+        - ref: post-provision-binding
+      template:
+        ref: post-provision-template

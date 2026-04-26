@@ -1,0 +1,40 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: post-provision-template
+spec:
+  params:
+    - name: cluster-name
+    - name: tier
+    - name: dns-zones
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: post-provision-$(tt.params.cluster-name)-
+      spec:
+        pipelineRef:
+          name: post-provision
+        params:
+          - name: cluster-name
+            value: $(tt.params.cluster-name)
+          - name: tier
+            value: $(tt.params.tier)
+          - name: dns-zones
+            value: $(tt.params.dns-zones)
+        taskRunTemplate:
+          serviceAccountName: fleet-pipeline
+          podTemplate:
+            securityContext:
+              fsGroup: 0
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+                storageClassName: gp3-csi

@@ -1,0 +1,13 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: post-provision-binding
+spec:
+  params:
+    - name: cluster-name
+      value: $(body.cluster_name)
+    - name: tier
+      value: $(body.tier)
+    - name: dns-zones
+      value: $(body.dns_zones)
