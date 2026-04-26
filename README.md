@@ -21,6 +21,8 @@ It does **not** hold: day-2 workloads, tenant application manifests, or anything
 
 The guiding rule: *ArgoCD reconciles declarative state. Tekton runs ordered workflows. ACM/Hive controls cluster lifecycle.* Each tool does one job.
 
+For day-to-day operations (provisioning, deprovisioning, troubleshooting), see the [User Guide](docs/user-guide.md).
+
 ## Repo layout
 
 ```
