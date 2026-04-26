@@ -8,6 +8,7 @@ packages = [{include = "fleet"}]
 python = ">=3.11"
 pyyaml = "^6.0"
 kubernetes = "^29.0"
+requests = "^2.31"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
@@ -34,6 +35,15 @@ fleet-delete-cluster-resources = "fleet.tasks.delete_cluster_resources:main"
 fleet-wait-hive-uninstall = "fleet.tasks.wait_hive_uninstall:main"
 fleet-cleanup-hub-artifacts = "fleet.tasks.cleanup_hub_artifacts:main"
 fleet-verify-deprovision = "fleet.tasks.verify_deprovision:main"
+fleet-save-spoke-kubeconfig = "fleet.tasks.save_spoke_kubeconfig:main"
+fleet-register-keycloak-client = "fleet.tasks.register_keycloak_client:main"
+fleet-configure-spoke-oauth = "fleet.tasks.configure_spoke_oauth:main"
+fleet-request-ssl-cert = "fleet.tasks.request_ssl_cert:main"
+fleet-wait-for-ssl-ready = "fleet.tasks.wait_for_ssl_ready:main"
+fleet-extract-cert-material = "fleet.tasks.extract_cert_material:main"
+fleet-apply-base-workloads = "fleet.tasks.apply_base_workloads:main"
+fleet-configure-spoke-rbac = "fleet.tasks.configure_spoke_rbac:main"
+fleet-trigger-post-provision = "fleet.tasks.trigger_post_provision:main"
 
 [tool.pylint.messages_control]
 disable = [

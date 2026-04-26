@@ -12,6 +12,15 @@ resources:
   - wait-for-managed-cluster.yaml
   - extract-spoke-kubeconfig.yaml
   - label-for-post-provision.yaml
+  - trigger-post-provision.yaml
+  - save-spoke-kubeconfig.yaml
+  - register-keycloak-client.yaml
+  - configure-spoke-oauth.yaml
+  - request-ssl-cert.yaml
+  - wait-for-ssl-ready.yaml
+  - extract-cert-material.yaml
+  - apply-base-workloads.yaml
+  - configure-spoke-rbac.yaml
   - delete-cluster-resources.yaml
   - wait-hive-uninstall.yaml
   - cleanup-hub-artifacts.yaml

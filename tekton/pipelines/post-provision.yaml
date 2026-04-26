@@ -1,0 +1,172 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: post-provision
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: tier
+      type: string
+    - name: git-repo-url
+      type: string
+      default: https://github.com/redhat-openshift-partner-labs/fleet.git
+    - name: git-revision
+      type: string
+      default: main
+    - name: pipeline-image
+      type: string
+      default: quay.io/rhopl/fleet-pipeline:latest
+    - name: keycloak-url
+      type: string
+      default: https://keycloak.example.com
+    - name: keycloak-realm
+      type: string
+      default: openshift
+    - name: keycloak-admin-secret
+      type: string
+      default: keycloak-admin
+    - name: dns-zones
+      type: string
+  workspaces:
+    - name: shared-workspace
+
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: URL
+          value: $(params.git-repo-url)
+        - name: REVISION
+          value: $(params.git-revision)
+        - name: DEPTH
+          value: "1"
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
+    - name: extract-spoke-kubeconfig
+      taskRef:
+        name: extract-spoke-kubeconfig
+      runAfter:
+        - git-clone
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: save-spoke-kubeconfig
+      taskRef:
+        name: save-spoke-kubeconfig
+      runAfter:
+        - extract-spoke-kubeconfig
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: register-keycloak-client
+      taskRef:
+        name: register-keycloak-client
+      runAfter:
+        - save-spoke-kubeconfig
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: keycloak-url
+          value: $(params.keycloak-url)
+        - name: keycloak-realm
+          value: $(params.keycloak-realm)
+        - name: keycloak-admin-secret
+          value: $(params.keycloak-admin-secret)
+
+    - name: configure-spoke-oauth
+      taskRef:
+        name: configure-spoke-oauth
+      runAfter:
+        - register-keycloak-client
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: request-ssl-cert
+      taskRef:
+        name: request-ssl-cert
+      runAfter:
+        - configure-spoke-oauth
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: dns-zones
+          value: $(params.dns-zones)
+
+    - name: wait-for-ssl-ready
+      taskRef:
+        name: wait-for-ssl-ready
+      runAfter:
+        - request-ssl-cert
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      timeout: "20m"
+
+    - name: extract-cert-material
+      taskRef:
+        name: extract-cert-material
+      runAfter:
+        - wait-for-ssl-ready
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: apply-base-workloads
+      taskRef:
+        name: apply-base-workloads
+      runAfter:
+        - extract-cert-material
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: tier
+          value: $(params.tier)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: configure-spoke-rbac
+      taskRef:
+        name: configure-spoke-rbac
+      runAfter:
+        - apply-base-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
