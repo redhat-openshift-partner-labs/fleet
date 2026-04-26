@@ -1,0 +1,23 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: read-cluster-tier
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  results:
+    - name: tier
+      description: The tier label value from the ManagedCluster
+  steps:
+    - name: read-tier
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-read-cluster-tier --cluster-name "$(params.cluster-name)" \
+          | tee "$(results.tier.path)"
