@@ -8,6 +8,11 @@ spec:
       type: string
     - name: pipeline-image
       type: string
+    - name: keycloak-issuer-url
+      type: string
+    - name: provider-name
+      type: string
+      default: "RedHat"
   workspaces:
     - name: shared
   steps:
@@ -20,4 +25,6 @@ spec:
         fleet-configure-spoke-oauth \
           --cluster-name "$(params.cluster-name)" \
           --spoke-kubeconfig "$(workspaces.shared.path)/kubeconfig" \
-          --cluster-dir "$(workspaces.shared.path)/clusters/$(params.cluster-name)"
+          --cluster-dir "$(workspaces.shared.path)/clusters/$(params.cluster-name)" \
+          --keycloak-issuer-url "$(params.keycloak-issuer-url)" \
+          --provider-name "$(params.provider-name)"

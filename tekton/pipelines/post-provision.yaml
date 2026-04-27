@@ -26,6 +26,19 @@ spec:
     - name: keycloak-admin-secret
       type: string
       default: keycloak-admin
+    - name: base-domain
+      type: string
+    - name: auth-realm
+      type: string
+      default: "master"
+    - name: keycloak-issuer-url
+      type: string
+    - name: provider-name
+      type: string
+      default: "RedHat"
+    - name: insecure
+      type: string
+      default: "false"
     - name: dns-zones
       type: string
   workspaces:
@@ -90,6 +103,14 @@ spec:
           value: $(params.keycloak-realm)
         - name: keycloak-admin-secret
           value: $(params.keycloak-admin-secret)
+        - name: base-domain
+          value: $(params.base-domain)
+        - name: auth-realm
+          value: $(params.auth-realm)
+        - name: provider-name
+          value: $(params.provider-name)
+        - name: insecure
+          value: $(params.insecure)
 
     - name: configure-spoke-oauth
       taskRef:
@@ -101,6 +122,10 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
+        - name: keycloak-issuer-url
+          value: $(params.keycloak-issuer-url)
+        - name: provider-name
+          value: $(params.provider-name)
       workspaces:
         - name: shared
           workspace: shared-workspace
