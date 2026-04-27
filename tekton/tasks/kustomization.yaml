@@ -3,6 +3,8 @@ kind: Kustomization
 
 resources:
   - create-cluster-namespace.yaml
+  - create-ssh-key.yaml
+  - create-pull-secret.yaml
   - apply-crossplane-credentials.yaml
   - wait-for-aws-credentials.yaml
   - transform-aws-credentials.yaml
