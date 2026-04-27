@@ -29,7 +29,7 @@ def main() -> None:
         sys.exit(1)
 
     apply = subprocess.run(
-        ["oc", "apply", "-f", "-"],
+        ["oc", "apply", "--server-side=true", "--force-conflicts", "-f", "-"],
         input=build.stdout,
         capture_output=True,
         text=True,
