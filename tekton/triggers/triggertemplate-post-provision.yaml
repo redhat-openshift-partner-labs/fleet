@@ -8,6 +8,8 @@ spec:
     - name: cluster-name
     - name: tier
     - name: dns-zones
+    - name: base-domain
+    - name: keycloak-issuer-url
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -23,6 +25,10 @@ spec:
             value: $(tt.params.tier)
           - name: dns-zones
             value: $(tt.params.dns-zones)
+          - name: base-domain
+            value: $(tt.params.base-domain)
+          - name: keycloak-issuer-url
+            value: $(tt.params.keycloak-issuer-url)
         taskRunTemplate:
           serviceAccountName: fleet-pipeline
           podTemplate:
