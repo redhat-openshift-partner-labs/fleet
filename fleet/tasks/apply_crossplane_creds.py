@@ -5,6 +5,7 @@ Builds clusters/{cluster}/ with kustomize and applies the output. Exits 1 on bui
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
@@ -18,9 +19,10 @@ def main() -> None:
     cluster = args.cluster_name
     source = args.source_dir
 
-    print(f"Building kustomize output for {source}...")
+    crossplane_dir = os.path.join(source, "crossplane")
+    print(f"Building kustomize output for {crossplane_dir}...")
     build = subprocess.run(
-        ["kustomize", "build", source],
+        ["kustomize", "build", crossplane_dir],
         capture_output=True,
         text=True,
     )

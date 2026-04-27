@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../cluster-templates/aws-ha/base/crossplane
+
+patches:
+  - target:
+      kind: User
+      name: cluster-placeholder-ocp-installer
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-ocp-installer
+  - target:
+      kind: Policy
+      name: cluster-placeholder-openshift4installerpolicy
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-openshift4installerpolicy
+      - op: replace
+        path: /spec/forProvider/name
+        value: test-cluster-01-OpenShift4InstallerPolicy
+  - target:
+      kind: UserPolicyAttachment
+      name: cluster-placeholder-policy-attachment
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-policy-attachment
+      - op: replace
+        path: /spec/forProvider/policyArnRef/name
+        value: test-cluster-01-openshift4installerpolicy
+      - op: replace
+        path: /spec/forProvider/userRef/name
+        value: test-cluster-01-ocp-installer
+  - target:
+      kind: AccessKey
+      name: cluster-placeholder-access-key
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: test-cluster-01-access-key
+      - op: replace
+        path: /spec/forProvider/userRef/name
+        value: test-cluster-01-ocp-installer
+      - op: replace
+        path: /spec/writeConnectionSecretToRef/namespace
+        value: test-cluster-01

@@ -5,6 +5,7 @@ Builds clusters/{cluster}/ with kustomize and applies via oc. Exits 1 on build o
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
@@ -18,9 +19,10 @@ def main() -> None:
     cluster = args.cluster_name
     source = args.source_dir
 
+    hive_dir = os.path.join(source, "hive")
     print(f"Applying cluster CRs for {cluster}...")
     build = subprocess.run(
-        ["kustomize", "build", source],
+        ["kustomize", "build", hive_dir],
         capture_output=True,
         text=True,
     )

@@ -21,7 +21,7 @@ def test_apply_success(mock_run):
         main()
     assert mock_run.call_count == 2
     mock_run.assert_any_call(
-        ["kustomize", "build", "/src"],
+        ["kustomize", "build", "/src/crossplane"],
         capture_output=True,
         text=True,
     )

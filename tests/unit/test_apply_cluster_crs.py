@@ -18,6 +18,11 @@ def test_apply_success(mock_run):
     ):
         main()
     assert mock_run.call_count == 2
+    mock_run.assert_any_call(
+        ["kustomize", "build", "/repo/hive"],
+        capture_output=True,
+        text=True,
+    )
 
 
 @mock.patch("fleet.tasks.apply_cluster_crs.subprocess.run")
