@@ -28,11 +28,13 @@ spec:
       default: keycloak-admin
     - name: base-domain
       type: string
+      default: example.com
     - name: auth-realm
       type: string
       default: "master"
     - name: keycloak-issuer-url
       type: string
+      default: https://keycloak.example.com/realms/openshift
     - name: provider-name
       type: string
       default: "RedHat"

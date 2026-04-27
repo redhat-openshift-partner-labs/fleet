@@ -10,6 +10,10 @@ spec:
       type: string
     - name: tier
       type: string
+    - name: base-domain
+      type: string
+    - name: keycloak-issuer-url
+      type: string
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -19,4 +23,6 @@ spec:
         set -euo pipefail
         fleet-trigger-post-provision \
           --cluster-name "$(params.cluster-name)" \
-          --tier "$(params.tier)"
+          --tier "$(params.tier)" \
+          --base-domain "$(params.base-domain)" \
+          --keycloak-issuer-url "$(params.keycloak-issuer-url)"
