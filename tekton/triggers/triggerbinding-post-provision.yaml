@@ -11,3 +11,7 @@ spec:
       value: $(body.tier)
     - name: dns-zones
       value: $(body.dns_zones)
+    - name: base-domain
+      value: $(body.base_domain)
+    - name: keycloak-issuer-url
+      value: $(body.keycloak_issuer_url)
