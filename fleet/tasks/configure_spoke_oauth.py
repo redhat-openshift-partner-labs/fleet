@@ -1,6 +1,7 @@
 """Configure OAuth identity providers on the spoke cluster.
 
-CLI: fleet-configure-spoke-oauth --cluster-name NAME --spoke-kubeconfig PATH --cluster-dir PATH
+CLI: fleet-configure-spoke-oauth --cluster-name NAME --spoke-kubeconfig PATH
+     --cluster-dir PATH --keycloak-issuer-url URL --provider-name NAME
 Applies htpasswd Secret + OAuth CR to spoke. Exits 1 on failure.
 """
 
@@ -15,6 +16,8 @@ def main() -> None:
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--spoke-kubeconfig", required=True)
     parser.add_argument("--cluster-dir", required=True)
+    parser.add_argument("--keycloak-issuer-url", required=True)
+    parser.add_argument("--provider-name", default="RedHat")
     args = parser.parse_args()
 
     htpasswd_secret_yaml = textwrap.dedent("""\
@@ -51,14 +54,14 @@ def main() -> None:
             htpasswd:
               fileData:
                 name: htpasswd-secret
-          - name: oidc
+          - name: {args.provider_name}
             type: OpenID
             mappingMethod: claim
             openID:
               clientID: {args.cluster_name}
               clientSecret:
-                name: openid-client-secret-{args.cluster_name}
-              issuer: https://keycloak.example.com/realms/openshift
+                name: {args.cluster_name}-keycloak-client
+              issuer: {args.keycloak_issuer_url}
               claims:
                 preferredUsername:
                 - preferred_username
