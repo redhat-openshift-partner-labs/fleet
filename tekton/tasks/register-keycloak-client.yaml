@@ -14,6 +14,17 @@ spec:
       type: string
     - name: keycloak-admin-secret
       type: string
+    - name: base-domain
+      type: string
+    - name: auth-realm
+      type: string
+      default: "master"
+    - name: provider-name
+      type: string
+      default: "RedHat"
+    - name: insecure
+      type: string
+      default: "false"
   steps:
     - name: register
       image: $(params.pipeline-image)
@@ -21,8 +32,16 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        fleet-register-keycloak-client \
-          --cluster-name "$(params.cluster-name)" \
-          --keycloak-url "$(params.keycloak-url)" \
-          --keycloak-realm "$(params.keycloak-realm)" \
+        ARGS=(
+          --cluster-name "$(params.cluster-name)"
+          --keycloak-url "$(params.keycloak-url)"
+          --keycloak-realm "$(params.keycloak-realm)"
           --keycloak-admin-secret "$(params.keycloak-admin-secret)"
+          --base-domain "$(params.base-domain)"
+          --auth-realm "$(params.auth-realm)"
+          --provider-name "$(params.provider-name)"
+        )
+        if [ "$(params.insecure)" = "true" ]; then
+          ARGS+=(--insecure)
+        fi
+        fleet-register-keycloak-client "${ARGS[@]}"
