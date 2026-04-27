@@ -10,7 +10,9 @@ RUN pip install --no-cache-dir /src && \
     curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
     | tar xz -C /tmp kustomize
 
-FROM registry.access.redhat.com/ubi9-micro:latest
+FROM registry.access.redhat.com/ubi9-minimal:latest
+
+RUN microdnf install -y openssh-clients openssl-libs && microdnf clean all
 
 COPY --from=build /opt/app-root /opt/app-root
 COPY --from=build /usr/bin/python3.11 /usr/bin/python3.11
