@@ -15,6 +15,12 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
+    - name: base-domain
+      type: string
+      default: example.com
+    - name: keycloak-issuer-url
+      type: string
+      default: https://keycloak.example.com/realms/openshift
   workspaces:
     - name: shared-workspace
 
@@ -200,3 +206,7 @@ spec:
           value: $(params.pipeline-image)
         - name: tier
           value: $(tasks.read-cluster-tier.results.tier)
+        - name: base-domain
+          value: $(params.base-domain)
+        - name: keycloak-issuer-url
+          value: $(params.keycloak-issuer-url)

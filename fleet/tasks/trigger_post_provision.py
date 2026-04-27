@@ -1,6 +1,7 @@
 """Trigger the post-provision pipeline by creating a PipelineRun.
 
 CLI: fleet-trigger-post-provision --cluster-name NAME --tier TIER
+     --base-domain DOMAIN --keycloak-issuer-url URL
 Derives dns-zones from the ClusterDeployment baseDomain, then creates a
 PipelineRun for the post-provision pipeline. Exits 1 on failure.
 """
@@ -15,10 +16,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--tier", required=True)
+    parser.add_argument("--base-domain", required=True)
+    parser.add_argument("--keycloak-issuer-url", required=True)
     args = parser.parse_args()
 
     cluster = args.cluster_name
     tier = args.tier
+    base_domain = args.base_domain
+    keycloak_issuer_url = args.keycloak_issuer_url
 
     bd_result = subprocess.run(
         [
@@ -41,8 +46,8 @@ def main() -> None:
         )
         sys.exit(1)
 
-    base_domain = bd_result.stdout.strip()
-    dns_zones = f"*.apps.{cluster}.{base_domain},api.{cluster}.{base_domain}"
+    cd_base_domain = bd_result.stdout.strip()
+    dns_zones = f"*.apps.{cluster}.{cd_base_domain},api.{cluster}.{cd_base_domain}"
 
     pipelinerun_yaml = textwrap.dedent(f"""\
         apiVersion: tekton.dev/v1
@@ -59,6 +64,10 @@ def main() -> None:
               value: {tier}
             - name: dns-zones
               value: "{dns_zones}"
+            - name: base-domain
+              value: {base_domain}
+            - name: keycloak-issuer-url
+              value: {keycloak_issuer_url}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:
