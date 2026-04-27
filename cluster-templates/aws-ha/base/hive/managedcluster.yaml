@@ -1,0 +1,32 @@
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: cluster-placeholder
+  labels:
+    cloud: AWS
+    vendor: OpenShift
+    environment: production
+    cluster.open-cluster-management.io/clusterset: default
+spec:
+  hubAcceptsClient: true
+  leaseDurationSeconds: 60
+---
+apiVersion: agent.open-cluster-management.io/v1
+kind: KlusterletAddonConfig
+metadata:
+  name: cluster-placeholder
+  namespace: cluster-placeholder
+spec:
+  clusterName: cluster-placeholder
+  clusterNamespace: cluster-placeholder
+  clusterLabels:
+    cloud: AWS
+    vendor: OpenShift
+  applicationManager:
+    enabled: true
+  policyController:
+    enabled: true
+  searchCollector:
+    enabled: true
+  certPolicyController:
+    enabled: true

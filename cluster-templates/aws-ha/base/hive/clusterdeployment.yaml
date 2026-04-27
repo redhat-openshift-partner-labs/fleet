@@ -1,0 +1,23 @@
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  name: cluster-placeholder
+  namespace: cluster-placeholder
+spec:
+  baseDomain: openshiftpartnerlabs.com
+  clusterName: cluster-placeholder
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: aws-credentials
+      region: us-east-1
+  provisioning:
+    installConfigSecretRef:
+      name: cluster-placeholder-install-config
+    sshPrivateKeySecretRef:
+      name: cluster-placeholder-ssh-key
+    imageSetRef:
+      name: img4.20.10-x86-64-appsub
+  pullSecretRef:
+    name: pull-secret
+  powerState: Running
