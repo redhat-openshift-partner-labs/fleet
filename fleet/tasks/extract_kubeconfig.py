@@ -9,6 +9,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -17,8 +19,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("extract-kubeconfig")
 
-    print(f"Extracting spoke kubeconfig for {cluster}...")
+    info(f"Extracting spoke kubeconfig for {cluster}...")
 
     result = subprocess.run(
         [
@@ -55,7 +58,7 @@ def main() -> None:
         text=True,
     )
     if extract.returncode != 0:
-        print(f"Failed to extract kubeconfig: {extract.stderr}", file=sys.stderr)
+        error(f"Failed to extract kubeconfig: {extract.stderr}")
         sys.exit(1)
 
-    print("Spoke kubeconfig saved to workspace")
+    info("Spoke kubeconfig saved to workspace")

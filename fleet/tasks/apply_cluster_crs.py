@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -20,14 +22,15 @@ def main() -> None:
     source = args.source_dir
 
     hive_dir = os.path.join(source, "hive")
-    print(f"Applying cluster CRs for {cluster}...")
+    configure("apply-cluster-crs")
+    info(f"Applying cluster CRs for {cluster}...")
     build = subprocess.run(
         ["kustomize", "build", hive_dir],
         capture_output=True,
         text=True,
     )
     if build.returncode != 0:
-        print(f"kustomize build failed: {build.stderr}", file=sys.stderr)
+        error(f"kustomize build failed: {build.stderr}")
         sys.exit(1)
 
     apply = subprocess.run(
@@ -37,7 +40,7 @@ def main() -> None:
         text=True,
     )
     if apply.returncode != 0:
-        print(f"oc apply failed: {apply.stderr}", file=sys.stderr)
+        error(f"oc apply failed: {apply.stderr}")
         sys.exit(1)
 
-    print("Cluster resources applied")
+    info("Cluster resources applied")

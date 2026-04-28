@@ -9,12 +9,16 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--spoke-kubeconfig", required=True)
     args = parser.parse_args()
+
+    configure("configure-spoke-rbac")
 
     rbac_yaml = textwrap.dedent("""\
         apiVersion: user.openshift.io/v1
@@ -44,5 +48,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to configure RBAC: {result.stderr}", file=sys.stderr)
+        error(f"Failed to configure RBAC: {result.stderr}")
         sys.exit(1)
+
+    info("Configured RBAC: cluster-admins group and ClusterRoleBinding applied")

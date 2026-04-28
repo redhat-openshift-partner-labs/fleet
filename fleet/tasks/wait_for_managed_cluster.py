@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -16,8 +18,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("wait-for-managed-cluster")
 
-    print(f"Waiting for ManagedCluster {cluster} to join (timeout: {args.timeout})...")
+    info(f"Waiting for ManagedCluster {cluster} to join (timeout: {args.timeout})...")
     result = subprocess.run(
         [
             "oc",
@@ -30,7 +33,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"ManagedCluster {cluster} not joined: {result.stderr}", file=sys.stderr)
+        error(f"ManagedCluster {cluster} not joined: {result.stderr}")
         sys.exit(1)
 
-    print(f"ManagedCluster {cluster} joined")
+    info(f"ManagedCluster {cluster} joined")

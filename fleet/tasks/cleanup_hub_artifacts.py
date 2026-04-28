@@ -10,6 +10,8 @@ import subprocess
 import sys
 import time
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -17,8 +19,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
-
-    print(f"Cleaning up hub-side artifacts for {cluster}...")
+    configure("cleanup-hub-artifacts")
+    info(f"Cleaning up hub-side artifacts for {cluster}...")
 
     subprocess.run(
         [
@@ -33,7 +35,7 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  Certificate CRs deleted")
+    info("  Certificate CRs deleted")
 
     subprocess.run(
         [
@@ -46,7 +48,7 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  ClusterIssuer deleted")
+    info("  ClusterIssuer deleted")
 
     for resource in [
         "user.iam",
@@ -67,9 +69,9 @@ def main() -> None:
             capture_output=True,
             text=True,
         )
-    print("  Crossplane IAM resources deleted")
+    info("  Crossplane IAM resources deleted")
 
-    print("Waiting for Crossplane resources to be fully cleaned up...")
+    info("Waiting for Crossplane resources to be fully cleaned up...")
     time.sleep(15)
 
     result = subprocess.run(
@@ -84,11 +86,8 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(
-            f"Failed to delete namespace {cluster}: {result.stderr}",
-            file=sys.stderr,
-        )
+        error(f"Failed to delete namespace {cluster}: {result.stderr}")
         sys.exit(1)
-    print(f"  Namespace {cluster} deleted (takes remaining secrets with it)")
+    info(f"  Namespace {cluster} deleted (takes remaining secrets with it)")
 
-    print("Hub artifacts cleaned up")
+    info("Hub artifacts cleaned up")

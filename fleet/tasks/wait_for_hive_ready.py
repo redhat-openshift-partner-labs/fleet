@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -16,8 +18,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("wait-for-hive-ready")
 
-    print(
+    info(
         f"Waiting for ClusterDeployment {cluster} to be provisioned (timeout: {args.timeout})..."
     )
     result = subprocess.run(
@@ -34,10 +37,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(
-            f"ClusterDeployment {cluster} not provisioned: {result.stderr}",
-            file=sys.stderr,
-        )
+        error(f"ClusterDeployment {cluster} not provisioned: {result.stderr}")
         sys.exit(1)
 
-    print(f"Cluster {cluster} provisioned successfully")
+    info(f"Cluster {cluster} provisioned successfully")

@@ -8,6 +8,8 @@ and ClusterDeployment. All operations are idempotent via --ignore-not-found.
 import argparse
 import subprocess
 
+from fleet.tasks._log import configure, info, warn
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -15,8 +17,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("delete-cluster-resources")
 
-    print(f"Deleting cluster resources for {cluster} in explicit order...")
+    info(f"Deleting cluster resources for {cluster} in explicit order...")
 
     subprocess.run(
         [
@@ -31,16 +34,16 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  KlusterletAddonConfig deleted")
+    info("  KlusterletAddonConfig deleted")
 
     subprocess.run(
         ["oc", "delete", "managedcluster", cluster, "--ignore-not-found=true"],
         capture_output=True,
         text=True,
     )
-    print("  ManagedCluster deleted")
+    info("  ManagedCluster deleted")
 
-    subprocess.run(
+    result = subprocess.run(
         [
             "oc",
             "wait",
@@ -51,7 +54,10 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  ManagedCluster wait complete")
+    if result.returncode != 0:
+        warn(f"  ManagedCluster delete wait failed: {result.stderr}")
+    else:
+        info("  ManagedCluster wait complete")
 
     subprocess.run(
         [
@@ -66,7 +72,7 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  MachinePools deleted")
+    info("  MachinePools deleted")
 
     subprocess.run(
         [
@@ -81,4 +87,4 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    print("  ClusterDeployment delete requested (Hive uninstall will run)")
+    info("  ClusterDeployment delete requested (Hive uninstall will run)")

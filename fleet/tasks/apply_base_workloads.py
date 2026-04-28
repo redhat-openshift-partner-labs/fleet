@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -16,13 +18,17 @@ def main() -> None:
     parser.add_argument("--spoke-kubeconfig", required=True)
     args = parser.parse_args()
 
+    cluster = args.cluster_name
+    configure("apply-base-workloads")
+    info(f"Applying base workloads for {cluster}...")
+
     build = subprocess.run(
         ["kustomize", "build", args.source_dir],
         capture_output=True,
         text=True,
     )
     if build.returncode != 0:
-        print(f"kustomize build failed: {build.stderr}", file=sys.stderr)
+        error(f"kustomize build failed: {build.stderr}")
         sys.exit(1)
 
     apply = subprocess.run(
@@ -32,5 +38,7 @@ def main() -> None:
         text=True,
     )
     if apply.returncode != 0:
-        print(f"Failed to apply workloads: {apply.stderr}", file=sys.stderr)
+        error(f"Failed to apply workloads: {apply.stderr}")
         sys.exit(1)
+
+    info(f"Applied base workloads for {cluster} on spoke cluster")

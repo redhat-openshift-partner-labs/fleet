@@ -13,6 +13,8 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -25,6 +27,8 @@ def main() -> None:
     parser.add_argument("--keycloak-admin-secret", required=True)
     parser.add_argument("--auth-realm", required=True)
     args = parser.parse_args()
+
+    configure("trigger-post-provision")
 
     cluster = args.cluster_name
     tier = args.tier
@@ -50,14 +54,13 @@ def main() -> None:
         text=True,
     )
     if bd_result.returncode != 0 or not bd_result.stdout.strip():
-        print(
-            f"Failed to read baseDomain: {bd_result.stderr}",
-            file=sys.stderr,
-        )
+        error(f"Failed to read baseDomain: {bd_result.stderr}")
         sys.exit(1)
 
     cd_base_domain = bd_result.stdout.strip()
     dns_zones = f"*.apps.{cluster}.{cd_base_domain},api.{cluster}.{cd_base_domain}"
+
+    info(f"Triggering post-provision pipeline for {cluster} (tier: {tier})...")
 
     pipelinerun_yaml = textwrap.dedent(f"""\
         apiVersion: tekton.dev/v1
@@ -110,7 +113,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to create PipelineRun: {result.stderr}", file=sys.stderr)
+        error(f"Failed to create PipelineRun: {result.stderr}")
         sys.exit(1)
 
-    print(f"Post-provision PipelineRun created for {cluster}")
+    info(f"Post-provision PipelineRun created for {cluster}")

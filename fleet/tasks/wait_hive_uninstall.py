@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -16,8 +18,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("wait-hive-uninstall")
 
-    print(f"Waiting for Hive uninstall to complete (timeout: {args.timeout})...")
+    info(f"Waiting for Hive uninstall to complete (timeout: {args.timeout})...")
 
     result = subprocess.run(
         [
@@ -32,7 +35,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"ClusterDeployment {cluster} already gone")
+        info("ClusterDeployment already gone")
         return
 
     result = subprocess.run(
@@ -49,10 +52,9 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(
-            f"Timed out waiting for ClusterDeployment {cluster} deletion: {result.stderr}",
-            file=sys.stderr,
+        error(
+            f"Timed out waiting for ClusterDeployment {cluster} deletion: {result.stderr}"
         )
         sys.exit(1)
 
-    print(f"ClusterDeployment {cluster} deleted (cloud cleanup complete)")
+    info("ClusterDeployment deleted (cloud cleanup complete)")

@@ -17,6 +17,8 @@ import textwrap
 
 import requests
 
+from fleet.tasks._log import configure, error, info
+
 
 def _read_secret_key(secret_name: str, key: str) -> str:
     result = subprocess.run(
@@ -32,10 +34,7 @@ def _read_secret_key(secret_name: str, key: str) -> str:
         text=True,
     )
     if result.returncode != 0:
-        print(
-            f"Failed to read {key} from {secret_name}: {result.stderr}",
-            file=sys.stderr,
-        )
+        error(f"Failed to read {key} from {secret_name}: {result.stderr}")
         sys.exit(1)
     return result.stdout.strip()
 
@@ -92,10 +91,7 @@ def _get_admin_token(
     try:
         token_resp.raise_for_status()
     except requests.HTTPError:
-        print(
-            f"Failed to get Keycloak admin token: {token_resp.text}",
-            file=sys.stderr,
-        )
+        error(f"Failed to get Keycloak admin token: {token_resp.text}")
         sys.exit(1)
     return token_resp.json()["access_token"]
 
@@ -110,7 +106,7 @@ def _verify_realm(
         verify=verify_tls,
     )
     if resp.status_code == 404:
-        print(f"Realm '{realm}' does not exist", file=sys.stderr)
+        error(f"Realm '{realm}' does not exist")
         sys.exit(1)
 
 
@@ -176,6 +172,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("register-keycloak-client")
+    info("Registering Keycloak OIDC client...")
+
     base_url = args.keycloak_url.rstrip("/")
     realm = args.keycloak_realm
     verify_tls = not args.insecure
@@ -186,6 +185,8 @@ def main() -> None:
     token = _get_admin_token(
         base_url, admin_user, admin_pass, args.auth_realm, verify_tls
     )
+    info("Obtained Keycloak admin token")
+
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     _verify_realm(base_url, realm, headers, verify_tls)
@@ -199,6 +200,7 @@ def main() -> None:
         args.provider_name,
         verify_tls,
     )
+    info(f"Registered Keycloak OIDC client: {cluster}")
 
     secret_resp = requests.get(
         f"{base_url}/admin/realms/{realm}/clients/{client_id}/client-secret",
@@ -226,5 +228,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to create client secret: {result.stderr}", file=sys.stderr)
+        error(f"Failed to create client secret: {result.stderr}")
         sys.exit(1)
+
+    info("Client secret stored in hub Secret")

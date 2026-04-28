@@ -53,6 +53,7 @@ disable = [
     "missing-function-docstring",
     "subprocess-run-check",
     "duplicate-code",
+    "global-statement",
 ]
 
 [tool.bandit]

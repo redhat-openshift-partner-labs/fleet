@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -20,6 +22,7 @@ def main() -> None:
 
     cluster = args.cluster_name
     secret_name = f"{cluster}-ssh-key"
+    configure("create-ssh-key")
 
     result = subprocess.run(
         ["oc", "get", "secret", secret_name, "-n", cluster],
@@ -27,7 +30,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode == 0:
-        print(f"Secret {secret_name} already exists in {cluster}")
+        info(f"Secret {secret_name} already exists in {cluster}")
         return
 
     try:
@@ -68,10 +71,7 @@ def main() -> None:
                 check=True,
             )
     except subprocess.CalledProcessError as exc:
-        print(
-            f"ERROR: Failed to create {secret_name} in {cluster}: {exc}",
-            file=sys.stderr,
-        )
+        error(f"Failed to create {secret_name} in {cluster}: {exc}")
         sys.exit(1)
 
-    print(f"Secret {secret_name} created in {cluster}")
+    info(f"Secret {secret_name} created in {cluster}")

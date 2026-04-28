@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -15,6 +17,7 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("read-cluster-tier")
 
     result = subprocess.run(
         [
@@ -29,12 +32,12 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to read tier label: {result.stderr}", file=sys.stderr)
+        error(f"Failed to read tier label: {result.stderr}")
         sys.exit(1)
 
     tier = result.stdout.strip()
     if not tier:
-        print("Tier label is empty on ManagedCluster", file=sys.stderr)
+        error("Tier label is empty on ManagedCluster")
         sys.exit(1)
 
-    print(tier)
+    info(tier)

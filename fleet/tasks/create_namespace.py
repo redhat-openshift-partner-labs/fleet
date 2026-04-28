@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info, warn
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -15,13 +17,14 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("create-namespace")
     result = subprocess.run(
         ["oc", "get", "namespace", cluster],
         capture_output=True,
         text=True,
     )
     if result.returncode == 0:
-        print(f"Namespace {cluster} already exists")
+        warn(f"Namespace {cluster} already exists")
         return
 
     result = subprocess.run(
@@ -30,6 +33,6 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to create namespace {cluster}: {result.stderr}", file=sys.stderr)
+        error(f"Failed to create namespace: {result.stderr}")
         sys.exit(1)
-    print(f"Namespace {cluster} created")
+    info(f"Namespace {cluster} created")
