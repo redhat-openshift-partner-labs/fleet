@@ -8,6 +8,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -15,6 +17,7 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("label-post-provision")
 
     result = subprocess.run(
         [
@@ -28,7 +31,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to label ManagedCluster: {result.stderr}", file=sys.stderr)
+        error(f"Failed to label ManagedCluster: {result.stderr}")
         sys.exit(1)
 
-    print(f"ManagedCluster {cluster} labeled provisioned=true")
+    info(f"ManagedCluster {cluster} labeled provisioned=true")

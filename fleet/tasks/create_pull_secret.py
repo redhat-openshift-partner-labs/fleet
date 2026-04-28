@@ -12,6 +12,8 @@ import json
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -30,8 +32,10 @@ def main() -> None:
         text=True,
     )
     if result.returncode == 0:
-        print(f"Secret pull-secret already exists in {cluster}")
+        info(f"Secret pull-secret already exists in {cluster}")
         return
+
+    configure("create-pull-secret")
 
     try:
         result = subprocess.run(
@@ -62,10 +66,7 @@ def main() -> None:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        print(
-            f"ERROR: Failed to copy pull-secret to {cluster}: {exc}",
-            file=sys.stderr,
-        )
+        error(f"Failed to copy pull-secret to {cluster}: {exc}")
         sys.exit(1)
 
-    print(f"Secret pull-secret created in {cluster}")
+    info(f"Secret pull-secret created in {cluster}")

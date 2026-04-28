@@ -10,6 +10,8 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -18,6 +20,7 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("extract-cert-material")
 
     get_result = subprocess.run(
         [
@@ -33,7 +36,7 @@ def main() -> None:
         text=True,
     )
     if get_result.returncode != 0:
-        print(f"Failed to get cert secret: {get_result.stderr}", file=sys.stderr)
+        error(f"Failed to get cert secret: {get_result.stderr}")
         sys.exit(1)
 
     data = json.loads(get_result.stdout)
@@ -59,7 +62,7 @@ def main() -> None:
         text=True,
     )
     if apply_result.returncode != 0:
-        print(
-            f"Failed to create leaf-cert secret: {apply_result.stderr}", file=sys.stderr
-        )
+        error(f"Failed to create leaf-cert secret: {apply_result.stderr}")
         sys.exit(1)
+
+    info("Extracted and saved leaf certificate material")

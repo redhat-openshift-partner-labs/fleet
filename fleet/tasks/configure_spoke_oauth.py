@@ -10,6 +10,8 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -19,6 +21,8 @@ def main() -> None:
     parser.add_argument("--keycloak-issuer-url", required=True)
     parser.add_argument("--provider-name", default="RedHat")
     args = parser.parse_args()
+
+    configure("configure-spoke-oauth")
 
     htpasswd_secret_yaml = textwrap.dedent("""\
         apiVersion: v1
@@ -38,8 +42,9 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to apply htpasswd secret: {result.stderr}", file=sys.stderr)
+        error(f"Failed to apply htpasswd secret: {result.stderr}")
         sys.exit(1)
+    info("Configured htpasswd Secret")
 
     oauth_yaml = textwrap.dedent(f"""\
         apiVersion: config.openshift.io/v1
@@ -78,5 +83,6 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to apply OAuth config: {result.stderr}", file=sys.stderr)
+        error(f"Failed to apply OAuth config: {result.stderr}")
         sys.exit(1)
+    info("Configured OAuth identity providers")

@@ -10,6 +10,8 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -18,11 +20,14 @@ def main() -> None:
     parser.add_argument("--namespace", default="openshift-pipelines")
     args = parser.parse_args()
 
+    configure("save-spoke-kubeconfig")
+    info(f"Saving spoke kubeconfig for {args.cluster_name}...")
+
     try:
         with open(args.kubeconfig_file, encoding="utf-8") as f:
             kubeconfig_data = f.read()
     except FileNotFoundError:
-        print(f"Kubeconfig file not found: {args.kubeconfig_file}", file=sys.stderr)
+        error(f"Kubeconfig file not found: {args.kubeconfig_file}")
         sys.exit(1)
 
     encoded = base64.b64encode(kubeconfig_data.encode()).decode()
@@ -45,5 +50,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to save kubeconfig: {result.stderr}", file=sys.stderr)
+        error(f"Failed to save kubeconfig: {result.stderr}")
         sys.exit(1)
+
+    info(f"Saved spoke kubeconfig to hub Secret for {args.cluster_name}")

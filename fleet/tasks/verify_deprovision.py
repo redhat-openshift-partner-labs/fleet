@@ -9,6 +9,8 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, info, warn
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -16,9 +18,11 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("verify-deprovision")
+
     errors = 0
 
-    print(f"Verifying clean deprovision for {cluster}...")
+    info(f"Verifying clean deprovision for {cluster}...")
 
     result = subprocess.run(
         ["oc", "get", "namespace", cluster],
@@ -26,10 +30,10 @@ def main() -> None:
         text=True,
     )
     if result.returncode == 0:
-        print(f"  FAIL Namespace {cluster} still exists")
+        warn(f"  FAIL Namespace {cluster} still exists")
         errors += 1
     else:
-        print(f"  OK Namespace {cluster} gone")
+        info(f"  OK Namespace {cluster} gone")
 
     result = subprocess.run(
         ["oc", "get", "managedcluster", cluster],
@@ -37,10 +41,10 @@ def main() -> None:
         text=True,
     )
     if result.returncode == 0:
-        print(f"  FAIL ManagedCluster {cluster} still exists")
+        warn(f"  FAIL ManagedCluster {cluster} still exists")
         errors += 1
     else:
-        print(f"  OK ManagedCluster {cluster} gone")
+        info(f"  OK ManagedCluster {cluster} gone")
 
     result = subprocess.run(
         ["oc", "get", "clusterdeployment", cluster, "-n", cluster],
@@ -48,15 +52,13 @@ def main() -> None:
         text=True,
     )
     if result.returncode == 0:
-        print(f"  FAIL ClusterDeployment {cluster} still exists")
+        warn(f"  FAIL ClusterDeployment {cluster} still exists")
         errors += 1
     else:
-        print(f"  OK ClusterDeployment {cluster} gone")
+        info(f"  OK ClusterDeployment {cluster} gone")
 
     if errors > 0:
-        print(
-            f"WARNING: {errors} resources still present. Manual cleanup may be needed."
-        )
+        warn(f"{errors} resources still present. Manual cleanup may be needed.")
         sys.exit(1)
 
-    print("Deprovision verified: all resources cleaned up")
+    info("Deprovision verified: all resources cleaned up")

@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -20,17 +22,18 @@ def main() -> None:
     source = args.source_dir
 
     crossplane_dir = os.path.join(source, "crossplane")
-    print(f"Building kustomize output for {crossplane_dir}...")
+    configure("apply-crossplane-creds")
+    info(f"Building kustomize output for {crossplane_dir}...")
     build = subprocess.run(
         ["kustomize", "build", crossplane_dir],
         capture_output=True,
         text=True,
     )
     if build.returncode != 0:
-        print(f"kustomize build failed: {build.stderr}", file=sys.stderr)
+        error(f"kustomize build failed: {build.stderr}")
         sys.exit(1)
 
-    print(f"Applying Crossplane resources for {cluster}...")
+    info(f"Applying Crossplane resources for {cluster}...")
     apply = subprocess.run(
         ["oc", "apply", "-f", "-"],
         input=build.stdout,
@@ -38,7 +41,7 @@ def main() -> None:
         text=True,
     )
     if apply.returncode != 0:
-        print(f"oc apply failed: {apply.stderr}", file=sys.stderr)
+        error(f"oc apply failed: {apply.stderr}")
         sys.exit(1)
 
-    print(f"Crossplane resources applied for {cluster}")
+    info(f"Crossplane resources applied for {cluster}")

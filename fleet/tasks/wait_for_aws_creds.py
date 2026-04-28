@@ -9,6 +9,8 @@ import subprocess
 import sys
 import time
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -17,11 +19,13 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("wait-for-aws-creds")
+
     timeout = args.timeout_seconds
     elapsed = 0
     interval = 10
 
-    print(f"Waiting for aws-credentials-raw Secret in namespace {cluster}...")
+    info(f"Waiting for aws-credentials-raw Secret in namespace {cluster}...")
 
     while elapsed < timeout:
         result = subprocess.run(
@@ -30,17 +34,14 @@ def main() -> None:
             text=True,
         )
         if result.returncode == 0:
-            print(f"aws-credentials-raw Secret found in {cluster}")
+            info(f"aws-credentials-raw Secret found in {cluster}")
             return
 
         time.sleep(interval)
         elapsed += interval
-        print(f"  waiting... ({elapsed}s / {timeout}s)")
+        info(f"  Waiting... ({elapsed}s / {timeout}s)")
 
-    print(
-        f"ERROR: Timed out after {timeout}s waiting for aws-credentials-raw",
-        file=sys.stderr,
-    )
+    error(f"Timed out after {timeout}s waiting for aws-credentials-raw")
     subprocess.run(
         ["oc", "get", "user.iam,accesskey.iam,job", "-n", cluster],
         capture_output=True,

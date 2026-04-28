@@ -8,12 +8,16 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--timeout", default="15m")
     args = parser.parse_args()
+
+    configure("wait-for-ssl-ready")
 
     result = subprocess.run(
         [
@@ -27,5 +31,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Certificate not ready: {result.stderr}", file=sys.stderr)
+        error(f"Certificate not ready: {result.stderr}")
         sys.exit(1)
+
+    info("SSL certificate is ready")

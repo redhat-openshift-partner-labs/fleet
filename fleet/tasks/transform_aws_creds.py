@@ -11,6 +11,8 @@ import binascii
 import subprocess
 import sys
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -18,6 +20,7 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
+    configure("transform-aws-creds")
 
     try:
         access_key_b64 = subprocess.run(
@@ -55,10 +58,7 @@ def main() -> None:
         access_key = base64.b64decode(access_key_b64).decode()
         secret_key = base64.b64decode(secret_key_b64).decode()
     except (subprocess.CalledProcessError, binascii.Error) as exc:
-        print(
-            f"ERROR: Failed to extract aws-credentials-raw in {cluster}: {exc}",
-            file=sys.stderr,
-        )
+        error(f"Failed to extract aws-credentials-raw in {cluster}: {exc}")
         sys.exit(1)
 
     try:
@@ -89,10 +89,7 @@ def main() -> None:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        print(
-            f"ERROR: Failed to create aws-credentials in {cluster}: {exc}",
-            file=sys.stderr,
-        )
+        error(f"Failed to create aws-credentials in {cluster}: {exc}")
         sys.exit(1)
 
-    print(f"aws-credentials Secret created in {cluster}")
+    info(f"aws-credentials Secret created in {cluster}")

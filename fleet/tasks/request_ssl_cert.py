@@ -9,12 +9,16 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._log import configure, error, info
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--dns-zones", required=True)
     args = parser.parse_args()
+
+    configure("request-ssl-cert")
 
     cluster = args.cluster_name
     zones = [z.strip() for z in args.dns_zones.split(",")]
@@ -41,5 +45,7 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Failed to create certificate: {result.stderr}", file=sys.stderr)
+        error(f"Failed to create certificate: {result.stderr}")
         sys.exit(1)
+
+    info(f"Requested TLS certificate for {cluster}")
