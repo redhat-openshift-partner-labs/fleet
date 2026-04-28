@@ -17,6 +17,14 @@ BASE_ARGV = [
     "example.com",
     "--keycloak-issuer-url",
     "https://keycloak.example.com/realms/openshift",
+    "--keycloak-url",
+    "https://keycloak.example.com",
+    "--keycloak-realm",
+    "openshift",
+    "--keycloak-admin-secret",
+    "keycloak-admin",
+    "--auth-realm",
+    "master",
 ]
 
 
@@ -62,6 +70,14 @@ def test_trigger_includes_cluster_and_tier(mock_run):
         "example.com",
         "--keycloak-issuer-url",
         "https://kc.example.com/realms/r",
+        "--keycloak-url",
+        "https://kc.example.com",
+        "--keycloak-realm",
+        "r",
+        "--keycloak-admin-secret",
+        "keycloak-admin",
+        "--auth-realm",
+        "master",
     ]
     with mock.patch("sys.argv", argv):
         main()
@@ -103,6 +119,14 @@ def test_trigger_derives_dns_zones(mock_run):
         "example.com",
         "--keycloak-issuer-url",
         "https://kc.example.com/realms/r",
+        "--keycloak-url",
+        "https://kc.example.com",
+        "--keycloak-realm",
+        "r",
+        "--keycloak-admin-secret",
+        "keycloak-admin",
+        "--auth-realm",
+        "master",
     ]
     with mock.patch("sys.argv", argv):
         main()
@@ -137,6 +161,21 @@ def test_trigger_creates_pipelinerun_with_taskruntemplate(mock_run):
 
 
 @mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_passes_keycloak_and_auth_params(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    argv = BASE_ARGV[:]
+    with mock.patch("sys.argv", argv):
+        main()
+    stdin_yaml = mock_run.call_args.kwargs["input"]
+    doc = yaml.safe_load(stdin_yaml)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["keycloak-url"] == "https://keycloak.example.com"
+    assert params["keycloak-realm"] == "openshift"
+    assert params["keycloak-admin-secret"] == "keycloak-admin"
+    assert params["auth-realm"] == "master"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
 def test_trigger_passes_base_domain_and_issuer_url(mock_run):
     mock_run.side_effect = [_basedomain_result(), _create_result()]
     argv = [
@@ -149,6 +188,14 @@ def test_trigger_passes_base_domain_and_issuer_url(mock_run):
         "labs.example.com",
         "--keycloak-issuer-url",
         "https://sso.prod.com/realms/prod",
+        "--keycloak-url",
+        "https://sso.prod.com",
+        "--keycloak-realm",
+        "prod",
+        "--keycloak-admin-secret",
+        "keycloak-admin",
+        "--auth-realm",
+        "master",
     ]
     with mock.patch("sys.argv", argv):
         main()
