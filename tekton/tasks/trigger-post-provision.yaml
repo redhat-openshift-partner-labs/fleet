@@ -14,6 +14,14 @@ spec:
       type: string
     - name: keycloak-issuer-url
       type: string
+    - name: keycloak-url
+      type: string
+    - name: keycloak-realm
+      type: string
+    - name: keycloak-admin-secret
+      type: string
+    - name: auth-realm
+      type: string
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -25,4 +33,8 @@ spec:
           --cluster-name "$(params.cluster-name)" \
           --tier "$(params.tier)" \
           --base-domain "$(params.base-domain)" \
-          --keycloak-issuer-url "$(params.keycloak-issuer-url)"
+          --keycloak-issuer-url "$(params.keycloak-issuer-url)" \
+          --keycloak-url "$(params.keycloak-url)" \
+          --keycloak-realm "$(params.keycloak-realm)" \
+          --keycloak-admin-secret "$(params.keycloak-admin-secret)" \
+          --auth-realm "$(params.auth-realm)"
