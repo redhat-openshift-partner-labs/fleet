@@ -15,3 +15,11 @@ spec:
       value: $(body.base_domain)
     - name: keycloak-issuer-url
       value: $(body.keycloak_issuer_url)
+    - name: keycloak-url
+      value: $(body.keycloak_url)
+    - name: keycloak-realm
+      value: $(body.keycloak_realm)
+    - name: keycloak-admin-secret
+      value: $(body.keycloak_admin_secret)
+    - name: auth-realm
+      value: $(body.auth_realm)
