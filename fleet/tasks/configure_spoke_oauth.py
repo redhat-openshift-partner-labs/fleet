@@ -24,6 +24,14 @@ def main() -> None:
 
     configure("configure-spoke-oauth")
 
+    info("=== Configuring OAuth identity providers ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={args.cluster_name}")
+    info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
+    info(f"  cluster-dir={args.cluster_dir}")
+    info(f"  keycloak-issuer-url={args.keycloak_issuer_url}")
+    info(f"  provider-name={args.provider_name}")
+
     htpasswd_secret_yaml = textwrap.dedent("""\
         apiVersion: v1
         kind: Secret
@@ -34,17 +42,18 @@ def main() -> None:
         data:
           htpasswd: ""
     """)
-
+    info("Applying htpasswd Secret to openshift-config...")
     result = subprocess.run(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],
         input=htpasswd_secret_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to apply htpasswd secret: {result.stderr}")
         sys.exit(1)
-    info("Configured htpasswd Secret")
+    info("  -> htpasswd Secret applied")
 
     oauth_yaml = textwrap.dedent(f"""\
         apiVersion: config.openshift.io/v1
@@ -75,14 +84,17 @@ def main() -> None:
                 email:
                 - email
     """)
-
+    info(
+        f"Applying OAuth config with OpenID provider '{args.provider_name}' (issuer: {args.keycloak_issuer_url})..."
+    )
     result = subprocess.run(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],
         input=oauth_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to apply OAuth config: {result.stderr}")
         sys.exit(1)
-    info("Configured OAuth identity providers")
+    info("OAuth identity providers configured")

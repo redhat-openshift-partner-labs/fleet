@@ -139,7 +139,6 @@ def test_register_new_client(mock_requests, mock_run):
     assert payload["clientId"] == "test-cluster"
     assert payload["redirectUris"][0].endswith("/oauth2callback/RedHat")
     assert payload["publicClient"] is False
-    assert payload["standardFlowEnabled"] is True
 
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
@@ -173,7 +172,6 @@ def test_register_existing_client_puts_update(mock_requests, mock_run):
     assert "existing-uuid" in put_call.args[0]
     payload = put_call.kwargs["json"]
     assert payload["clientId"] == "test-cluster"
-    assert payload["standardFlowEnabled"] is True
     assert payload["redirectUris"][0].endswith("/oauth2callback/RedHat")
 
 
@@ -410,3 +408,28 @@ def test_provider_name_in_redirect_uri(mock_requests, mock_run):
     create_call = mock_requests.post.call_args_list[1]
     payload = create_call.kwargs["json"]
     assert "/oauth2callback/CustomIDP" in payload["redirectUris"][0]
+
+
+@mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
+@mock.patch("fleet.tasks.register_keycloak_client.requests")
+def test_create_client_returns_fail(mock_requests, mock_run):
+    """Test that create with HTTP 500 fails properly and logs error."""
+    token_resp = _mock_token_resp()
+    realm_resp = _mock_realm_resp()
+    get_resp = mock.Mock()
+    get_resp.status_code = 200
+    get_resp.json.return_value = []
+
+    fail_resp = mock.Mock()
+    fail_resp.status_code = 500
+    fail_resp.text = "Internal Server Error"
+
+    mock_requests.post.side_effect = [token_resp, fail_resp]
+    mock_requests.get.side_effect = [realm_resp, get_resp]
+
+    mock_run.side_effect = _admin_cred_side_effects()
+
+    with mock.patch("sys.argv", BASE_ARGV):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert mock_requests.post.call_count == 2

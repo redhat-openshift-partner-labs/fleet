@@ -19,6 +19,12 @@ def main() -> None:
     cluster = args.cluster_name
     configure("label-post-provision")
 
+    info("=== Labeling ManagedCluster as provisioned ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  label=provisioned=true (overwrite)")
+
+    info(f"Running: oc label managedcluster/{cluster} provisioned=true --overwrite...")
     result = subprocess.run(
         [
             "oc",
@@ -30,8 +36,8 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc label exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to label ManagedCluster: {result.stderr}")
         sys.exit(1)
-
-    info(f"ManagedCluster {cluster} labeled provisioned=true")
+    info("ManagedCluster provisioned=true labeled")

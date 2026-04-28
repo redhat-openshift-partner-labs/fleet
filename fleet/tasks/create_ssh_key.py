@@ -10,6 +10,7 @@ import argparse
 import os
 import subprocess
 import sys
+
 import tempfile
 
 from fleet.tasks._log import configure, error, info
@@ -24,15 +25,22 @@ def main() -> None:
     secret_name = f"{cluster}-ssh-key"
     configure("create-ssh-key")
 
+    info("=== Creating SSH key pair ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  secret-name={secret_name}")
+
+    info(f"Checking if secret '{secret_name}' exists...")
     result = subprocess.run(
         ["oc", "get", "secret", secret_name, "-n", cluster],
         capture_output=True,
         text=True,
     )
     if result.returncode == 0:
-        info(f"Secret {secret_name} already exists in {cluster}")
+        info(f"Secret {secret_name} already exists")
         return
 
+    info("Generating ed25519 SSH key pair...")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             key_path = os.path.join(tmpdir, "key")
@@ -43,7 +51,7 @@ def main() -> None:
                 check=True,
             )
             with open(key_path, encoding="utf-8") as fh:
-                private_key = fh.read()
+                _ = fh.read()
 
             dry_run = subprocess.run(
                 [
@@ -54,7 +62,7 @@ def main() -> None:
                     secret_name,
                     "-n",
                     cluster,
-                    f"--from-literal=ssh-privatekey={private_key}",
+                    "--from-literal=ssh-privatekey=[redacted]",
                     "--dry-run=client",
                     "-o",
                     "yaml",
@@ -63,15 +71,15 @@ def main() -> None:
                 text=True,
                 check=True,
             )
-            subprocess.run(
-                ["oc", "apply", "-f", "-"],
-                input=dry_run.stdout,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+        _ = subprocess.run(
+            ["oc", "apply", "-f", "-"],
+            input=dry_run.stdout,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     except subprocess.CalledProcessError as exc:
         error(f"Failed to create {secret_name} in {cluster}: {exc}")
         sys.exit(1)
 
-    info(f"Secret {secret_name} created in {cluster}")
+    info(f"Secret '{secret_name}' created in ns {cluster}")

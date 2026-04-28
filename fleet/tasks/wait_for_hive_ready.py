@@ -17,12 +17,15 @@ def main() -> None:
     parser.add_argument("--timeout", default="60m")
     args = parser.parse_args()
 
-    cluster = args.cluster_name
     configure("wait-for-hive-ready")
 
-    info(
-        f"Waiting for ClusterDeployment {cluster} to be provisioned (timeout: {args.timeout})..."
-    )
+    cluster = args.cluster_name
+    info("=== Waiting for Hive to provision cluster ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  timeout={args.timeout}")
+
+    info(f"Waiting for ClusterDeployment '{cluster}' to reach Provisioned condition...")
     result = subprocess.run(
         [
             "oc",
@@ -36,8 +39,8 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc wait exit code: {result.returncode}")
     if result.returncode != 0:
-        error(f"ClusterDeployment {cluster} not provisioned: {result.stderr}")
+        error(f"ClusterDeployment not provisioned: {result.stderr}")
         sys.exit(1)
-
-    info(f"Cluster {cluster} provisioned successfully")
+    info(f"Cluster '{cluster}' provisioned successfully")

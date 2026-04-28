@@ -22,6 +22,12 @@ def main() -> None:
     cluster = args.cluster_name
     configure("extract-cert-material")
 
+    info("=== Extracting leaf certificate material ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  namespace={args.namespace}")
+
+    info(f"Getting secret '{cluster}-tls' from ns '{args.namespace}'...")
     get_result = subprocess.run(
         [
             "oc",
@@ -38,10 +44,13 @@ def main() -> None:
     if get_result.returncode != 0:
         error(f"Failed to get cert secret: {get_result.stderr}")
         sys.exit(1)
+    info(f"  -> Secret data bytes: {len(get_result.stdout)}")
 
     data = json.loads(get_result.stdout)
     tls_crt = data["tls.crt"]
     tls_key = data["tls.key"]
+    info(f"  -> tls.crt length: {len(tls_crt)} bytes")
+    info(f"  -> tls.key length: {len(tls_key)} bytes")
 
     secret_yaml = textwrap.dedent(f"""\
         apiVersion: v1
@@ -54,15 +63,15 @@ def main() -> None:
           tls.crt: {tls_crt}
           tls.key: {tls_key}
     """)
-
+    info(f"Creating leaf-cert secret in ns {args.namespace}...")
     apply_result = subprocess.run(
         ["oc", "apply", "-f", "-"],
         input=secret_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {apply_result.returncode}")
     if apply_result.returncode != 0:
         error(f"Failed to create leaf-cert secret: {apply_result.stderr}")
         sys.exit(1)
-
-    info("Extracted and saved leaf certificate material")
+    info("Leaf certificate material extracted and saved")

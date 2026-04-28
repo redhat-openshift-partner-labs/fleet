@@ -18,10 +18,15 @@ def main() -> None:
     parser.add_argument("--dns-zones", required=True)
     args = parser.parse_args()
 
-    configure("request-ssl-cert")
-
     cluster = args.cluster_name
     zones = [z.strip() for z in args.dns_zones.split(",")]
+
+    configure("request-ssl-cert")
+
+    info("=== Requesting SSL certificate ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  dns-zones={zones}")
 
     dns_names = "\n".join(f"    - {z}" for z in zones)
     cert_yaml = textwrap.dedent(f"""\
@@ -37,15 +42,15 @@ def main() -> None:
           dnsNames:
         {dns_names}
     """)
-
+    info(f"Creating Certificate CR '{cluster}-tls' with DNS: {dns_names}")
     result = subprocess.run(
         ["oc", "apply", "-f", "-"],
         input=cert_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to create certificate: {result.stderr}")
         sys.exit(1)
-
-    info(f"Requested TLS certificate for {cluster}")
+    info(f"Certificate request '{cluster}-tls' created")

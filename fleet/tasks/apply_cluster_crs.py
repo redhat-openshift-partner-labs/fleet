@@ -23,24 +23,36 @@ def main() -> None:
 
     hive_dir = os.path.join(source, "hive")
     configure("apply-cluster-crs")
-    info(f"Applying cluster CRs for {cluster}...")
+
+    info("=== Applying cluster CRs ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  source-dir={source}")
+    info(f"  hive-dir={hive_dir}")
+
+    info(f"Running kustomize build on {hive_dir}...")
     build = subprocess.run(
         ["kustomize", "build", hive_dir],
         capture_output=True,
         text=True,
     )
+    info(f"  -> kustomize build exit code: {build.returncode}")
     if build.returncode != 0:
-        error(f"kustomize build failed: {build.stderr}")
+        error(f"kustomize build stderr: {build.stderr}")
         sys.exit(1)
+    doc_count = len([l for l in build.stdout.split("---") if l.strip()])
+    info(f"  -> kustomize produced {doc_count} YAML documents")
 
+    info("Applying cluster CRs via oc apply (server-side, force-conflicts)...")
     apply = subprocess.run(
         ["oc", "apply", "--server-side=true", "--force-conflicts", "-f", "-"],
         input=build.stdout,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {apply.returncode}")
     if apply.returncode != 0:
-        error(f"oc apply failed: {apply.stderr}")
+        error(f"oc apply stderr: {apply.stderr}")
         sys.exit(1)
-
+    info(f"  -> Apply output: {apply.stdout.strip()}")
     info("Cluster resources applied")

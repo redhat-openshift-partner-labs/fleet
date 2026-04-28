@@ -20,6 +20,11 @@ def main() -> None:
 
     configure("configure-spoke-rbac")
 
+    info("=== Configuring spoke RBAC ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={args.cluster_name}")
+    info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
+
     rbac_yaml = textwrap.dedent("""\
         apiVersion: user.openshift.io/v1
         kind: Group
@@ -40,15 +45,15 @@ def main() -> None:
           kind: Group
           name: cluster-admins
     """)
-
+    info("Applying cluster-admins group and ClusterRoleBinding...")
     result = subprocess.run(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],
         input=rbac_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc apply exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to configure RBAC: {result.stderr}")
         sys.exit(1)
-
-    info("Configured RBAC: cluster-admins group and ClusterRoleBinding applied")
+    info("  -> RBAC configured")

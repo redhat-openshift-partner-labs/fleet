@@ -21,8 +21,12 @@ def main() -> None:
     cluster = args.cluster_name
     configure("extract-kubeconfig")
 
-    info(f"Extracting spoke kubeconfig for {cluster}...")
+    info("=== Extracting spoke kubeconfig ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  output-dir={args.output_dir}")
 
+    info(f"Getting ClusterDeployment admin kubeconfig secret ref...")
     result = subprocess.run(
         [
             "oc",
@@ -42,7 +46,11 @@ def main() -> None:
         if result.returncode == 0 and result.stdout.strip()
         else f"{cluster}-admin-kubeconfig"
     )
+    info(f"  -> Secret name: {secret_name}")
 
+    info(
+        f"Extracting kubeconfig from secret '{secret_name}' in ns '{cluster}' to '{args.output_dir}'..."
+    )
     extract = subprocess.run(
         [
             "oc",
@@ -57,8 +65,8 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc extract exit code: {extract.returncode}")
     if extract.returncode != 0:
         error(f"Failed to extract kubeconfig: {extract.stderr}")
         sys.exit(1)
-
-    info("Spoke kubeconfig saved to workspace")
+    info(f"Kubeconfig extracted to {args.output_dir}")

@@ -22,6 +22,11 @@ def main() -> None:
     cluster = args.cluster_name
     configure("transform-aws-creds")
 
+    info("=== Transforming AWS credentials for Hive ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+
+    info("Reading aws-credentials-raw secret 'username' (base64) from ns {cluster}...")
     try:
         access_key_b64 = subprocess.run(
             [
@@ -38,7 +43,11 @@ def main() -> None:
             text=True,
             check=True,
         ).stdout
+        info(f"  -> Read username (b64, bytes: {len(access_key_b64)})")
 
+        info(
+            "Reading aws-credentials-raw secret 'password' (base64) from ns {cluster}..."
+        )
         secret_key_b64 = subprocess.run(
             [
                 "oc",
@@ -54,13 +63,22 @@ def main() -> None:
             text=True,
             check=True,
         ).stdout
+        info(f"  -> Read password (b64, bytes: {len(secret_key_b64)})")
 
         access_key = base64.b64decode(access_key_b64).decode()
         secret_key = base64.b64decode(secret_key_b64).decode()
+        info("  -> Base64 decoded")
+        info(
+            f"  -> aws_access_key_id: {access_key[:8]}... (total {len(access_key)} chars)"
+        )
+        info(
+            f"  -> aws_secret_access_key: {secret_key[:8]}... (total {len(secret_key)} chars)"
+        )
     except (subprocess.CalledProcessError, binascii.Error) as exc:
-        error(f"Failed to extract aws-credentials-raw in {cluster}: {exc}")
+        error(f"Failed to extract aws-credentials-raw: {exc}")
         sys.exit(1)
 
+    info("Creating aws-credentials secret via dry-run...")
     try:
         dry_run = subprocess.run(
             [
@@ -71,8 +89,8 @@ def main() -> None:
                 "aws-credentials",
                 "-n",
                 cluster,
-                f"--from-literal=aws_access_key_id={access_key}",
-                f"--from-literal=aws_secret_access_key={secret_key}",
+                "--from-literal=aws_access_key_id=[REDACTED]",
+                "--from-literal=aws_secret_access_key=[REDACTED]",
                 "--dry-run=client",
                 "-o",
                 "yaml",
@@ -81,6 +99,9 @@ def main() -> None:
             text=True,
             check=True,
         )
+        info("  -> Dry-run YAML generated")
+
+        info("Applying aws-credentials secret...")
         subprocess.run(
             ["oc", "apply", "-f", "-"],
             input=dry_run.stdout,
@@ -89,7 +110,7 @@ def main() -> None:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        error(f"Failed to create aws-credentials in {cluster}: {exc}")
+        error(f"Failed to create aws-credentials: {exc}")
         sys.exit(1)
 
-    info(f"aws-credentials Secret created in {cluster}")
+    info("aws-credentials Secret created")
