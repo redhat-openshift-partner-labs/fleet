@@ -21,27 +21,25 @@ from fleet.tasks._log import configure, error, info
 
 
 def _read_secret_key(secret_name: str, key: str) -> str:
+    info(f"Reading {key} from secret {secret_name}")
+    jsonpath = f"jsonpath={{.data.{key}}}"
     result = subprocess.run(
-        [
-            "oc",
-            "get",
-            "secret",
-            secret_name,
-            "-o",
-            f"jsonpath={{.data.{key}}}",
-        ],
+        ["oc", "get", "secret", secret_name, "-o", jsonpath],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        error(f"Failed to read {key} from {secret_name}: {result.stderr}")
+        error(f"Failed to read {key} from secret {secret_name}: {result.stderr}")
         sys.exit(1)
-    return result.stdout.strip()
+    value = result.stdout.strip()
+    info(f"  Got {key} (length: {len(value)}, first 8 chars: {value[:8]})")
+    return value
 
 
 def _build_client_urls(
     cluster_name: str, base_domain: str, provider_name: str
 ) -> tuple[str, str, str]:
+    """Build console, redirect, and logout URLs for the OAuth client."""
     apps = f"apps.{cluster_name}.{base_domain}"
     home_url = f"https://console-openshift-console.{apps}"
     redirect_uri = f"https://oauth-openshift.{apps}/oauth2callback/{provider_name}"
@@ -51,6 +49,7 @@ def _build_client_urls(
 def _build_client_payload(
     client_id: str, home_url: str, redirect_uri: str, post_logout_uri: str
 ) -> dict:
+    """Build the Keycloak client registration payload."""
     return {
         "clientId": client_id,
         "name": client_id,
@@ -70,95 +69,6 @@ def _build_client_payload(
     }
 
 
-def _get_admin_token(
-    base_url: str,
-    admin_user: str,
-    admin_pass: str,
-    auth_realm: str = "master",
-    verify_tls: bool = True,
-) -> str:
-    token_resp = requests.post(
-        f"{base_url}/realms/{auth_realm}/protocol/openid-connect/token",
-        data={
-            "grant_type": "password",
-            "client_id": "admin-cli",
-            "username": admin_user,
-            "password": admin_pass,
-        },
-        timeout=30,
-        verify=verify_tls,
-    )
-    try:
-        token_resp.raise_for_status()
-    except requests.HTTPError:
-        error(f"Failed to get Keycloak admin token: {token_resp.text}")
-        sys.exit(1)
-    return token_resp.json()["access_token"]
-
-
-def _verify_realm(
-    base_url: str, realm: str, headers: dict[str, str], verify_tls: bool = True
-) -> None:
-    resp = requests.get(
-        f"{base_url}/admin/realms/{realm}",
-        headers=headers,
-        timeout=30,
-        verify=verify_tls,
-    )
-    if resp.status_code == 404:
-        error(f"Realm '{realm}' does not exist")
-        sys.exit(1)
-
-
-def _ensure_client(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    base_url: str,
-    realm: str,
-    cluster: str,
-    headers: dict[str, str],
-    base_domain: str,
-    provider_name: str = "RedHat",
-    verify_tls: bool = True,
-) -> str:
-    home_url, redirect_uri, post_logout_uri = _build_client_urls(
-        cluster, base_domain, provider_name
-    )
-    payload = _build_client_payload(cluster, home_url, redirect_uri, post_logout_uri)
-
-    get_resp = requests.get(
-        f"{base_url}/admin/realms/{realm}/clients",
-        params={"clientId": cluster, "first": "0", "max": "1"},
-        headers=headers,
-        timeout=30,
-        verify=verify_tls,
-    )
-
-    existing_uuid = None
-    if get_resp.status_code == 200 and get_resp.json():
-        for c in get_resp.json():
-            if c["clientId"] == cluster:
-                existing_uuid = c["id"]
-                break
-
-    if existing_uuid:
-        requests.put(
-            f"{base_url}/admin/realms/{realm}/clients/{existing_uuid}",
-            json={**payload, "id": existing_uuid},
-            headers=headers,
-            timeout=30,
-            verify=verify_tls,
-        )
-        return existing_uuid
-
-    create_resp = requests.post(
-        f"{base_url}/admin/realms/{realm}/clients",
-        headers=headers,
-        json=payload,
-        timeout=30,
-        verify=verify_tls,
-    )
-    return create_resp.headers.get("Location", "").rstrip("/").split("/")[-1]
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -171,43 +81,131 @@ def main() -> None:
     parser.add_argument("--insecure", action="store_true")
     args = parser.parse_args()
 
-    cluster = args.cluster_name
     configure("register-keycloak-client")
-    info("Registering Keycloak OIDC client...")
 
+    info("=== Registering Keycloak OIDC client ===")
+    info("Parameters:")
+    for key, value in vars(args).items():
+        info(f"  {key}={value}")
+
+    cluster = args.cluster_name
     base_url = args.keycloak_url.rstrip("/")
     realm = args.keycloak_realm
     verify_tls = not args.insecure
 
+    info(f"Reading admin credentials from secret '{args.keycloak_admin_secret}'...")
     admin_user = _read_secret_key(args.keycloak_admin_secret, "username")
     admin_pass = _read_secret_key(args.keycloak_admin_secret, "password")
 
-    token = _get_admin_token(
-        base_url, admin_user, admin_pass, args.auth_realm, verify_tls
+    token_url = f"{base_url}/realms/{args.auth_realm}/protocol/openid-connect/token"
+    info(f"Getting admin token from {token_url}")
+    info(f"  admin user: {admin_user}")
+    token_resp = requests.post(
+        token_url,
+        data={
+            "grant_type": "password",
+            "client_id": "admin-cli",
+            "username": admin_user,
+            "password": admin_pass,
+        },
+        timeout=30,
+        verify=verify_tls,
     )
-    info("Obtained Keycloak admin token")
+    info(f"  -> HTTP {token_resp.status_code}")
+    if token_resp.status_code != 200:
+        error(
+            f"Failed to get Keycloak admin token (HTTP {token_resp.status_code}): {token_resp.text[:200]}"
+        )
+        sys.exit(1)
+    token = token_resp.json()["access_token"]
+    info("Admin token obtained")
 
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    _verify_realm(base_url, realm, headers, verify_tls)
+    realm_url = f"{base_url}/admin/realms/{realm}"
+    info(f"Verifying realm '{realm}' at {realm_url}...")
+    realm_resp = requests.get(realm_url, headers=headers, timeout=30, verify=verify_tls)
+    info(f"  -> HTTP {realm_resp.status_code}")
+    if realm_resp.status_code == 404:
+        error(f"Realm '{realm}' not found at {realm_url}")
+        sys.exit(1)
 
-    client_id = _ensure_client(
-        base_url,
-        realm,
-        cluster,
-        headers,
-        args.base_domain,
-        args.provider_name,
-        verify_tls,
-    )
-    info(f"Registered Keycloak OIDC client: {cluster}")
-
-    secret_resp = requests.get(
-        f"{base_url}/admin/realms/{realm}/clients/{client_id}/client-secret",
+    client_url = f"{base_url}/admin/realms/{realm}/clients"
+    info(f"Checking for existing client at {client_url}...")
+    existing_resp = requests.get(
+        client_url,
+        params={"clientId": cluster, "first": "0", "max": "1"},
         headers=headers,
         timeout=30,
         verify=verify_tls,
     )
+    info(f"  -> HTTP {existing_resp.status_code}")
+    existing_uuid = None
+    if existing_resp.status_code == 200 and existing_resp.json():
+        for c in existing_resp.json():
+            if c["clientId"] == cluster:
+                existing_uuid = c["id"]
+                break
+
+    apps_domain = f"apps.{cluster}.{args.base_domain}"
+    if existing_uuid:
+        info(f"Existing client found: {existing_uuid}")
+        home_url = f"https://console-openshift-console.{apps_domain}"
+        redirect_uri = (
+            f"https://oauth-openshift.{apps_domain}/oauth2callback/{args.provider_name}"
+        )
+        payload = {
+            "clientId": cluster,
+            "name": cluster,
+            "protocol": "openid-connect",
+            "publicClient": False,
+            "redirectUris": [redirect_uri],
+            "rootUrl": home_url,
+            "baseUrl": home_url,
+            "enabled": True,
+        }
+        update_url = f"{client_url}/{existing_uuid}"
+        info(f"Updating client at {update_url}...")
+        put_resp = requests.put(
+            update_url, json=payload, headers=headers, timeout=30, verify=verify_tls
+        )
+        info(f"  -> HTTP {put_resp.status_code}")
+        client_url = existing_uuid
+    else:
+        info("No existing client, creating new...")
+        home_url = f"https://console-openshift-console.{apps_domain}"
+        redirect_uri = (
+            f"https://oauth-openshift.{apps_domain}/oauth2callback/{args.provider_name}"
+        )
+        payload = {
+            "clientId": cluster,
+            "name": cluster,
+            "protocol": "openid-connect",
+            "publicClient": False,
+            "redirectUris": [redirect_uri],
+            "rootUrl": home_url,
+            "baseUrl": home_url,
+            "enabled": True,
+        }
+        info(
+            f"  payload: clientId={cluster}, redirectURI={redirect_uri}, rootUrl={home_url}"
+        )
+        create_resp = requests.post(
+            client_url, headers=headers, json=payload, timeout=30, verify=verify_tls
+        )
+        info(f"  -> HTTP {create_resp.status_code}")
+        if create_resp.status_code not in (201, 200, 204):
+            error(f"Failed to create client: {create_resp.text[:200]}")
+            sys.exit(1)
+        client_url = create_resp.headers.get("Location", "").rstrip("/").split("/")[-1]
+        info(f"  Created client: {client_url}")
+
+    secret_url = f"{base_url}/admin/realms/{realm}/clients/{client_url}/client-secret"
+    info(f"Retrieving client secret from {secret_url}...")
+    secret_resp = requests.get(
+        secret_url, headers=headers, timeout=30, verify=verify_tls
+    )
+    info(f"  -> HTTP {secret_resp.status_code}")
     client_secret_value = secret_resp.json()["value"]
 
     secret_yaml = textwrap.dedent(f"""\

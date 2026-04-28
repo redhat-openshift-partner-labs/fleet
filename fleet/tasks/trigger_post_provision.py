@@ -39,6 +39,12 @@ def main() -> None:
     keycloak_admin_secret = args.keycloak_admin_secret
     auth_realm = args.auth_realm
 
+    info("=== Triggering post-provision pipeline ===")
+    info("Parameters:")
+    for key, value in vars(args).items():
+        info(f"  {key}={value}")
+
+    info("Reading ClusterDeployment baseDomain...")
     bd_result = subprocess.run(
         [
             "oc",
@@ -54,14 +60,17 @@ def main() -> None:
         text=True,
     )
     if bd_result.returncode != 0 or not bd_result.stdout.strip():
-        error(f"Failed to read baseDomain: {bd_result.stderr}")
+        error(
+            f"Failed to read baseDomain from ClusterDeployment/{cluster}: {bd_result.stderr}"
+        )
         sys.exit(1)
-
     cd_base_domain = bd_result.stdout.strip()
+    info(f"  -> baseDomain: {cd_base_domain}")
+
     dns_zones = f"*.apps.{cluster}.{cd_base_domain},api.{cluster}.{cd_base_domain}"
+    info(f"Derived dns-zones: {dns_zones}")
 
-    info(f"Triggering post-provision pipeline for {cluster} (tier: {tier})...")
-
+    info("Creating PostSync PipelineRun...")
     pipelinerun_yaml = textwrap.dedent(f"""\
         apiVersion: tekton.dev/v1
         kind: PipelineRun
@@ -105,15 +114,15 @@ def main() -> None:
                       storage: 1Gi
                   storageClassName: gp3-csi
     """)
-
+    info(f"Creating PipelineRun for cluster {cluster} (tier: {tier})...")
     result = subprocess.run(
         ["oc", "create", "-f", "-"],
         input=pipelinerun_yaml,
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc create exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to create PipelineRun: {result.stderr}")
         sys.exit(1)
-
-    info(f"Post-provision PipelineRun created for {cluster}")
+    info(f"Post-provision PipelineRun created for cluster {cluster}")

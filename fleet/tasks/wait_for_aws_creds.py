@@ -18,14 +18,20 @@ def main() -> None:
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
 
-    cluster = args.cluster_name
     configure("wait-for-aws-creds")
+
+    cluster = args.cluster_name
+    info("=== Waiting for aws-credentials-raw Secret ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  timeout={args.timeout_seconds}s")
+    info(f"  interval=10s")
 
     timeout = args.timeout_seconds
     elapsed = 0
     interval = 10
 
-    info(f"Waiting for aws-credentials-raw Secret in namespace {cluster}...")
+    info(f"Polling for secret 'aws-credentials-raw' in ns '{cluster}'...")
 
     while elapsed < timeout:
         result = subprocess.run(
@@ -34,14 +40,18 @@ def main() -> None:
             text=True,
         )
         if result.returncode == 0:
-            info(f"aws-credentials-raw Secret found in {cluster}")
+            info(
+                f"Secret 'aws-credentials-raw' found in ns '{cluster}' (elapsed: {elapsed}s)"
+            )
             return
 
         time.sleep(interval)
         elapsed += interval
-        info(f"  Waiting... ({elapsed}s / {timeout}s)")
+        info(f"  Poll [{elapsed}s/{timeout}s]: not ready yet")
 
-    error(f"Timed out after {timeout}s waiting for aws-credentials-raw")
+    error(
+        f"Timed out after {timeout}s waiting for aws-credentials-raw in ns '{cluster}'"
+    )
     subprocess.run(
         ["oc", "get", "user.iam,accesskey.iam,job", "-n", cluster],
         capture_output=True,

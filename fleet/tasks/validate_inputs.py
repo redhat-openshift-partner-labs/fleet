@@ -10,7 +10,7 @@ import argparse
 import subprocess
 import sys
 
-from fleet.tasks._log import configure, error, info, warn
+from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
@@ -21,10 +21,11 @@ def main() -> None:
     cluster = args.cluster_name
     configure("validate-inputs")
 
-    errors = 0
+    info("=== Validating required Secrets ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
 
-    info(f"Validating inputs for cluster {cluster}...")
-
+    info("Checking required secrets in ns {cluster}...")
     required_secrets = [
         "aws-credentials",
         "pull-secret",
@@ -32,6 +33,7 @@ def main() -> None:
         f"{cluster}-install-config",
     ]
 
+    errors = 0
     for secret in required_secrets:
         result = subprocess.run(
             ["oc", "get", "secret", secret, "-n", cluster],
@@ -39,13 +41,13 @@ def main() -> None:
             text=True,
         )
         if result.returncode == 0:
-            info(f"  OK Secret {secret} exists")
+            info(f"  OK Secret '{secret}' exists")
         else:
-            warn(f"  MISSING Secret {secret}")
+            error(f"  MISSING Secret '{secret}'")
             errors += 1
 
+    info(f"Validation complete: {errors} missing secrets")
     if errors > 0:
-        error(f"{errors} required secrets missing")
+        error(f"{errors} required secrets missing from ns {cluster}")
         sys.exit(1)
-
-    info("All inputs validated")
+    info("All required Secrets present")

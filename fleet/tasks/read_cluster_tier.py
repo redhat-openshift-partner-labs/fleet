@@ -19,6 +19,11 @@ def main() -> None:
     cluster = args.cluster_name
     configure("read-cluster-tier")
 
+    info("=== Reading ManagedCluster tier label ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+
+    info(f"Getting tier label from managedcluster/{cluster}...")
     result = subprocess.run(
         [
             "oc",
@@ -31,13 +36,15 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc get tier exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to read tier label: {result.stderr}")
         sys.exit(1)
 
     tier = result.stdout.strip()
+    info(f"  -> tier value: '{tier}' (length: {len(tier)})")
     if not tier:
         error("Tier label is empty on ManagedCluster")
         sys.exit(1)
 
-    info(tier)
+    print(tier)

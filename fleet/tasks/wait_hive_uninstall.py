@@ -20,24 +20,25 @@ def main() -> None:
     cluster = args.cluster_name
     configure("wait-hive-uninstall")
 
-    info(f"Waiting for Hive uninstall to complete (timeout: {args.timeout})...")
+    info("=== Waiting for Hive cluster uninstall to complete ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  timeout={args.timeout}")
 
+    info(f"Checking if ClusterDeployment '{cluster}' still exists in ns '{cluster}'...")
     result = subprocess.run(
-        [
-            "oc",
-            "get",
-            "clusterdeployment",
-            cluster,
-            "-n",
-            cluster,
-        ],
+        ["oc", "get", "clusterdeployment", cluster, "-n", cluster],
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc get exit code: {result.returncode}")
     if result.returncode != 0:
-        info("ClusterDeployment already gone")
+        info(f"ClusterDeployment already gone (Hive uninstall complete)")
         return
 
+    info(
+        f"ClusterDeployment still exists, waiting for deletion (timeout: {args.timeout})..."
+    )
     result = subprocess.run(
         [
             "oc",
@@ -51,10 +52,11 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc wait exit code: {result.returncode}")
     if result.returncode != 0:
         error(
-            f"Timed out waiting for ClusterDeployment {cluster} deletion: {result.stderr}"
+            f"Timed out waiting for ClusterDeployment '{cluster}' deletion: {result.stderr}"
         )
         sys.exit(1)
 
-    info("ClusterDeployment deleted (cloud cleanup complete)")
+    info(f"ClusterDeployment '{cluster}' deleted (cloud cleanup complete)")

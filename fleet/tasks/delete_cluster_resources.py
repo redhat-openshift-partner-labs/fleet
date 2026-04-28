@@ -8,7 +8,7 @@ and ClusterDeployment. All operations are idempotent via --ignore-not-found.
 import argparse
 import subprocess
 
-from fleet.tasks._log import configure, info, warn
+from fleet.tasks._log import configure, info
 
 
 def main() -> None:
@@ -19,9 +19,12 @@ def main() -> None:
     cluster = args.cluster_name
     configure("delete-cluster-resources")
 
-    info(f"Deleting cluster resources for {cluster} in explicit order...")
+    info("=== Deleting cluster resources ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
 
-    subprocess.run(
+    info("Deleting KlusterletAddonConfig...")
+    result = subprocess.run(
         [
             "oc",
             "delete",
@@ -34,32 +37,27 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    info("  KlusterletAddonConfig deleted")
+    info(f"  -> KlusterletAddonConfig/{cluster}: exit code {result.returncode}")
 
-    subprocess.run(
+    info("Deleting ManagedCluster...")
+    result = subprocess.run(
         ["oc", "delete", "managedcluster", cluster, "--ignore-not-found=true"],
         capture_output=True,
         text=True,
     )
-    info("  ManagedCluster deleted")
+    info(f"  -> ManagedCluster/{cluster}: exit code {result.returncode}")
 
+    info(f"Waiting up to 5m for ManagedCluster/{cluster} to be deleted...")
     result = subprocess.run(
-        [
-            "oc",
-            "wait",
-            "--for=delete",
-            f"managedcluster/{cluster}",
-            "--timeout=5m",
-        ],
+        ["oc", "wait", "--for=delete", f"managedcluster/{cluster}", "--timeout=5m"],
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        warn(f"  ManagedCluster delete wait failed: {result.stderr}")
-    else:
-        info("  ManagedCluster wait complete")
+    info(f"  -> Wait exit code: {result.returncode}")
+    info("  -> Wait complete")
 
-    subprocess.run(
+    info(f"Deleting MachinePools in ns {cluster}...")
+    result = subprocess.run(
         [
             "oc",
             "delete",
@@ -72,9 +70,10 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    info("  MachinePools deleted")
+    info(f"  -> MachinePool: exit code {result.returncode}")
 
-    subprocess.run(
+    info(f"Deleting ClusterDeployment/{cluster} in ns {cluster}...")
+    result = subprocess.run(
         [
             "oc",
             "delete",
@@ -87,4 +86,6 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    info("  ClusterDeployment delete requested (Hive uninstall will run)")
+    info(f"  -> ClusterDeployment/{cluster}: exit code {result.returncode}")
+
+    info("Cluster resources deleted")

@@ -76,7 +76,7 @@ def test_ssh_key_created(mock_run, mock_tmpdir):
             "test-cluster-ssh-key",
             "-n",
             "test-cluster",
-            "--from-literal=ssh-privatekey=PRIVATE-KEY-DATA",
+            "--from-literal=ssh-privatekey=[redacted]",
             "--dry-run=client",
             "-o",
             "yaml",

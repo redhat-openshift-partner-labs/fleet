@@ -17,10 +17,17 @@ def main() -> None:
     parser.add_argument("--timeout", default="15m")
     args = parser.parse_args()
 
-    cluster = args.cluster_name
     configure("wait-for-managed-cluster")
 
-    info(f"Waiting for ManagedCluster {cluster} to join (timeout: {args.timeout})...")
+    cluster = args.cluster_name
+    info("=== Waiting for ManagedCluster to join ACM ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  timeout={args.timeout}")
+
+    info(
+        f"Waiting for ManagedCluster '{cluster}' to join (condition: ManagedClusterJoined)..."
+    )
     result = subprocess.run(
         [
             "oc",
@@ -32,8 +39,8 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc wait exit code: {result.returncode}")
     if result.returncode != 0:
-        error(f"ManagedCluster {cluster} not joined: {result.stderr}")
+        error(f"ManagedCluster not joined: {result.stderr}")
         sys.exit(1)
-
-    info(f"ManagedCluster {cluster} joined")
+    info(f"ManagedCluster '{cluster}' joined")

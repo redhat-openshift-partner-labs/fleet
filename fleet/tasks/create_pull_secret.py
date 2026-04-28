@@ -26,38 +26,42 @@ def main() -> None:
     source_ns = args.source_namespace
     source_name = args.source_secret_name
 
+    configure("create-pull-secret")
+
+    info("=== Creating pull-secret in cluster namespace ===")
+    info("Parameters:")
+    info(f"  cluster-name={cluster}")
+    info(f"  source-namespace={source_ns}")
+    info(f"  source-secret-name={source_name}")
+
+    info(f"Checking if pull-secret exists in ns {cluster}...")
     result = subprocess.run(
         ["oc", "get", "secret", "pull-secret", "-n", cluster],
         capture_output=True,
         text=True,
     )
+    info(f"  -> exit code: {result.returncode}")
     if result.returncode == 0:
-        info(f"Secret pull-secret already exists in {cluster}")
+        info("Secret pull-secret already exists in {cluster}")
         return
 
-    configure("create-pull-secret")
-
+    info(f"Reading secret '{source_name}' from ns '{source_ns}'...")
     try:
         result = subprocess.run(
-            [
-                "oc",
-                "get",
-                "secret",
-                source_name,
-                "-n",
-                source_ns,
-                "-o",
-                "json",
-            ],
+            ["oc", "get", "secret", source_name, "-n", source_ns, "-o", "json"],
             capture_output=True,
             text=True,
             check=True,
         )
+        info(f"  -> Read pull-secret (bytes: {len(result.stdout)})")
 
         secret = json.loads(result.stdout)
+        old_ns = secret.get("metadata", {}).get("namespace", "unknown")
+        info(f"Rewriting secret metadata: ns={old_ns} -> {cluster}")
         secret["metadata"] = {"name": "pull-secret", "namespace": cluster}
         secret.pop("status", None)
 
+        info(f"Applying pull-secret to cluster ns {cluster}...")
         subprocess.run(
             ["oc", "apply", "-f", "-"],
             input=json.dumps(secret),
@@ -66,7 +70,9 @@ def main() -> None:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        error(f"Failed to copy pull-secret to {cluster}: {exc}")
+        error(
+            f"Failed to copy pull-secret from {source_ns}/{source_name} to {cluster}: {exc}"
+        )
         sys.exit(1)
 
-    info(f"Secret pull-secret created in {cluster}")
+    info(f"Secret pull-secret created in ns {cluster}")

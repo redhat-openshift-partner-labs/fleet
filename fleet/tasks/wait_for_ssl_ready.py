@@ -19,6 +19,12 @@ def main() -> None:
 
     configure("wait-for-ssl-ready")
 
+    info("=== Waiting for SSL certificate to be ready ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={args.cluster_name}")
+    info(f"  timeout={args.timeout}")
+
+    info("Waiting for certificate to be ready (condition: Ready)...")
     result = subprocess.run(
         [
             "oc",
@@ -30,8 +36,8 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
+    info(f"  -> oc wait exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Certificate not ready: {result.stderr}")
         sys.exit(1)
-
     info("SSL certificate is ready")

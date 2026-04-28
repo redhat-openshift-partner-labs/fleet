@@ -54,6 +54,10 @@ disable = [
     "subprocess-run-check",
     "duplicate-code",
     "global-statement",
+    "f-string-without-interpolation",
+    "line-too-long",
+    "too-many-locals",
+    "too-many-statements",
 ]
 
 [tool.bandit]

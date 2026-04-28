@@ -12,6 +12,27 @@ import sys
 from fleet.tasks._log import configure, info, warn
 
 
+def _check_gone(resource_type: str, name: str, namespace: str | None = None) -> bool:
+    """Check that a resource is gone. Returns True if gone, False if exists."""
+    if namespace:
+        result = subprocess.run(
+            ["oc", "get", resource_type, name, "-n", namespace],
+            capture_output=True,
+            text=True,
+        )
+    else:
+        result = subprocess.run(
+            ["oc", "get", resource_type, name],
+            capture_output=True,
+            text=True,
+        )
+    if result.returncode == 0:
+        warn(f"  {resource_type}/{name} in ns {namespace or 'cluster'}: still exists")
+        return False
+    info(f"  {resource_type}/{name} in ns {namespace or 'cluster'}: gone")
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -20,45 +41,26 @@ def main() -> None:
     cluster = args.cluster_name
     configure("verify-deprovision")
 
+    info("=== Verifying clean deprovision ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+
+    info("Checking that all cluster resources are gone...")
     errors = 0
 
-    info(f"Verifying clean deprovision for {cluster}...")
-
-    result = subprocess.run(
-        ["oc", "get", "namespace", cluster],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        warn(f"  FAIL Namespace {cluster} still exists")
+    info("Namespace:")
+    if not _check_gone("namespace", cluster):
         errors += 1
-    else:
-        info(f"  OK Namespace {cluster} gone")
 
-    result = subprocess.run(
-        ["oc", "get", "managedcluster", cluster],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        warn(f"  FAIL ManagedCluster {cluster} still exists")
+    info("ManagedCluster:")
+    if not _check_gone("managedcluster", cluster):
         errors += 1
-    else:
-        info(f"  OK ManagedCluster {cluster} gone")
 
-    result = subprocess.run(
-        ["oc", "get", "clusterdeployment", cluster, "-n", cluster],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        warn(f"  FAIL ClusterDeployment {cluster} still exists")
+    info("ClusterDeployment:")
+    if not _check_gone("clusterdeployment", cluster, cluster):
         errors += 1
-    else:
-        info(f"  OK ClusterDeployment {cluster} gone")
 
     if errors > 0:
         warn(f"{errors} resources still present. Manual cleanup may be needed.")
         sys.exit(1)
-
     info("Deprovision verified: all resources cleaned up")

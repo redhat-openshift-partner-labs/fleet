@@ -20,8 +20,12 @@ def main() -> None:
 
     cluster = args.cluster_name
     configure("cleanup-hub-artifacts")
-    info(f"Cleaning up hub-side artifacts for {cluster}...")
 
+    info("=== Cleaning up hub-side artifacts ===")
+    info(f"Parameters:")
+    info(f"  cluster-name={cluster}")
+
+    info("Deleting Certificate CRs...")
     subprocess.run(
         [
             "oc",
@@ -35,8 +39,9 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    info("  Certificate CRs deleted")
+    info("  -> Certificates deleted")
 
+    info(f"Deleting ClusterIssuer letsencrypt-{cluster}...")
     subprocess.run(
         [
             "oc",
@@ -48,15 +53,17 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    info("  ClusterIssuer deleted")
+    info(f"  -> ClusterIssuer letsencrypt-{cluster} deleted")
 
-    for resource in [
+    iam_resources = [
         "user.iam",
         "policy.iam",
         "userpolicyattachment.iam",
         "accesskey.iam",
-    ]:
-        subprocess.run(
+    ]
+    for resource in iam_resources:
+        info(f"Deleting {resource} resources...")
+        result = subprocess.run(
             [
                 "oc",
                 "delete",
@@ -69,25 +76,21 @@ def main() -> None:
             capture_output=True,
             text=True,
         )
-    info("  Crossplane IAM resources deleted")
+        info(f"  -> {resource}: exit code {result.returncode}")
+    info("  -> Crossplane IAM resources deleted")
 
-    info("Waiting for Crossplane resources to be fully cleaned up...")
+    info("Waiting 15s for Crossplane resources to be fully cleaned up...")
     time.sleep(15)
 
+    info(f"Deleting namespace {cluster}...")
     result = subprocess.run(
-        [
-            "oc",
-            "delete",
-            "namespace",
-            cluster,
-            "--ignore-not-found=true",
-        ],
+        ["oc", "delete", "namespace", cluster, "--ignore-not-found=true"],
         capture_output=True,
         text=True,
     )
+    info(f"  -> Namespace delete exit code: {result.returncode}")
     if result.returncode != 0:
         error(f"Failed to delete namespace {cluster}: {result.stderr}")
         sys.exit(1)
-    info(f"  Namespace {cluster} deleted (takes remaining secrets with it)")
-
+    info(f"Namespace {cluster} deleted")
     info("Hub artifacts cleaned up")
