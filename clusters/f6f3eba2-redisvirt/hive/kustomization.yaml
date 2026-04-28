@@ -1,0 +1,88 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: f6f3eba2-redisvirt
+
+resources:
+  - ../../../cluster-templates/aws-ha/base/hive
+
+patches:
+  - path: patches/install-config.yaml
+  - target:
+      kind: Namespace
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt
+  - target:
+      kind: ClusterDeployment
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /metadata/namespace
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /spec/clusterName
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /spec/provisioning/installConfigSecretRef/name
+        value: f6f3eba2-redisvirt-install-config
+      - op: replace
+        path: /spec/provisioning/sshPrivateKeySecretRef/name
+        value: f6f3eba2-redisvirt-ssh-key
+  - target:
+      kind: MachinePool
+      name: cluster-placeholder-worker
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt-worker
+      - op: replace
+        path: /metadata/namespace
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /spec/clusterDeploymentRef/name
+        value: f6f3eba2-redisvirt
+  - target:
+      kind: ManagedCluster
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt
+      - op: add
+        path: /metadata/labels/tier
+        value: base
+      - op: add
+        path: /metadata/labels/environment
+        value: development
+  - target:
+      kind: KlusterletAddonConfig
+      name: cluster-placeholder
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /metadata/namespace
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /spec/clusterName
+        value: f6f3eba2-redisvirt
+      - op: replace
+        path: /spec/clusterNamespace
+        value: f6f3eba2-redisvirt
+  - target:
+      kind: Secret
+      name: cluster-placeholder-install-config
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: f6f3eba2-redisvirt-install-config
+      - op: replace
+        path: /metadata/namespace
+        value: f6f3eba2-redisvirt

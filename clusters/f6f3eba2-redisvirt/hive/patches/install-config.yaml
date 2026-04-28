@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-placeholder-install-config
+  namespace: cluster-placeholder
+type: Opaque
+stringData:
+  install-config.yaml: |
+    apiVersion: v1
+    baseDomain: openshiftpartnerlabs.com
+    metadata:
+      name: f6f3eba2-redisvirt
+    controlPlane:
+      name: master
+      platform:
+        aws:
+          rootVolume:
+            iops: 4000
+            size: 256
+            type: gp3
+          type: c5d.metal
+          zones:
+            - us-east-1a
+            - us-east-1b
+            - us-east-1c
+      replicas: 1
+    compute:
+      - name: worker
+        platform:
+          aws:
+            rootVolume:
+              iops: 4000
+              size: 256
+              type: gp3
+            type: c5d.metal
+            zones:
+              - us-east-1a
+              - us-east-1b
+              - us-east-1c
+        replicas: 0
+    networking:
+      clusterNetwork:
+        - cidr: 10.128.0.0/14
+          hostPrefix: 23
+      machineNetwork:
+        - cidr: 10.0.0.0/16
+      serviceNetwork:
+        - 172.30.0.0/16
+      networkType: OVNKubernetes
+    platform:
+      aws:
+        region: us-east-2
+    publish: External
