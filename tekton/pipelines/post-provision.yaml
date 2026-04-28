@@ -19,19 +19,15 @@ spec:
       default: quay.io/rhopl/fleet-pipeline:latest
     - name: keycloak-url
       type: string
-      default: https://keycloak.example.com
     - name: keycloak-realm
       type: string
-      default: openshift
     - name: keycloak-admin-secret
       type: string
-      default: keycloak-admin
+    - name: auth-realm
+      type: string
     - name: base-domain
       type: string
       default: example.com
-    - name: auth-realm
-      type: string
-      default: "master"
     - name: keycloak-issuer-url
       type: string
       default: https://keycloak.example.com/realms/openshift
