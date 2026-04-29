@@ -1,2 +1,2 @@
 # Cluster deprovision requires review approval
-clusters/**/.deprovision  @fleet-admins
+clusters/**/.deprovision  @redhat-openshift-partner-labs/fleet-admins
