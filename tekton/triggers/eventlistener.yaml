@@ -12,6 +12,10 @@ spec:
           params:
             - name: eventTypes
               value: ["push"]
+            - name: secretRef
+              value:
+                secretName: fleet-webhook-secret
+                secretKey: WebHookSecretKey
         - ref:
             name: cel
           params:
@@ -39,6 +43,10 @@ spec:
           params:
             - name: eventTypes
               value: ["push"]
+            - name: secretRef
+              value:
+                secretName: fleet-webhook-secret
+                secretKey: WebHookSecretKey
         - ref:
             name: cel
           params:
