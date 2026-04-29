@@ -18,12 +18,12 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.added.exists(f, f.startsWith('clusters/')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('clusters/') && !f.endsWith('/.deprovision')))
             - name: overlays
               value:
                 - key: cluster_name
                   expression: >-
-                    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/')))
+                    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/') && !f.endsWith('/.deprovision')))
                     .flatten()
                     .map(f, f.split('/')[1])
                     .filter(n, n != '')
@@ -45,12 +45,12 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.removed.exists(f, f.startsWith('clusters/')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('clusters/') && f.endsWith('/.deprovision')))
             - name: overlays
               value:
                 - key: cluster_name
                   expression: >-
-                    body.commits.map(c, c.removed.filter(f, f.startsWith('clusters/')))
+                    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/') && f.endsWith('/.deprovision')))
                     .flatten()
                     .map(f, f.split('/')[1])
                     .filter(n, n != '')
