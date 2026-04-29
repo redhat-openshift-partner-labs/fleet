@@ -1,0 +1,2 @@
+# Cluster deprovision requires review approval
+clusters/**/.deprovision  @fleet-admins
