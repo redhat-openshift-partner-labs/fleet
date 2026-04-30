@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: provision
+  name: pre-provision
 spec:
   params:
     - name: cluster-name
@@ -15,24 +15,6 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
-    - name: base-domain
-      type: string
-      default: example.com
-    - name: keycloak-issuer-url
-      type: string
-      default: https://keycloak.example.com/realms/openshift
-    - name: keycloak-url
-      type: string
-      default: https://keycloak.example.com
-    - name: keycloak-realm
-      type: string
-      default: openshift
-    - name: keycloak-admin-secret
-      type: string
-      default: keycloak-admin
-    - name: auth-realm
-      type: string
-      default: "master"
   workspaces:
     - name: shared-workspace
 
@@ -51,11 +33,45 @@ spec:
         - name: output
           workspace: shared-workspace
 
-    - name: apply-cluster-crs
+    - name: create-cluster-namespace
       taskRef:
-        name: apply-cluster-crs
+        name: create-cluster-namespace
       runAfter:
         - git-clone
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: create-ssh-key
+      taskRef:
+        name: create-ssh-key
+      runAfter:
+        - create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: create-pull-secret
+      taskRef:
+        name: create-pull-secret
+      runAfter:
+        - create-cluster-namespace
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
+    - name: apply-crossplane-credentials
+      taskRef:
+        name: apply-crossplane-credentials
+      runAfter:
+        - create-ssh-key
+        - create-pull-secret
       params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -65,87 +81,46 @@ spec:
         - name: source
           workspace: shared-workspace
 
-    - name: wait-for-hive-ready
+    - name: wait-for-aws-credentials
       taskRef:
-        name: wait-for-hive-ready
+        name: wait-for-aws-credentials
       runAfter:
-        - apply-cluster-crs
-      params:
-        - name: cluster-name
-          value: $(params.cluster-name)
-        - name: pipeline-image
-          value: $(params.pipeline-image)
-      timeout: "1h15m"
-
-    - name: wait-for-managed-cluster
-      taskRef:
-        name: wait-for-managed-cluster
-      runAfter:
-        - wait-for-hive-ready
+        - apply-crossplane-credentials
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
 
-    - name: extract-spoke-kubeconfig
+    - name: transform-aws-credentials
       taskRef:
-        name: extract-spoke-kubeconfig
+        name: transform-aws-credentials
       runAfter:
-        - wait-for-managed-cluster
-      params:
-        - name: cluster-name
-          value: $(params.cluster-name)
-        - name: pipeline-image
-          value: $(params.pipeline-image)
-      workspaces:
-        - name: shared
-          workspace: shared-workspace
-
-    - name: read-cluster-tier
-      taskRef:
-        name: read-cluster-tier
-      runAfter:
-        - wait-for-managed-cluster
+        - wait-for-aws-credentials
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
 
-    - name: label-for-post-provision
+    - name: validate-cluster-inputs
       taskRef:
-        name: label-for-post-provision
+        name: validate-cluster-inputs
       runAfter:
-        - extract-spoke-kubeconfig
+        - transform-aws-credentials
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
 
-    - name: trigger-post-provision
+    - name: trigger-provision
       taskRef:
-        name: trigger-post-provision
+        name: trigger-provision
       runAfter:
-        - label-for-post-provision
-        - read-cluster-tier
+        - validate-cluster-inputs
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
-        - name: tier
-          value: $(tasks.read-cluster-tier.results.tier)
-        - name: base-domain
-          value: $(params.base-domain)
-        - name: keycloak-issuer-url
-          value: $(params.keycloak-issuer-url)
-        - name: keycloak-url
-          value: $(params.keycloak-url)
-        - name: keycloak-realm
-          value: $(params.keycloak-realm)
-        - name: keycloak-admin-secret
-          value: $(params.keycloak-admin-secret)
-        - name: auth-realm
-          value: $(params.auth-realm)

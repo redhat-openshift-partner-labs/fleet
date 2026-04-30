@@ -5,7 +5,7 @@ metadata:
 spec:
   serviceAccountName: fleet-pipeline
   triggers:
-    - name: provision
+    - name: pre-provision
       interceptors:
         - ref:
             name: github
@@ -33,9 +33,9 @@ spec:
                     .filter(n, n != '')
                     [0]
       bindings:
-        - ref: provision-binding
+        - ref: pre-provision-binding
       template:
-        ref: provision-template
+        ref: pre-provision-template
     - name: deprovision
       interceptors:
         - ref:
