@@ -1,7 +1,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: provision-template
+  name: pre-provision-template
 spec:
   params:
     - name: git-repo-url
@@ -11,10 +11,10 @@ spec:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        generateName: provision-$(tt.params.cluster-name)-
+        generateName: pre-provision-$(tt.params.cluster-name)-
       spec:
         pipelineRef:
-          name: provision
+          name: pre-provision
         params:
           - name: cluster-name
             value: $(tt.params.cluster-name)

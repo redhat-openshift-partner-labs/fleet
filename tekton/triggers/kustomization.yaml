@@ -3,8 +3,8 @@ kind: Kustomization
 
 resources:
   - eventlistener.yaml
-  - triggerbinding-provision.yaml
-  - triggertemplate-provision.yaml
+  - triggerbinding-pre-provision.yaml
+  - triggertemplate-pre-provision.yaml
   - triggerbinding-deprovision.yaml
   - triggertemplate-deprovision.yaml
   - triggerbinding-post-provision.yaml

@@ -1,7 +1,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
-  name: provision-binding
+  name: pre-provision-binding
 spec:
   params:
     - name: git-repo-url
