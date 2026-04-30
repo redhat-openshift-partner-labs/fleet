@@ -21,7 +21,7 @@ def test_all_deletions_succeed(mock_run, mock_sleep):
     mock_run.return_value = _run([])
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
     mock_sleep.assert_called_once_with(15)
 
 
@@ -36,10 +36,11 @@ def test_certificate_deletion_non_fatal(mock_run, mock_sleep):
         _run([]),
         _run([]),
         _run([]),
+        _run([]),
     ]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -53,10 +54,11 @@ def test_clusterissuer_deletion_non_fatal(mock_run, mock_sleep):
         _run([]),
         _run([]),
         _run([]),
+        _run([]),
     ]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -65,6 +67,7 @@ def test_crossplane_deletion_non_fatal(mock_run, mock_sleep):
     mock_run.side_effect = [
         _run([]),
         _run([]),
+        _run([]),
         _run_fail([]),
         _run_fail([]),
         _run_fail([]),
@@ -73,13 +76,14 @@ def test_crossplane_deletion_non_fatal(mock_run, mock_sleep):
     ]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
 def test_namespace_deletion_fails_exits_1(mock_run, mock_sleep):
     mock_run.side_effect = [
+        _run([]),
         _run([]),
         _run([]),
         _run([]),
@@ -105,6 +109,48 @@ def test_clusterissuer_uses_letsencrypt_prefix(mock_run, mock_sleep):
             "delete",
             "clusterissuer",
             "letsencrypt-test-cluster",
+            "--ignore-not-found=true",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_cleanup_certificate_in_openshift_ingress(mock_run, mock_sleep):
+    mock_run.return_value = _run([])
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        main()
+    mock_run.assert_any_call(
+        [
+            "oc",
+            "delete",
+            "certificate",
+            "test-cluster-wildcard-certificate",
+            "-n",
+            "openshift-ingress",
+            "--ignore-not-found=true",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_cleanup_cert_manager_aws_secret(mock_run, mock_sleep):
+    mock_run.return_value = _run([])
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        main()
+    mock_run.assert_any_call(
+        [
+            "oc",
+            "delete",
+            "secret",
+            "test-cluster-cert-manager-aws",
+            "-n",
+            "openshift-ingress",
             "--ignore-not-found=true",
         ],
         capture_output=True,

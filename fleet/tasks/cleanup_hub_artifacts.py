@@ -25,21 +25,23 @@ def main() -> None:
     info(f"Parameters:")
     info(f"  cluster-name={cluster}")
 
-    info("Deleting Certificate CRs...")
+    info(
+        f"Deleting Certificate {cluster}-wildcard-certificate from openshift-ingress..."
+    )
     subprocess.run(
         [
             "oc",
             "delete",
             "certificate",
+            f"{cluster}-wildcard-certificate",
             "-n",
-            cluster,
-            "--all",
+            "openshift-ingress",
             "--ignore-not-found=true",
         ],
         capture_output=True,
         text=True,
     )
-    info("  -> Certificates deleted")
+    info("  -> Certificate deleted")
 
     info(f"Deleting ClusterIssuer letsencrypt-{cluster}...")
     subprocess.run(
@@ -54,6 +56,22 @@ def main() -> None:
         text=True,
     )
     info(f"  -> ClusterIssuer letsencrypt-{cluster} deleted")
+
+    info(f"Deleting Secret {cluster}-cert-manager-aws from openshift-ingress...")
+    subprocess.run(
+        [
+            "oc",
+            "delete",
+            "secret",
+            f"{cluster}-cert-manager-aws",
+            "-n",
+            "openshift-ingress",
+            "--ignore-not-found=true",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    info(f"  -> Secret {cluster}-cert-manager-aws deleted")
 
     iam_resources = [
         "user.iam",

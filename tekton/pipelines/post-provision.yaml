@@ -39,6 +39,9 @@ spec:
       default: "false"
     - name: dns-zones
       type: string
+    - name: acme-email
+      type: string
+      default: admin@example.com
   workspaces:
     - name: shared-workspace
 
@@ -128,11 +131,24 @@ spec:
         - name: shared
           workspace: shared-workspace
 
+    - name: create-cluster-issuer
+      taskRef:
+        name: create-cluster-issuer
+      runAfter:
+        - configure-spoke-oauth
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: acme-email
+          value: $(params.acme-email)
+
     - name: request-ssl-cert
       taskRef:
         name: request-ssl-cert
       runAfter:
-        - configure-spoke-oauth
+        - create-cluster-issuer
       params:
         - name: cluster-name
           value: $(params.cluster-name)

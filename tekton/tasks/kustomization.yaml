@@ -20,6 +20,7 @@ resources:
   - save-spoke-kubeconfig.yaml
   - register-keycloak-client.yaml
   - configure-spoke-oauth.yaml
+  - create-cluster-issuer.yaml
   - request-ssl-cert.yaml
   - wait-for-ssl-ready.yaml
   - extract-cert-material.yaml

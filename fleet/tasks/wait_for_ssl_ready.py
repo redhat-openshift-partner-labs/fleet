@@ -29,7 +29,9 @@ def main() -> None:
         [
             "oc",
             "wait",
-            f"certificate/{args.cluster_name}-tls",
+            f"certificate/{args.cluster_name}-wildcard-certificate",
+            "-n",
+            "openshift-ingress",
             "--for=condition=Ready",
             f"--timeout={args.timeout}",
         ],

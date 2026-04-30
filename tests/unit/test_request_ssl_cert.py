@@ -75,8 +75,8 @@ def test_request_cert_uses_cluster_name_in_cert(mock_run):
         main()
     call_args = mock_run.call_args
     stdin_yaml = call_args.kwargs.get("input", "")
-    assert "my-cluster-tls" in stdin_yaml
-    assert "hub-ca" in stdin_yaml
+    assert "my-cluster-wildcard-certificate" in stdin_yaml
+    assert "letsencrypt-my-cluster" in stdin_yaml
 
 
 @mock.patch("fleet.tasks.request_ssl_cert.subprocess.run")

@@ -27,7 +27,7 @@ def test_extract_success(mock_run):
         main()
     assert mock_run.call_count == 2
     get_call = mock_run.call_args_list[0]
-    assert "secret/test-cluster-tls" in " ".join(get_call.args[0])
+    assert "secret/test-cluster-wildcard-certificate" in " ".join(get_call.args[0])
     apply_call = mock_run.call_args_list[1]
     cmd = apply_call.args[0]
     assert cmd[0] == "oc"
@@ -69,7 +69,7 @@ def test_extract_default_namespace(mock_run):
         main()
     get_call = mock_run.call_args_list[0]
     cmd = " ".join(get_call.args[0])
-    assert "openshift-pipelines" in cmd
+    assert "openshift-ingress" in cmd
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")

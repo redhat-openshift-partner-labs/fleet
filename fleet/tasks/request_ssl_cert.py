@@ -32,16 +32,19 @@ def main() -> None:
         f"apiVersion: cert-manager.io/v1\n"
         f"kind: Certificate\n"
         f"metadata:\n"
-        f"  name: {cluster}-tls\n"
+        f"  name: {cluster}-wildcard-certificate\n"
+        f"  namespace: openshift-ingress\n"
         f"spec:\n"
-        f"  secretName: {cluster}-tls\n"
+        f"  secretName: {cluster}-wildcard-certificate\n"
         f"  issuerRef:\n"
-        f"    name: hub-ca\n"
+        f"    name: letsencrypt-{cluster}\n"
         f"    kind: ClusterIssuer\n"
         f"  dnsNames:\n"
         f"{dns_names}\n"
     )
-    info(f"Creating Certificate CR '{cluster}-tls' with DNS: {dns_names}")
+    info(
+        f"Creating Certificate CR '{cluster}-wildcard-certificate' with DNS: {dns_names}"
+    )
     result = subprocess.run(
         ["oc", "apply", "-f", "-"],
         input=cert_yaml,
@@ -52,4 +55,4 @@ def main() -> None:
     if result.returncode != 0:
         error(f"Failed to create certificate: {result.stderr}")
         sys.exit(1)
-    info(f"Certificate request '{cluster}-tls' created")
+    info(f"Certificate request '{cluster}-wildcard-certificate' created")

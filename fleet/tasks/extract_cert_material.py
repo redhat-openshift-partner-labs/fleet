@@ -1,7 +1,7 @@
 """Extract leaf certificate material from the hub cert secret.
 
 CLI: fleet-extract-cert-material --cluster-name NAME [--namespace openshift-pipelines]
-Reads tls.crt/tls.key from {cluster}-tls, creates {cluster}-leaf-cert secret. Exits 1 on failure.
+Reads tls.crt/tls.key from {cluster}-wildcard-certificate, creates {cluster}-leaf-cert secret. Exits 1 on failure.
 """
 
 import argparse
@@ -16,7 +16,7 @@ from fleet.tasks._log import configure, error, info
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--namespace", default="openshift-pipelines")
+    parser.add_argument("--namespace", default="openshift-ingress")
     args = parser.parse_args()
 
     cluster = args.cluster_name
@@ -27,12 +27,14 @@ def main() -> None:
     info(f"  cluster-name={cluster}")
     info(f"  namespace={args.namespace}")
 
-    info(f"Getting secret '{cluster}-tls' from ns '{args.namespace}'...")
+    info(
+        f"Getting secret '{cluster}-wildcard-certificate' from ns '{args.namespace}'..."
+    )
     get_result = subprocess.run(
         [
             "oc",
             "get",
-            f"secret/{cluster}-tls",
+            f"secret/{cluster}-wildcard-certificate",
             "-n",
             args.namespace,
             "-o",

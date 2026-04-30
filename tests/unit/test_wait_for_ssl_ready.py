@@ -18,7 +18,9 @@ def test_wait_success(mock_run):
         [
             "oc",
             "wait",
-            "certificate/test-cluster-tls",
+            "certificate/test-cluster-wildcard-certificate",
+            "-n",
+            "openshift-ingress",
             "--for=condition=Ready",
             "--timeout=15m",
         ],
