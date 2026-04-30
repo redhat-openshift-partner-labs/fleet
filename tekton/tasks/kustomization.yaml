@@ -15,6 +15,7 @@ resources:
   - extract-spoke-kubeconfig.yaml
   - label-for-post-provision.yaml
   - read-cluster-tier.yaml
+  - trigger-provision.yaml
   - trigger-post-provision.yaml
   - save-spoke-kubeconfig.yaml
   - register-keycloak-client.yaml

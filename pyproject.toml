@@ -47,6 +47,7 @@ fleet-apply-base-workloads = "fleet.tasks.apply_base_workloads:main"
 fleet-configure-spoke-rbac = "fleet.tasks.configure_spoke_rbac:main"
 fleet-read-cluster-tier = "fleet.tasks.read_cluster_tier:main"
 fleet-trigger-post-provision = "fleet.tasks.trigger_post_provision:main"
+fleet-trigger-provision = "fleet.tasks.trigger_provision:main"
 
 [tool.pylint.messages_control]
 disable = [
