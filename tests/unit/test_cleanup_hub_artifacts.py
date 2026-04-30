@@ -150,7 +150,7 @@ def test_cleanup_cert_manager_aws_secret(mock_run, mock_sleep):
             "secret",
             "test-cluster-cert-manager-aws",
             "-n",
-            "openshift-ingress",
+            "cert-manager",
             "--ignore-not-found=true",
         ],
         capture_output=True,

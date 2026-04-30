@@ -57,7 +57,7 @@ def main() -> None:
     )
     info(f"  -> ClusterIssuer letsencrypt-{cluster} deleted")
 
-    info(f"Deleting Secret {cluster}-cert-manager-aws from openshift-ingress...")
+    info(f"Deleting Secret {cluster}-cert-manager-aws from cert-manager...")
     subprocess.run(
         [
             "oc",
@@ -65,7 +65,7 @@ def main() -> None:
             "secret",
             f"{cluster}-cert-manager-aws",
             "-n",
-            "openshift-ingress",
+            "cert-manager",
             "--ignore-not-found=true",
         ],
         capture_output=True,

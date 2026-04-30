@@ -71,7 +71,7 @@ def test_create_cluster_issuer_success(mock_run):
             "generic",
             "test-cluster-cert-manager-aws",
             "-n",
-            "openshift-ingress",
+            "cert-manager",
             "--from-literal=secret_access_key=SUPERsecretKEY",
             "--dry-run=client",
             "-o",
@@ -93,7 +93,6 @@ def test_create_cluster_issuer_success(mock_run):
     assert "email: admin@example.com" in issuer_yaml
     assert "accessKeyID: AAAAAAAAAAAAAAAAAA" in issuer_yaml
     assert "name: test-cluster-cert-manager-aws" in issuer_yaml
-    assert "namespace: openshift-ingress" in issuer_yaml
     assert "key: secret_access_key" in issuer_yaml
     assert "region: us-east-1" in issuer_yaml
     assert "letsencrypt.org/directory" in issuer_yaml

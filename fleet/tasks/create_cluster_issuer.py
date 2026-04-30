@@ -78,7 +78,7 @@ def main() -> None:
         sys.exit(1)
 
     secret_name = f"{cluster}-cert-manager-aws"
-    info(f"Creating Secret {secret_name} in openshift-ingress...")
+    info(f"Creating Secret {secret_name} in cert-manager...")
     try:
         dry_run = subprocess.run(
             [
@@ -88,7 +88,7 @@ def main() -> None:
                 "generic",
                 secret_name,
                 "-n",
-                "openshift-ingress",
+                "cert-manager",
                 f"--from-literal=secret_access_key={secret_key}",
                 "--dry-run=client",
                 "-o",
@@ -131,7 +131,6 @@ def main() -> None:
         f"            accessKeyID: {access_key}\n"
         f"            secretAccessKeySecretRef:\n"
         f"              name: {secret_name}\n"
-        f"              namespace: openshift-ingress\n"
         f"              key: secret_access_key\n"
     )
     info(f"Creating ClusterIssuer {issuer_name}...")
