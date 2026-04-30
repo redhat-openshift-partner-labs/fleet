@@ -13,7 +13,7 @@ spec:
   steps:
     - name: apply
       image: $(params.pipeline-image)
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
