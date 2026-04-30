@@ -11,6 +11,7 @@ Exits 1 on failure.
 """
 
 import argparse
+import base64
 import subprocess
 import sys
 import textwrap
@@ -31,8 +32,9 @@ def _read_secret_key(secret_name: str, key: str) -> str:
     if result.returncode != 0:
         error(f"Failed to read {key} from secret {secret_name}: {result.stderr}")
         sys.exit(1)
-    value = result.stdout.strip()
-    info(f"  Got {key} (length: {len(value)}, first 8 chars: {value[:8]})")
+    raw = result.stdout.strip()
+    value = base64.b64decode(raw).decode("utf-8")
+    info(f"  Got {key} (length: {len(value)})")
     return value
 
 

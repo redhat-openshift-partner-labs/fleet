@@ -28,8 +28,8 @@ BASE_ARGV = [
 
 def _admin_cred_side_effects(*extra):
     return [
-        subprocess.CompletedProcess([], returncode=0, stdout="admin-user", stderr=""),
-        subprocess.CompletedProcess([], returncode=0, stdout="admin-pass", stderr=""),
+        subprocess.CompletedProcess([], returncode=0, stdout="YWRtaW4tdXNlcg==", stderr=""),
+        subprocess.CompletedProcess([], returncode=0, stdout="YWRtaW4tcGFzcw==", stderr=""),
         *extra,
     ]
 
@@ -277,8 +277,8 @@ def test_secret_creation_fails(mock_requests, mock_run):
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
 def test_reads_admin_creds_from_hub_secret(mock_requests, mock_run):
     mock_run.side_effect = [
-        subprocess.CompletedProcess([], returncode=0, stdout="admin-user", stderr=""),
-        subprocess.CompletedProcess([], returncode=0, stdout="admin-pass", stderr=""),
+        subprocess.CompletedProcess([], returncode=0, stdout="YWRtaW4tdXNlcg==", stderr=""),
+        subprocess.CompletedProcess([], returncode=0, stdout="YWRtaW4tcGFzcw==", stderr=""),
         subprocess.CompletedProcess([], returncode=0, stdout="configured", stderr=""),
     ]
 
