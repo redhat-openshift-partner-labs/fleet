@@ -6,6 +6,18 @@ spec:
   params:
     - name: cluster-name
       type: string
+    - name: base-domain
+      type: string
+    - name: keycloak-issuer-url
+      type: string
+    - name: keycloak-url
+      type: string
+    - name: keycloak-realm
+      type: string
+    - name: keycloak-admin-secret
+      type: string
+    - name: auth-realm
+      type: string
     - name: pipeline-image
       type: string
   steps:
@@ -16,4 +28,10 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         fleet-trigger-provision \
-          --cluster-name "$(params.cluster-name)"
+          --cluster-name "$(params.cluster-name)" \
+          --base-domain "$(params.base-domain)" \
+          --keycloak-issuer-url "$(params.keycloak-issuer-url)" \
+          --keycloak-url "$(params.keycloak-url)" \
+          --keycloak-realm "$(params.keycloak-realm)" \
+          --keycloak-admin-secret "$(params.keycloak-admin-secret)" \
+          --auth-realm "$(params.auth-realm)"
