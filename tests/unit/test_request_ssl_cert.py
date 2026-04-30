@@ -3,6 +3,7 @@ from unittest import mock
 import subprocess
 
 import pytest
+import yaml
 
 from fleet.tasks.request_ssl_cert import main
 
@@ -46,15 +47,20 @@ def test_request_cert_multiple_dns_zones(mock_run):
             "--cluster-name",
             "test-cluster",
             "--dns-zones",
-            "apps.test.example.com,api.test.example.com",
+            "*.apps.test.example.com,api.test.example.com",
         ],
     ):
         main()
     mock_run.assert_called_once()
     call_args = mock_run.call_args
     stdin_yaml = call_args.kwargs.get("input", "")
-    assert "apps.test.example.com" in stdin_yaml
+    assert "*.apps.test.example.com" in stdin_yaml
     assert "api.test.example.com" in stdin_yaml
+    parsed = yaml.safe_load(stdin_yaml)
+    assert parsed["spec"]["dnsNames"] == [
+        "*.apps.test.example.com",
+        "api.test.example.com",
+    ]
 
 
 @mock.patch("fleet.tasks.request_ssl_cert.subprocess.run")
