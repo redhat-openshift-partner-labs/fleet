@@ -15,6 +15,12 @@ from fleet.tasks._log import configure, error, info
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
+    parser.add_argument("--base-domain", required=True)
+    parser.add_argument("--keycloak-issuer-url", required=True)
+    parser.add_argument("--keycloak-url", required=True)
+    parser.add_argument("--keycloak-realm", required=True)
+    parser.add_argument("--keycloak-admin-secret", required=True)
+    parser.add_argument("--auth-realm", required=True)
     args = parser.parse_args()
 
     configure("trigger-provision")
@@ -35,6 +41,18 @@ def main() -> None:
           params:
             - name: cluster-name
               value: {cluster}
+            - name: base-domain
+              value: {args.base_domain}
+            - name: keycloak-issuer-url
+              value: {args.keycloak_issuer_url}
+            - name: keycloak-url
+              value: {args.keycloak_url}
+            - name: keycloak-realm
+              value: {args.keycloak_realm}
+            - name: keycloak-admin-secret
+              value: {args.keycloak_admin_secret}
+            - name: auth-realm
+              value: {args.auth_realm}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

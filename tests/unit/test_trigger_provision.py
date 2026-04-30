@@ -11,6 +11,18 @@ BASE_ARGV = [
     "prog",
     "--cluster-name",
     "test-cluster",
+    "--base-domain",
+    "example.com",
+    "--keycloak-issuer-url",
+    "https://keycloak.example.com/realms/openshift",
+    "--keycloak-url",
+    "https://keycloak.example.com",
+    "--keycloak-realm",
+    "openshift",
+    "--keycloak-admin-secret",
+    "keycloak-admin",
+    "--auth-realm",
+    "master",
 ]
 
 
@@ -40,7 +52,8 @@ def test_trigger_success(mock_run):
 @mock.patch("fleet.tasks.trigger_provision.subprocess.run")
 def test_trigger_includes_cluster_name(mock_run):
     mock_run.return_value = _create_result()
-    argv = ["prog", "--cluster-name", "my-cluster"]
+    argv = BASE_ARGV[:]
+    argv[2] = "my-cluster"
     with mock.patch("sys.argv", argv):
         main()
     stdin_yaml = mock_run.call_args.kwargs["input"]
@@ -78,3 +91,17 @@ def test_trigger_creates_pipelinerun_with_taskruntemplate(mock_run):
     trt = doc["spec"]["taskRunTemplate"]
     assert trt["serviceAccountName"] == "fleet-pipeline"
     assert trt["podTemplate"]["securityContext"]["fsGroup"] == 0
+
+
+@mock.patch("fleet.tasks.trigger_provision.subprocess.run")
+def test_trigger_passes_keycloak_and_domain_params(mock_run):
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["base-domain"] == "example.com"
+    assert (
+        params["keycloak-issuer-url"] == "https://keycloak.example.com/realms/openshift"
+    )
+    assert params["keycloak-url"] == "https://keycloak.example.com"
+    assert params["keycloak-realm"] == "openshift"
+    assert params["keycloak-admin-secret"] == "keycloak-admin"
+    assert params["auth-realm"] == "master"
