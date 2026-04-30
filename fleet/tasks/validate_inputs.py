@@ -2,7 +2,7 @@
 
 CLI: fleet-validate-inputs --cluster-name NAME
 Checks: aws-credentials, pull-secret, {cluster}-ssh-key,
-{cluster}-install-config in namespace {cluster}.
+in namespace {cluster}.
 Exits 1 if any Secret is missing.
 """
 
@@ -30,7 +30,6 @@ def main() -> None:
         "aws-credentials",
         "pull-secret",
         f"{cluster}-ssh-key",
-        f"{cluster}-install-config",
     ]
 
     errors = 0
