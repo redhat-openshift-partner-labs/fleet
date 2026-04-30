@@ -7,7 +7,6 @@ Creates a Certificate CR referencing hub-ca ClusterIssuer. Exits 1 on failure.
 import argparse
 import subprocess
 import sys
-import textwrap
 
 from fleet.tasks._log import configure, error, info
 
@@ -28,20 +27,20 @@ def main() -> None:
     info(f"  cluster-name={cluster}")
     info(f"  dns-zones={zones}")
 
-    dns_names = "\n".join(f"    - {z}" for z in zones)
-    cert_yaml = textwrap.dedent(f"""\
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: {cluster}-tls
-        spec:
-          secretName: {cluster}-tls
-          issuerRef:
-            name: hub-ca
-            kind: ClusterIssuer
-          dnsNames:
-        {dns_names}
-    """)
+    dns_names = "\n".join(f'    - "{z}"' for z in zones)
+    cert_yaml = (
+        f"apiVersion: cert-manager.io/v1\n"
+        f"kind: Certificate\n"
+        f"metadata:\n"
+        f"  name: {cluster}-tls\n"
+        f"spec:\n"
+        f"  secretName: {cluster}-tls\n"
+        f"  issuerRef:\n"
+        f"    name: hub-ca\n"
+        f"    kind: ClusterIssuer\n"
+        f"  dnsNames:\n"
+        f"{dns_names}\n"
+    )
     info(f"Creating Certificate CR '{cluster}-tls' with DNS: {dns_names}")
     result = subprocess.run(
         ["oc", "apply", "-f", "-"],
