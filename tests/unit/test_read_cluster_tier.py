@@ -26,11 +26,11 @@ def test_read_tier_success(mock_run, capsys):
         capture_output=True,
         text=True,
     )
-    output = capsys.readouterr().out
-    assert "[info]" in output
-    assert "[read-cluster-tier" in output
-    assert "base" in output
-    assert "tier value:" in output
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "base"
+    assert "[info]" in captured.err
+    assert "[read-cluster-tier" in captured.err
+    assert "tier value:" in captured.err
 
 
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")

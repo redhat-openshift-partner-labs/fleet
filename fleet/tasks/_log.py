@@ -32,8 +32,8 @@ def _prefix() -> str:
 
 
 def info(message: str) -> None:
-    """Log an informational (progress/success) message to stdout."""
-    print(f"[info] {_prefix()} {message}", file=sys.stdout)
+    """Log an informational (progress/success) message to stderr."""
+    print(f"[info] {_prefix()} {message}", file=sys.stderr)
 
 
 def error(message: str) -> None:
