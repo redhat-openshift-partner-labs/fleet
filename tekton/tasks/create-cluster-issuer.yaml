@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-cluster-issuer
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: acme-email
+      type: string
+  steps:
+    - name: create-issuer
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-create-cluster-issuer \
+          --cluster-name "$(params.cluster-name)" \
+          --acme-email "$(params.acme-email)"
