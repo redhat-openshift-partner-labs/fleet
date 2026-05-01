@@ -25,6 +25,8 @@ BASE_ARGV = [
     "keycloak-admin",
     "--auth-realm",
     "master",
+    "--acme-email",
+    "certs@example.com",
 ]
 
 
@@ -78,6 +80,8 @@ def test_trigger_includes_cluster_and_tier(mock_run):
         "keycloak-admin",
         "--auth-realm",
         "master",
+        "--acme-email",
+        "certs@example.com",
     ]
     with mock.patch("sys.argv", argv):
         main()
@@ -127,6 +131,8 @@ def test_trigger_derives_dns_zones(mock_run):
         "keycloak-admin",
         "--auth-realm",
         "master",
+        "--acme-email",
+        "certs@example.com",
     ]
     with mock.patch("sys.argv", argv):
         main()
@@ -196,6 +202,8 @@ def test_trigger_passes_base_domain_and_issuer_url(mock_run):
         "keycloak-admin",
         "--auth-realm",
         "master",
+        "--acme-email",
+        "certs@prod.com",
     ]
     with mock.patch("sys.argv", argv):
         main()
@@ -204,3 +212,11 @@ def test_trigger_passes_base_domain_and_issuer_url(mock_run):
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
     assert params["base-domain"] == "labs.example.com"
     assert params["keycloak-issuer-url"] == "https://sso.prod.com/realms/prod"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_passes_acme_email(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["acme-email"] == "certs@example.com"
