@@ -1,0 +1,6 @@
+- op: replace
+  path: /metadata/name
+  value: 379b5094-ibmvirt-openshift4installerpolicy
+- op: replace
+  path: /spec/forProvider/name
+  value: 379b5094-ibmvirt-OpenShift4InstallerPolicy

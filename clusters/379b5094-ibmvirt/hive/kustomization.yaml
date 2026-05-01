@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: 379b5094-ibmvirt
+
+resources:
+  - ../../../cluster-templates/aws-ha/base/hive
+
+patches:
+  - path: patches/install-config.yaml
+  - target:
+      kind: Secret
+      name: cluster-placeholder-install-config
+    path: patches/install-config-meta.yaml
+  - target:
+      kind: Namespace
+      name: cluster-placeholder
+    path: patches/namespace.yaml
+  - target:
+      kind: ClusterDeployment
+      name: cluster-placeholder
+    path: patches/clusterdeployment.yaml
+  - target:
+      kind: MachinePool
+      name: cluster-placeholder-worker
+    path: patches/machinepool-worker.yaml
+  - target:
+      kind: ManagedCluster
+      name: cluster-placeholder
+    path: patches/managedcluster.yaml
+  - target:
+      kind: KlusterletAddonConfig
+      name: cluster-placeholder
+    path: patches/klusterletaddonconfig.yaml
