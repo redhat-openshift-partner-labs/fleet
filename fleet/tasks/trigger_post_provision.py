@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--keycloak-realm", required=True)
     parser.add_argument("--keycloak-admin-secret", required=True)
     parser.add_argument("--auth-realm", required=True)
+    parser.add_argument("--acme-email", required=True)
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -38,6 +39,7 @@ def main() -> None:
     keycloak_realm = args.keycloak_realm
     keycloak_admin_secret = args.keycloak_admin_secret
     auth_realm = args.auth_realm
+    acme_email = args.acme_email
 
     info("=== Triggering post-provision pipeline ===")
     info("Parameters:")
@@ -98,6 +100,8 @@ def main() -> None:
               value: {keycloak_admin_secret}
             - name: auth-realm
               value: {auth_realm}
+            - name: acme-email
+              value: {acme_email}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

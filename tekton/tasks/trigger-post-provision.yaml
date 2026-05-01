@@ -22,6 +22,8 @@ spec:
       type: string
     - name: auth-realm
       type: string
+    - name: acme-email
+      type: string
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -37,4 +39,5 @@ spec:
           --keycloak-url "$(params.keycloak-url)" \
           --keycloak-realm "$(params.keycloak-realm)" \
           --keycloak-admin-secret "$(params.keycloak-admin-secret)" \
-          --auth-realm "$(params.auth-realm)"
+          --auth-realm "$(params.auth-realm)" \
+          --acme-email "$(params.acme-email)"
