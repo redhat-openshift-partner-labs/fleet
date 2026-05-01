@@ -23,3 +23,5 @@ spec:
       value: $(body.keycloak_admin_secret)
     - name: auth-realm
       value: $(body.auth_realm)
+    - name: acme-email
+      value: $(body.acme_email)
