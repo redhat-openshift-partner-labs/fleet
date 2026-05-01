@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--keycloak-realm", required=True)
     parser.add_argument("--keycloak-admin-secret", required=True)
     parser.add_argument("--auth-realm", required=True)
+    parser.add_argument("--acme-email", required=True)
     args = parser.parse_args()
 
     configure("trigger-provision")
@@ -53,6 +54,8 @@ def main() -> None:
               value: {args.keycloak_admin_secret}
             - name: auth-realm
               value: {args.auth_realm}
+            - name: acme-email
+              value: {args.acme_email}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

@@ -23,6 +23,8 @@ BASE_ARGV = [
     "keycloak-admin",
     "--auth-realm",
     "master",
+    "--acme-email",
+    "certs@example.com",
 ]
 
 
@@ -105,3 +107,10 @@ def test_trigger_passes_keycloak_and_domain_params(mock_run):
     assert params["keycloak-realm"] == "openshift"
     assert params["keycloak-admin-secret"] == "keycloak-admin"
     assert params["auth-realm"] == "master"
+
+
+@mock.patch("fleet.tasks.trigger_provision.subprocess.run")
+def test_trigger_passes_acme_email(mock_run):
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["acme-email"] == "certs@example.com"

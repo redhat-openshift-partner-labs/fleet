@@ -30,6 +30,9 @@ spec:
     - name: auth-realm
       type: string
       default: "master"
+    - name: acme-email
+      type: string
+      default: admin@example.com
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
@@ -152,5 +155,7 @@ spec:
           value: $(params.keycloak-admin-secret)
         - name: auth-realm
           value: $(params.auth-realm)
+        - name: acme-email
+          value: $(params.acme-email)
         - name: pipeline-image
           value: $(params.pipeline-image)
