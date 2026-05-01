@@ -14,6 +14,8 @@ spec:
     - name: keycloak-realm
     - name: keycloak-admin-secret
     - name: auth-realm
+    - name: acme-email
+      default: admin@example.com
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -41,6 +43,8 @@ spec:
             value: $(tt.params.keycloak-admin-secret)
           - name: auth-realm
             value: $(tt.params.auth-realm)
+          - name: acme-email
+            value: $(tt.params.acme-email)
         taskRunTemplate:
           serviceAccountName: fleet-pipeline
           podTemplate:
