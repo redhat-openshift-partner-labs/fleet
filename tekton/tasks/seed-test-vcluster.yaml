@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: seed-test-vcluster
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: tier
+      type: string
+      default: base
+    - name: create-aws-creds
+      type: string
+      default: "false"
+  workspaces:
+    - name: shared
+  steps:
+    - name: seed
+      image: $(params.pipeline-image)
+      imagePullPolicy: Always
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        EXTRA_ARGS=()
+        if [[ "$(params.create-aws-creds)" == "true" ]]; then
+          EXTRA_ARGS+=(--create-aws-creds)
+        fi
+        fleet-seed-test-vcluster \
+          --cluster-name "$(params.cluster-name)" \
+          --kubeconfig-file "$(workspaces.shared.path)/kubeconfig" \
+          --tier "$(params.tier)" \
+          "${EXTRA_ARGS[@]}"
