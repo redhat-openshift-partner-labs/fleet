@@ -42,6 +42,9 @@ spec:
     - name: acme-email
       type: string
       default: admin@example.com
+    - name: openshift-cluster
+      type: string
+      default: "true"
   workspaces:
     - name: shared-workspace
 
@@ -89,6 +92,11 @@ spec:
           workspace: shared-workspace
 
     - name: register-keycloak-client
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: register-keycloak-client
       runAfter:
@@ -114,6 +122,11 @@ spec:
           value: $(params.insecure)
 
     - name: configure-spoke-oauth
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: configure-spoke-oauth
       runAfter:
@@ -132,6 +145,11 @@ spec:
           workspace: shared-workspace
 
     - name: create-cluster-issuer
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: create-cluster-issuer
       runAfter:
@@ -145,6 +163,11 @@ spec:
           value: $(params.acme-email)
 
     - name: request-ssl-cert
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: request-ssl-cert
       runAfter:
@@ -158,6 +181,11 @@ spec:
           value: $(params.dns-zones)
 
     - name: wait-for-ssl-ready
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: wait-for-ssl-ready
       runAfter:
@@ -170,6 +198,11 @@ spec:
       timeout: "20m"
 
     - name: extract-cert-material
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: extract-cert-material
       runAfter:
@@ -197,6 +230,11 @@ spec:
           workspace: shared-workspace
 
     - name: configure-spoke-rbac
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
       taskRef:
         name: configure-spoke-rbac
       runAfter:
