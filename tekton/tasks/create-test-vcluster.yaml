@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-test-vcluster
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: namespace
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: values-file
+      type: string
+      default: ""
+  workspaces:
+    - name: shared
+  steps:
+    - name: create
+      image: $(params.pipeline-image)
+      imagePullPolicy: Always
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        EXTRA_ARGS=()
+        if [[ -n "$(params.values-file)" ]]; then
+          EXTRA_ARGS+=(--values-file "$(workspaces.shared.path)/$(params.values-file)")
+        fi
+        fleet-create-test-vcluster \
+          --cluster-name "$(params.cluster-name)" \
+          --namespace "$(params.namespace)" \
+          --output-dir "$(workspaces.shared.path)" \
+          "${EXTRA_ARGS[@]}"
