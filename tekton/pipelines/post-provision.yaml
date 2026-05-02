@@ -45,6 +45,9 @@ spec:
     - name: openshift-cluster
       type: string
       default: "true"
+    - name: spoke-kubeconfig
+      type: string
+      default: ""
   workspaces:
     - name: shared-workspace
 
@@ -73,6 +76,8 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(params.pipeline-image)
+        - name: spoke-kubeconfig
+          value: $(params.spoke-kubeconfig)
       workspaces:
         - name: shared
           workspace: shared-workspace
