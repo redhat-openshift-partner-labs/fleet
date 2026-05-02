@@ -49,3 +49,48 @@ def test_extract_fails(mock_run):
     ):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+@mock.patch("fleet.tasks.extract_kubeconfig.subprocess.run")
+def test_extract_with_spoke_kubeconfig_skips_clusterdeployment(mock_run):
+    mock_run.side_effect = [
+        subprocess.CompletedProcess([], returncode=0, stdout="kubeconfig", stderr=""),
+    ]
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            "test-cluster",
+            "--output-dir",
+            "/out",
+            "--spoke-kubeconfig",
+            "my-direct-secret",
+        ],
+    ):
+        main()
+    assert mock_run.call_count == 1
+    extract_call = mock_run.call_args_list[0]
+    assert "secret/my-direct-secret" in extract_call.args[0]
+
+
+@mock.patch("fleet.tasks.extract_kubeconfig.subprocess.run")
+def test_extract_with_spoke_kubeconfig_fails(mock_run):
+    mock_run.side_effect = [
+        subprocess.CompletedProcess([], returncode=1, stdout="", stderr="error"),
+    ]
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            "test-cluster",
+            "--output-dir",
+            "/out",
+            "--spoke-kubeconfig",
+            "my-direct-secret",
+        ],
+    ):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert mock_run.call_count == 1

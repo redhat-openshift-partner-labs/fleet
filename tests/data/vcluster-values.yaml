@@ -1,0 +1,35 @@
+controlPlane:
+  proxy:
+    extraSANs:
+      - fleet-vcluster.opldevs.svc.cluster.local
+experimental:
+  deploy:
+    host:
+      manifests: |-
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: vc-fleet-vcluster-cluster-admin
+          namespace: opldevs
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: cluster-admin
+        subjects:
+          - kind: ServiceAccount
+            name: vc-fleet-vcluster
+            namespace: opldevs
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: vc-workload-fleet-vcluster-cluster-admin
+          namespace: opldevs
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: cluster-admin
+        subjects:
+          - kind: ServiceAccount
+            name: vc-workload-fleet-vcluster
+            namespace: opldevs

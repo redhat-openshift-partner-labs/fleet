@@ -1,30 +1,34 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: extract-spoke-kubeconfig
+  name: seed-test-vcluster
 spec:
   params:
     - name: cluster-name
       type: string
     - name: pipeline-image
       type: string
-    - name: spoke-kubeconfig
+    - name: tier
       type: string
-      default: ""
+      default: base
+    - name: create-aws-creds
+      type: string
+      default: "false"
   workspaces:
     - name: shared
   steps:
-    - name: extract
+    - name: seed
       image: $(params.pipeline-image)
       imagePullPolicy: Always
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
         EXTRA_ARGS=()
-        if [[ -n "$(params.spoke-kubeconfig)" ]]; then
-          EXTRA_ARGS+=(--spoke-kubeconfig "$(params.spoke-kubeconfig)")
+        if [[ "$(params.create-aws-creds)" == "true" ]]; then
+          EXTRA_ARGS+=(--create-aws-creds)
         fi
-        fleet-extract-kubeconfig \
+        fleet-seed-test-vcluster \
           --cluster-name "$(params.cluster-name)" \
-          --output-dir "$(workspaces.shared.path)" \
+          --kubeconfig-file "$(workspaces.shared.path)/kubeconfig" \
+          --tier "$(params.tier)" \
           "${EXTRA_ARGS[@]}"

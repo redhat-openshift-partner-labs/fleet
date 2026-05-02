@@ -22,3 +22,4 @@ tmp
 kubeconfig
 .idea
 .mcp.json
+clusters
