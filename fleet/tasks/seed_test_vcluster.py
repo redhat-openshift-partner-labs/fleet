@@ -1,3 +1,5 @@
+"""Seed hub resources for a test vCluster."""
+
 import argparse
 import base64
 import subprocess

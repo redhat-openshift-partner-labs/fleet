@@ -1,3 +1,5 @@
+"""Tear down a test vCluster and its hub resources."""
+
 import argparse
 import subprocess
 import sys

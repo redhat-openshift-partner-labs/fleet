@@ -1,3 +1,5 @@
+"""Create a vCluster and extract its kubeconfig."""
+
 import argparse
 import os
 import subprocess
@@ -60,6 +62,6 @@ def main() -> None:
         sys.exit(1)
 
     kubeconfig_path = os.path.join(args.output_dir, "kubeconfig")
-    with open(kubeconfig_path, "w") as fh:
+    with open(kubeconfig_path, "w", encoding="utf-8") as fh:
         fh.write(result.stdout)
     info(f"Kubeconfig written to {kubeconfig_path}")
