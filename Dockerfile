@@ -8,7 +8,11 @@ RUN pip install --no-cache-dir /src && \
     KUSTOMIZE_VERSION=$(curl -sL https://api.github.com/repos/kubernetes-sigs/kustomize/releases \
       | python3 -c "import sys,json; tags=[r['tag_name'] for r in json.load(sys.stdin) if r['tag_name'].startswith('kustomize/')]; print(tags[0].split('/')[-1])") && \
     curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
-    | tar xz -C /tmp kustomize
+    | tar xz -C /tmp kustomize && \
+    VCLUSTER_VERSION=$(curl -sL https://api.github.com/repos/loft-sh/vcluster/releases/latest \
+        | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'].lstrip('v'))") && \
+    curl -sL "https://github.com/loft-sh/vcluster/releases/download/v${VCLUSTER_VERSION}/vcluster-linux-amd64" \
+        -o /tmp/vcluster && chmod +x /tmp/vcluster
 
 FROM registry.access.redhat.com/ubi9-minimal:latest
 
@@ -22,6 +26,7 @@ COPY --from=build /usr/lib64/libpython3.11.so.1.0 /usr/lib64/libpython3.11.so.1.
 COPY --from=build /tmp/oc /usr/local/bin/oc
 COPY --from=build /tmp/kubectl /usr/local/bin/kubectl
 COPY --from=build /tmp/kustomize /usr/local/bin/kustomize
+COPY --from=build /tmp/vcluster /usr/local/bin/vcluster
 
 RUN ln -s python3.11 /usr/bin/python3 && ln -s python3 /usr/bin/python
 
