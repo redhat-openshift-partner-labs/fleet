@@ -1,0 +1,30 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-post-provision
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: tier
+      type: string
+    - name: namespace
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: timeout
+      type: string
+      default: "600"
+  steps:
+    - name: run
+      image: $(params.pipeline-image)
+      imagePullPolicy: Always
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-run-post-provision \
+          --cluster-name "$(params.cluster-name)" \
+          --tier "$(params.tier)" \
+          --namespace "$(params.namespace)" \
+          --pipeline-image "$(params.pipeline-image)" \
+          --timeout "$(params.timeout)"
