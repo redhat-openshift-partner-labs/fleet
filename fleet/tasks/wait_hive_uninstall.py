@@ -8,22 +8,25 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--timeout", default="25m")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--timeout", default=None)
     args = parser.parse_args()
 
-    cluster = args.cluster_name
+    check_configmap_env()
+    cluster = resolve_required(args.cluster_name, "cluster-name", "wait-hive-uninstall")
+    timeout = resolve(args.timeout, "timeout", "wait-hive-uninstall") or "25m"
     configure("wait-hive-uninstall")
 
     info("=== Waiting for Hive cluster uninstall to complete ===")
     info(f"Parameters:")
     info(f"  cluster-name={cluster}")
-    info(f"  timeout={args.timeout}")
+    info(f"  timeout={timeout}")
 
     info(f"Checking if ClusterDeployment '{cluster}' still exists in ns '{cluster}'...")
     result = subprocess.run(
@@ -37,7 +40,7 @@ def main() -> None:
         return
 
     info(
-        f"ClusterDeployment still exists, waiting for deletion (timeout: {args.timeout})..."
+        f"ClusterDeployment still exists, waiting for deletion (timeout: {timeout})..."
     )
     result = subprocess.run(
         [
@@ -47,7 +50,7 @@ def main() -> None:
             f"clusterdeployment/{cluster}",
             "-n",
             cluster,
-            f"--timeout={args.timeout}",
+            f"--timeout={timeout}",
         ],
         capture_output=True,
         text=True,

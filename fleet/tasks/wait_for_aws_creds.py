@@ -1,6 +1,6 @@
 """Poll for the Crossplane-generated aws-credentials-raw Secret.
 
-CLI: fleet-wait-for-aws-creds --cluster-name NAME [--timeout-seconds 600]
+CLI: fleet-wait-for-aws-creds --cluster-name NAME [--timeout-seconds 900]
 Polls every 10s until Secret aws-credentials-raw exists in namespace {cluster}. Exits 1 on timeout.
 """
 
@@ -9,25 +9,30 @@ import subprocess
 import sys
 import time
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--timeout-seconds", type=int, default=600)
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--timeout-seconds", default=None)
     args = parser.parse_args()
 
+    check_configmap_env()
     configure("wait-for-aws-creds")
 
-    cluster = args.cluster_name
+    cluster = resolve_required(args.cluster_name, "cluster-name", "wait-for-aws-creds")
+    timeout_str = (
+        resolve(args.timeout_seconds, "timeout-seconds", "wait-for-aws-creds") or "900"
+    )
+    timeout = int(timeout_str)
     info("=== Waiting for aws-credentials-raw Secret ===")
     info(f"Parameters:")
     info(f"  cluster-name={cluster}")
-    info(f"  timeout={args.timeout_seconds}s")
+    info(f"  timeout={timeout}s")
     info(f"  interval=10s")
 
-    timeout = args.timeout_seconds
     elapsed = 0
     interval = 10
 
