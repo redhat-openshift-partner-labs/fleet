@@ -61,6 +61,8 @@ def main() -> None:
             podTemplate:
               securityContext:
                 fsGroup: 0
+              imagePullSecrets:
+                - name: fleet-pipeline-pull-secret
           workspaces:
             - name: shared-workspace
               volumeClaimTemplate:
