@@ -10,17 +10,35 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._env import check_configmap_env, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--spoke-kubeconfig", required=True)
-    parser.add_argument("--cluster-dir", required=True)
-    parser.add_argument("--keycloak-issuer-url", required=True)
-    parser.add_argument("--provider-name", default="RedHat")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--spoke-kubeconfig", default=None)
+    parser.add_argument("--cluster-dir", default=None)
+    parser.add_argument("--keycloak-issuer-url", default=None)
+    parser.add_argument("--provider-name", default=None)
     args = parser.parse_args()
+
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "configure-spoke-oauth"
+    )
+    args.spoke_kubeconfig = resolve_required(
+        args.spoke_kubeconfig, "spoke-kubeconfig", "configure-spoke-oauth"
+    )
+    args.cluster_dir = resolve_required(
+        args.cluster_dir, "cluster-dir", "configure-spoke-oauth"
+    )
+    args.keycloak_issuer_url = resolve_required(
+        args.keycloak_issuer_url, "keycloak-issuer-url", "configure-spoke-oauth"
+    )
+    args.provider_name = resolve_required(
+        args.provider_name, "provider-name", "configure-spoke-oauth"
+    )
 
     configure("configure-spoke-oauth")
 

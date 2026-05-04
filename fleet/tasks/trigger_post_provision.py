@@ -13,21 +13,49 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._env import check_configmap_env, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--tier", required=True)
-    parser.add_argument("--base-domain", required=True)
-    parser.add_argument("--keycloak-issuer-url", required=True)
-    parser.add_argument("--keycloak-url", required=True)
-    parser.add_argument("--keycloak-realm", required=True)
-    parser.add_argument("--keycloak-admin-secret", required=True)
-    parser.add_argument("--auth-realm", required=True)
-    parser.add_argument("--acme-email", required=True)
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--tier", default=None)
+    parser.add_argument("--base-domain", default=None)
+    parser.add_argument("--keycloak-issuer-url", default=None)
+    parser.add_argument("--keycloak-url", default=None)
+    parser.add_argument("--keycloak-realm", default=None)
+    parser.add_argument("--keycloak-admin-secret", default=None)
+    parser.add_argument("--auth-realm", default=None)
+    parser.add_argument("--acme-email", default=None)
     args = parser.parse_args()
+
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "trigger-post-provision"
+    )
+    args.tier = resolve_required(args.tier, "tier", "trigger-post-provision")
+    args.base_domain = resolve_required(
+        args.base_domain, "base-domain", "trigger-post-provision"
+    )
+    args.keycloak_issuer_url = resolve_required(
+        args.keycloak_issuer_url, "keycloak-issuer-url", "trigger-post-provision"
+    )
+    args.keycloak_url = resolve_required(
+        args.keycloak_url, "keycloak-url", "trigger-post-provision"
+    )
+    args.keycloak_realm = resolve_required(
+        args.keycloak_realm, "keycloak-realm", "trigger-post-provision"
+    )
+    args.keycloak_admin_secret = resolve_required(
+        args.keycloak_admin_secret, "keycloak-admin-secret", "trigger-post-provision"
+    )
+    args.auth_realm = resolve_required(
+        args.auth_realm, "auth-realm", "trigger-post-provision"
+    )
+    args.acme_email = resolve_required(
+        args.acme_email, "acme-email", "trigger-post-provision"
+    )
 
     configure("trigger-post-provision")
 

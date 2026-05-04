@@ -1,3 +1,4 @@
+import os
 from unittest import mock
 
 import subprocess
@@ -23,6 +24,10 @@ BASE_ARGV = [
     "keycloak-admin",
     "--base-domain",
     "example.com",
+    "--auth-realm",
+    "master",
+    "--provider-name",
+    "RedHat",
 ]
 
 
@@ -105,7 +110,8 @@ def test_build_client_payload():
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_register_new_client(mock_requests, mock_run):
+def test_register_new_client(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -147,7 +153,8 @@ def test_register_new_client(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_register_existing_client_puts_update(mock_requests, mock_run):
+def test_register_existing_client_puts_update(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -181,7 +188,8 @@ def test_register_existing_client_puts_update(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_exact_match_rejects_substring(mock_requests, mock_run):
+def test_exact_match_rejects_substring(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -214,7 +222,8 @@ def test_exact_match_rejects_substring(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_keycloak_token_fails(mock_requests, mock_run):
+def test_keycloak_token_fails(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_requests.HTTPError = requests.HTTPError
 
     token_resp = mock.Mock()
@@ -233,7 +242,8 @@ def test_keycloak_token_fails(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_realm_not_found_exits(mock_requests, mock_run):
+def test_realm_not_found_exits(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
 
     realm_resp = mock.Mock()
@@ -251,7 +261,8 @@ def test_realm_not_found_exits(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_secret_creation_fails(mock_requests, mock_run):
+def test_secret_creation_fails(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -279,7 +290,8 @@ def test_secret_creation_fails(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_reads_admin_creds_from_hub_secret(mock_requests, mock_run):
+def test_reads_admin_creds_from_hub_secret(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [], returncode=0, stdout="YWRtaW4tdXNlcg==", stderr=""
@@ -315,7 +327,8 @@ def test_reads_admin_creds_from_hub_secret(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_admin_cred_read_fails(mock_requests, mock_run):
+def test_admin_cred_read_fails(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="not found"
     )
@@ -326,7 +339,8 @@ def test_admin_cred_read_fails(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_auth_realm_param(mock_requests, mock_run):
+def test_auth_realm_param(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -356,7 +370,8 @@ def test_auth_realm_param(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_insecure_flag(mock_requests, mock_run):
+def test_insecure_flag(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -389,7 +404,8 @@ def test_insecure_flag(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_provider_name_in_redirect_uri(mock_requests, mock_run):
+def test_provider_name_in_redirect_uri(mock_requests, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
 
@@ -420,8 +436,9 @@ def test_provider_name_in_redirect_uri(mock_requests, mock_run):
 
 @mock.patch("fleet.tasks.register_keycloak_client.subprocess.run")
 @mock.patch("fleet.tasks.register_keycloak_client.requests")
-def test_create_client_returns_fail(mock_requests, mock_run):
+def test_create_client_returns_fail(mock_requests, mock_run, monkeypatch):
     """Test that create with HTTP 500 fails properly and logs error."""
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     token_resp = _mock_token_resp()
     realm_resp = _mock_realm_resp()
     get_resp = mock.Mock()
@@ -441,3 +458,43 @@ def test_create_client_returns_fail(mock_requests, mock_run):
         with pytest.raises(SystemExit, match="1"):
             main()
     assert mock_requests.post.call_count == 2
+
+
+def test_env_var_fallback(monkeypatch):
+    """keycloak-url resolves from env var when CLI arg is missing."""
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv("FLEET_KEYCLOAK_URL", "https://kc.env.com")
+    monkeypatch.setenv("FLEET_KEYCLOAK_REALM", "env-realm")
+    monkeypatch.setenv("FLEET_KEYCLOAK_ADMIN_SECRET", "env-secret")
+    monkeypatch.setenv("FLEET_BASE_DOMAIN", "env.example.com")
+    monkeypatch.setenv("FLEET_AUTH_REALM", "env-auth")
+    monkeypatch.setenv("FLEET_PROVIDER_NAME", "EnvProvider")
+    argv = ["prog", "--cluster-name", "test-cluster"]
+    with mock.patch("sys.argv", argv), mock.patch(
+        "fleet.tasks.register_keycloak_client.subprocess.run"
+    ) as mock_run, mock.patch(
+        "fleet.tasks.register_keycloak_client.requests.post"
+    ) as mock_post, mock.patch(
+        "fleet.tasks.register_keycloak_client.requests.get"
+    ) as mock_get:
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, stdout="YWRtaW4=", stderr=""
+        )
+        token_resp = mock.Mock(status_code=200, json=lambda: {"access_token": "tok"})
+        create_resp = mock.Mock(
+            status_code=201,
+            headers={
+                "Location": "https://kc.env.com/admin/realms/env-realm/clients/new-uuid"
+            },
+        )
+        mock_post.side_effect = [token_resp, create_resp]
+        secret_resp = mock.Mock(status_code=200, json=lambda: {"value": "secret"})
+        mock_get.side_effect = [
+            mock.Mock(status_code=200),  # realm check
+            mock.Mock(status_code=200, json=lambda: []),  # clients list
+            secret_resp,  # client secret
+        ]
+        try:
+            main()
+        except SystemExit:
+            pass

@@ -22,7 +22,8 @@ BASE_ARGV = [
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_configure_oauth_success(mock_run):
+def test_configure_oauth_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -36,7 +37,8 @@ def test_configure_oauth_success(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_configure_oauth_applies_htpasswd_secret(mock_run):
+def test_configure_oauth_applies_htpasswd_secret(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -47,7 +49,8 @@ def test_configure_oauth_applies_htpasswd_secret(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_configure_oauth_htpasswd_apply_fails(mock_run):
+def test_configure_oauth_htpasswd_apply_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="forbidden"
     )
@@ -57,7 +60,8 @@ def test_configure_oauth_htpasswd_apply_fails(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_configure_oauth_uses_cluster_name_in_resources(mock_run):
+def test_configure_oauth_uses_cluster_name_in_resources(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -75,7 +79,8 @@ def test_configure_oauth_uses_cluster_name_in_resources(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_configure_oauth_second_apply_fails(mock_run):
+def test_configure_oauth_second_apply_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="configured", stderr=""),
         subprocess.CompletedProcess([], returncode=1, stdout="", stderr="forbidden"),
@@ -86,7 +91,8 @@ def test_configure_oauth_second_apply_fails(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_issuer_url_parameterized(mock_run):
+def test_issuer_url_parameterized(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -110,7 +116,8 @@ def test_issuer_url_parameterized(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_provider_name_in_oauth_yaml(mock_run):
+def test_provider_name_in_oauth_yaml(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -134,7 +141,8 @@ def test_provider_name_in_oauth_yaml(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
-def test_client_secret_name_matches_register_task(mock_run):
+def test_client_secret_name_matches_register_task(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="configured", stderr=""
     )
@@ -142,3 +150,27 @@ def test_client_secret_name_matches_register_task(mock_run):
         main()
     oauth_yaml = mock_run.call_args_list[1].kwargs["input"]
     assert "name: test-cluster-keycloak-client" in oauth_yaml
+
+
+def test_env_var_fallback_for_keycloak_issuer(monkeypatch):
+    """keycloak-issuer-url resolves from env var when CLI arg is missing."""
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv(
+        "FLEET_KEYCLOAK_ISSUER_URL", "https://idp.env.com/realms/openshift"
+    )
+    monkeypatch.setenv("FLEET_PROVIDER_NAME", "EnvProvider")
+    argv = [
+        "prog",
+        "--cluster-name",
+        "test-cluster",
+        "--spoke-kubeconfig",
+        "/workspace/kubeconfig",
+        "--cluster-dir",
+        "/workspace/source/clusters/test-cluster",
+    ]
+    with mock.patch("sys.argv", argv), mock.patch(
+        "fleet.tasks.configure_spoke_oauth.subprocess.run"
+    ) as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        main()
+    assert mock_run.call_count >= 1

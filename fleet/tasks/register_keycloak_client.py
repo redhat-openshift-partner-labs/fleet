@@ -18,6 +18,7 @@ import textwrap
 
 import requests
 
+from fleet.tasks._env import check_configmap_env, resolve_bool, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
@@ -73,15 +74,39 @@ def _build_client_payload(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--keycloak-url", required=True)
-    parser.add_argument("--keycloak-realm", required=True)
-    parser.add_argument("--keycloak-admin-secret", required=True)
-    parser.add_argument("--base-domain", required=True)
-    parser.add_argument("--auth-realm", default="master")
-    parser.add_argument("--provider-name", default="RedHat")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--keycloak-url", default=None)
+    parser.add_argument("--keycloak-realm", default=None)
+    parser.add_argument("--keycloak-admin-secret", default=None)
+    parser.add_argument("--base-domain", default=None)
+    parser.add_argument("--auth-realm", default=None)
+    parser.add_argument("--provider-name", default=None)
     parser.add_argument("--insecure", action="store_true")
     args = parser.parse_args()
+
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "register-keycloak-client"
+    )
+    args.keycloak_url = resolve_required(
+        args.keycloak_url, "keycloak-url", "register-keycloak-client"
+    )
+    args.keycloak_realm = resolve_required(
+        args.keycloak_realm, "keycloak-realm", "register-keycloak-client"
+    )
+    args.keycloak_admin_secret = resolve_required(
+        args.keycloak_admin_secret, "keycloak-admin-secret", "register-keycloak-client"
+    )
+    args.base_domain = resolve_required(
+        args.base_domain, "base-domain", "register-keycloak-client"
+    )
+    args.auth_realm = resolve_required(
+        args.auth_realm, "auth-realm", "register-keycloak-client"
+    )
+    args.provider_name = resolve_required(
+        args.provider_name, "provider-name", "register-keycloak-client"
+    )
+    args.insecure = resolve_bool(args.insecure, "insecure", "register-keycloak-client")
 
     configure("register-keycloak-client")
 
