@@ -7,13 +7,14 @@ pipeline without provisioning real cloud infrastructure. A vCluster runs as a
 set of pods on the hub cluster, presents a full Kubernetes API, and can be
 created and destroyed in seconds.
 
-Three CLI tools manage the lifecycle:
+Four CLI tools manage the lifecycle:
 
 | CLI entry point | Source | Purpose |
 |---|---|---|
 | `fleet-create-test-vcluster` | `fleet/tasks/create_test_vcluster.py` | Create vCluster, extract kubeconfig |
 | `fleet-seed-test-vcluster` | `fleet/tasks/seed_test_vcluster.py` | Create hub resources that mimic a real spoke |
-| `fleet-teardown-test-vcluster` | `fleet/tasks/teardown_test_vcluster.py` | Delete vCluster and hub resources |
+| `fleet-run-post-provision` | `fleet/tasks/run_post_provision.py` | Run post-provision pipeline and wait for completion |
+| `fleet-delete-test-vcluster` | `fleet/tasks/delete_test_vcluster.py` | Delete vCluster and hub resources |
 
 ## Lifecycle
 
@@ -33,12 +34,15 @@ flowchart LR
         S5 --> S6
     end
 
-    subgraph Teardown
-        T1[vcluster delete] --> T2[Delete Namespace]
-        T2 --> T3[Delete ManagedCluster]
+    subgraph Run
+        R1[Create PipelineRun\nopenshift-cluster=false] --> R2[Poll until\ncomplete]
     end
 
-    Create --> Seed --> Teardown
+    subgraph Delete
+        D1[Delete ManagedCluster] --> D2[vcluster delete]
+    end
+
+    Create --> Seed --> Run --> Delete
 ```
 
 ## Hub Resources Created by Seed
@@ -117,15 +121,49 @@ Creates hub-side resources so the post-provision pipeline can discover and
 operate on the vCluster. The ManagedCluster gets `cloud=vcluster` and
 `vendor=Kubernetes` labels to distinguish it from real spokes.
 
-### fleet-teardown-test-vcluster
+### fleet-run-post-provision
+
+| Arg | Required | Description |
+|---|---|---|
+| `--cluster-name` | yes | Cluster name (matches the seeded hub resources) |
+| `--tier` | yes | Workload tier: `base`, `virt`, or `ai` |
+| `--namespace` | yes | Hub namespace the vCluster runs in |
+| `--timeout` | no | Max seconds to wait for completion (default: 600) |
+
+Creates a post-provision PipelineRun with `openshift-cluster=false` and
+`spoke-kubeconfig` set to `{cluster-name}-admin-kubeconfig`, then polls until
+the PipelineRun succeeds or fails. Exits 1 on failure or timeout.
+
+### fleet-delete-test-vcluster
 
 | Arg | Required | Description |
 |---|---|---|
 | `--cluster-name` | yes | vCluster to delete |
 | `--namespace` | yes | Hub namespace the vCluster runs in |
 
-Deletes the vCluster (fatal on failure), then removes the hub namespace and
-ManagedCluster (best-effort with `--ignore-not-found`).
+Deletes the ManagedCluster first (to unblock ACM), then runs `vcluster delete`
+which removes the vCluster and its namespace.
+
+## test-vcluster Pipeline
+
+The `test-vcluster` Tekton pipeline orchestrates the full test cycle as a
+single PipelineRun:
+
+```
+create-test-vcluster → seed-test-vcluster → run-post-provision → delete-test-vcluster
+```
+
+| Param | Required | Default | Description |
+|---|---|---|---|
+| `cluster-name` | yes | | Name for the vCluster |
+| `namespace` | yes | | Hub namespace to create the vCluster in |
+| `tier` | no | `base` | Workload tier label |
+| `pipeline-image` | no | `quay.io/rhopl/fleet-pipeline:latest` | Container image |
+| `values-file` | no | `""` | Custom vCluster Helm values file (workspace-relative) |
+| `extra-sans` | no | `""` | Additional SANs for the vCluster API cert |
+| `route-san` | no | `""` | Hostname for a passthrough route to the vCluster |
+| `create-aws-creds` | no | `"false"` | Create a placeholder aws-credentials Secret |
+| `timeout` | no | `"600"` | Max seconds to wait for post-provision completion |
 
 ## How vCluster Differs from Production
 
