@@ -120,7 +120,7 @@ def main() -> None:
         f"  name: {issuer_name}\n"
         f"spec:\n"
         f"  acme:\n"
-        f"    server: https://acme-v2.api.letsencrypt.org/directory\n"
+        f"    server: https://acme-v02.api.letsencrypt.org/directory\n"
         f"    email: {acme_email}\n"
         f"    privateKeySecretRef:\n"
         f"      name: {issuer_name}-account-key\n"
