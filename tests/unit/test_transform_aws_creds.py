@@ -8,7 +8,8 @@ from fleet.tasks.transform_aws_creds import main
 
 
 @mock.patch("fleet.tasks.transform_aws_creds.subprocess.run")
-def test_transform_success(mock_run):
+def test_transform_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="bXl1c2Vy", stderr=""),
         subprocess.CompletedProcess([], returncode=0, stdout="bXlwYXNz", stderr=""),
@@ -78,7 +79,8 @@ def test_transform_success(mock_run):
 
 
 @mock.patch("fleet.tasks.transform_aws_creds.subprocess.run")
-def test_extraction_failure(mock_run):
+def test_extraction_failure(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = subprocess.CalledProcessError(1, "oc", stderr="not found")
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
@@ -86,7 +88,8 @@ def test_extraction_failure(mock_run):
 
 
 @mock.patch("fleet.tasks.transform_aws_creds.subprocess.run")
-def test_create_failure(mock_run):
+def test_create_failure(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="bXl1c2Vy", stderr=""),
         subprocess.CompletedProcess([], returncode=0, stdout="bXlwYXNz", stderr=""),

@@ -9,14 +9,21 @@ import os
 import subprocess
 import sys
 
+from fleet.tasks._env import resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--source-dir", required=True)
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--source-dir", default=None)
     args = parser.parse_args()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "apply-crossplane-creds"
+    )
+    args.source_dir = resolve_required(
+        args.source_dir, "source-dir", "apply-crossplane-creds"
+    )
 
     cluster = args.cluster_name
     source = args.source_dir

@@ -8,7 +8,8 @@ from fleet.tasks.read_cluster_tier import main
 
 
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
-def test_read_tier_success(mock_run, capsys):
+def test_read_tier_success(mock_run, capsys, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="base", stderr=""
     )
@@ -34,7 +35,8 @@ def test_read_tier_success(mock_run, capsys):
 
 
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
-def test_read_tier_fails(mock_run):
+def test_read_tier_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="not found"
     )
@@ -44,7 +46,8 @@ def test_read_tier_fails(mock_run):
 
 
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
-def test_read_tier_empty(mock_run):
+def test_read_tier_empty(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="", stderr=""
     )

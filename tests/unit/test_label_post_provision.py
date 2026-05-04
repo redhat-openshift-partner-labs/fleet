@@ -8,7 +8,8 @@ from fleet.tasks.label_post_provision import main
 
 
 @mock.patch("fleet.tasks.label_post_provision.subprocess.run")
-def test_label_success(mock_run):
+def test_label_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="labeled", stderr=""
     )
@@ -28,7 +29,8 @@ def test_label_success(mock_run):
 
 
 @mock.patch("fleet.tasks.label_post_provision.subprocess.run")
-def test_label_fails(mock_run):
+def test_label_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="forbidden"
     )

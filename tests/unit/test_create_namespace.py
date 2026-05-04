@@ -16,7 +16,8 @@ def _run_fail(args, **kwargs):
 
 
 @mock.patch("fleet.tasks.create_namespace.subprocess.run")
-def test_namespace_already_exists(mock_run):
+def test_namespace_already_exists(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = _run(["oc", "get", "namespace", "test-cluster"])
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
@@ -28,7 +29,8 @@ def test_namespace_already_exists(mock_run):
 
 
 @mock.patch("fleet.tasks.create_namespace.subprocess.run")
-def test_namespace_created(mock_run):
+def test_namespace_created(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _run_fail(["oc", "get", "namespace", "test-cluster"]),
         _run(["oc", "create", "namespace", "test-cluster"]),
@@ -44,7 +46,8 @@ def test_namespace_created(mock_run):
 
 
 @mock.patch("fleet.tasks.create_namespace.subprocess.run")
-def test_namespace_create_fails(mock_run):
+def test_namespace_create_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _run_fail(["oc", "get"]),
         subprocess.CompletedProcess([], returncode=1, stdout="", stderr="forbidden"),

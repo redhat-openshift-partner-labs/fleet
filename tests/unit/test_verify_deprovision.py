@@ -18,7 +18,8 @@ def _run_fail(args, **kwargs):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_all_resources_gone(mock_run):
+def test_all_resources_gone(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = _run_fail([])
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
@@ -26,7 +27,8 @@ def test_all_resources_gone(mock_run):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_namespace_still_exists(mock_run):
+def test_namespace_still_exists(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [_run([]), _run_fail([]), _run_fail([])]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
@@ -34,7 +36,8 @@ def test_namespace_still_exists(mock_run):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_managedcluster_still_exists(mock_run):
+def test_managedcluster_still_exists(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [_run_fail([]), _run([]), _run_fail([])]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
@@ -42,7 +45,8 @@ def test_managedcluster_still_exists(mock_run):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_clusterdeployment_still_exists(mock_run):
+def test_clusterdeployment_still_exists(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [_run_fail([]), _run_fail([]), _run([])]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
@@ -50,7 +54,8 @@ def test_clusterdeployment_still_exists(mock_run):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_two_resources_remain(mock_run):
+def test_two_resources_remain(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [_run([]), _run([]), _run_fail([])]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
@@ -58,7 +63,8 @@ def test_two_resources_remain(mock_run):
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
-def test_all_resources_remain(mock_run):
+def test_all_resources_remain(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = _run([])
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
