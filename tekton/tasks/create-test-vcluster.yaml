@@ -13,6 +13,12 @@ spec:
     - name: values-file
       type: string
       default: ""
+    - name: extra-sans
+      type: string
+      default: ""
+    - name: route-san
+      type: string
+      default: ""
   workspaces:
     - name: shared
   steps:
@@ -25,6 +31,12 @@ spec:
         EXTRA_ARGS=()
         if [[ -n "$(params.values-file)" ]]; then
           EXTRA_ARGS+=(--values-file "$(workspaces.shared.path)/$(params.values-file)")
+        fi
+        if [[ -n "$(params.extra-sans)" ]]; then
+          EXTRA_ARGS+=(--extra-sans $(params.extra-sans))
+        fi
+        if [[ -n "$(params.route-san)" ]]; then
+          EXTRA_ARGS+=(--route-san "$(params.route-san)")
         fi
         fleet-create-test-vcluster \
           --cluster-name "$(params.cluster-name)" \
