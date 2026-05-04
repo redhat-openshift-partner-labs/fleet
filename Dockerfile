@@ -30,7 +30,10 @@ COPY --from=build /tmp/vcluster /usr/local/bin/vcluster
 
 RUN ln -s python3.11 /usr/bin/python3 && ln -s python3 /usr/bin/python
 
+RUN mkdir -p /home/fleet && chown 1001:0 /home/fleet
+
 ENV PATH="/opt/app-root/bin:${PATH}" \
-    PYTHONPATH="/opt/app-root/lib/python3.11/site-packages"
+    PYTHONPATH="/opt/app-root/lib/python3.11/site-packages" \
+    HOME="/home/fleet"
 
 USER 1001
