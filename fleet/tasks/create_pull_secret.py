@@ -12,15 +12,29 @@ import json
 import subprocess
 import sys
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--source-namespace", default="openshift-config")
-    parser.add_argument("--source-secret-name", default="pull-secret")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--source-namespace", default=None)
+    parser.add_argument("--source-secret-name", default=None)
     args = parser.parse_args()
+
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "create-pull-secret"
+    )
+    args.source_namespace = (
+        resolve(args.source_namespace, "source-namespace", "create-pull-secret")
+        or "openshift-config"
+    )
+    args.source_secret_name = (
+        resolve(args.source_secret_name, "source-secret-name", "create-pull-secret")
+        or "pull-secret"
+    )
 
     cluster = args.cluster_name
     source_ns = args.source_namespace

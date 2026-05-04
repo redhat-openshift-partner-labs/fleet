@@ -9,17 +9,30 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--spoke-kubeconfig", required=False)
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--spoke-kubeconfig", default=None)
     args = parser.parse_args()
 
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "extract-kubeconfig"
+    )
+    args.output_dir = resolve_required(
+        args.output_dir, "output-dir", "extract-kubeconfig"
+    )
+    args.spoke_kubeconfig = resolve(
+        args.spoke_kubeconfig, "spoke-kubeconfig", "extract-kubeconfig"
+    )
+
     cluster = args.cluster_name
+
     configure("extract-kubeconfig")
 
     info("=== Extracting spoke kubeconfig ===")

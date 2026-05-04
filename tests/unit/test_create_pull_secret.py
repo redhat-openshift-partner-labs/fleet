@@ -35,7 +35,8 @@ def _fail(stderr="error"):
 
 
 @mock.patch("fleet.tasks.create_pull_secret.subprocess.run")
-def test_secret_already_exists(mock_run):
+def test_secret_already_exists(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = _ok()
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
@@ -47,7 +48,8 @@ def test_secret_already_exists(mock_run):
 
 
 @mock.patch("fleet.tasks.create_pull_secret.subprocess.run")
-def test_pull_secret_copied(mock_run):
+def test_pull_secret_copied(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _fail(stderr="not found"),
         _ok(stdout=SOURCE_SECRET_JSON),
@@ -88,7 +90,8 @@ def test_pull_secret_copied(mock_run):
 
 
 @mock.patch("fleet.tasks.create_pull_secret.subprocess.run")
-def test_source_secret_not_found(mock_run):
+def test_source_secret_not_found(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _fail(stderr="not found"),
         subprocess.CalledProcessError(1, "oc", stderr="not found"),
@@ -99,7 +102,8 @@ def test_source_secret_not_found(mock_run):
 
 
 @mock.patch("fleet.tasks.create_pull_secret.subprocess.run")
-def test_apply_fails(mock_run):
+def test_apply_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _fail(stderr="not found"),
         _ok(stdout=SOURCE_SECRET_JSON),
@@ -111,7 +115,8 @@ def test_apply_fails(mock_run):
 
 
 @mock.patch("fleet.tasks.create_pull_secret.subprocess.run")
-def test_custom_source_params(mock_run):
+def test_custom_source_params(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         _fail(stderr="not found"),
         _ok(stdout=SOURCE_SECRET_JSON),
