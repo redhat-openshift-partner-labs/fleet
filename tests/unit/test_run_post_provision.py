@@ -131,6 +131,14 @@ def test_pipelinerun_yaml_params(mock_run, _mock_sleep, monkeypatch):
     assert params["tier"] == "base"
     assert params["openshift-cluster"] == "false"
     assert params["spoke-kubeconfig"] == "test-vc-admin-kubeconfig"
+    expected = {
+        "cluster-name",
+        "tier",
+        "openshift-cluster",
+        "spoke-kubeconfig",
+        "pipeline-image",
+    }
+    assert set(params.keys()) == expected
 
 
 @mock.patch("fleet.tasks.run_post_provision.time.sleep")
@@ -171,3 +179,16 @@ def test_extracts_pipelinerun_name_from_output(mock_run, _mock_sleep, monkeypatc
         main()
     poll_call = mock_run.call_args_list[1].args[0]
     assert "post-provision-my-vc-xyz99" in poll_call
+
+
+@mock.patch("fleet.tasks.run_post_provision.time.sleep")
+@mock.patch("fleet.tasks.run_post_provision.subprocess.run")
+def test_pipelinerun_includes_envfrom_configmap(mock_run, _mock_sleep, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    mock_run.side_effect = [_create_result(), _status_succeeded()]
+    with mock.patch("sys.argv", BASE_ARGV):
+        main()
+    create_call = mock_run.call_args_list[0]
+    doc = yaml.safe_load(create_call.kwargs["input"])
+    env_from = doc["spec"]["taskRunTemplate"]["podTemplate"]["envFrom"]
+    assert env_from == [{"configMapRef": {"name": "fleet-pipeline-defaults"}}]

@@ -58,16 +58,6 @@ def main() -> None:
               value: "false"
             - name: spoke-kubeconfig
               value: {spoke_kubeconfig}
-            - name: keycloak-url
-              value: "https://placeholder"
-            - name: keycloak-realm
-              value: placeholder
-            - name: keycloak-admin-secret
-              value: placeholder
-            - name: auth-realm
-              value: placeholder
-            - name: dns-zones
-              value: placeholder
             - name: pipeline-image
               value: {args.pipeline_image}
           taskRunTemplate:
@@ -77,6 +67,9 @@ def main() -> None:
                 fsGroup: 0
               imagePullSecrets:
                 - name: fleet-pipeline-pull-secret
+              envFrom:
+                - configMapRef:
+                    name: fleet-pipeline-defaults
           workspaces:
             - name: shared-workspace
               volumeClaimTemplate:

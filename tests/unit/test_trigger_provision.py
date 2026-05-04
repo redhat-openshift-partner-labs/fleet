@@ -11,20 +11,6 @@ BASE_ARGV = [
     "prog",
     "--cluster-name",
     "test-cluster",
-    "--base-domain",
-    "example.com",
-    "--keycloak-issuer-url",
-    "https://keycloak.example.com/realms/openshift",
-    "--keycloak-url",
-    "https://keycloak.example.com",
-    "--keycloak-realm",
-    "openshift",
-    "--keycloak-admin-secret",
-    "keycloak-admin",
-    "--auth-realm",
-    "master",
-    "--acme-email",
-    "certs@example.com",
 ]
 
 
@@ -66,8 +52,7 @@ def test_trigger_success(mock_run, monkeypatch):
 def test_trigger_includes_cluster_name(mock_run, monkeypatch):
     monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = _create_result()
-    argv = BASE_ARGV[:]
-    argv[2] = "my-cluster"
+    argv = ["prog", "--cluster-name", "my-cluster"]
     with mock.patch("sys.argv", argv):
         main()
     stdin_yaml = mock_run.call_args.kwargs["input"]
@@ -112,46 +97,16 @@ def test_trigger_creates_pipelinerun_with_taskruntemplate(mock_run, monkeypatch)
 
 
 @mock.patch("fleet.tasks.trigger_provision.subprocess.run")
-def test_trigger_passes_keycloak_and_domain_params(mock_run, monkeypatch):
+def test_trigger_only_passes_cluster_name_param(mock_run, monkeypatch):
     monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
-    assert params["base-domain"] == "example.com"
-    assert (
-        params["keycloak-issuer-url"] == "https://keycloak.example.com/realms/openshift"
-    )
-    assert params["keycloak-url"] == "https://keycloak.example.com"
-    assert params["keycloak-realm"] == "openshift"
-    assert params["keycloak-admin-secret"] == "keycloak-admin"
-    assert params["auth-realm"] == "master"
+    assert params == {"cluster-name": "test-cluster"}
 
 
 @mock.patch("fleet.tasks.trigger_provision.subprocess.run")
-def test_trigger_passes_acme_email(mock_run, monkeypatch):
+def test_trigger_includes_envfrom_configmap(mock_run, monkeypatch):
     monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
-    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
-    assert params["acme-email"] == "certs@example.com"
-
-
-def test_env_var_fallback(monkeypatch):
-    """Params resolve from env vars when CLI args are missing."""
-    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
-    monkeypatch.setenv("FLEET_BASE_DOMAIN", "env.example.com")
-    monkeypatch.setenv(
-        "FLEET_KEYCLOAK_ISSUER_URL", "https://kc.env.com/realms/openshift"
-    )
-    monkeypatch.setenv("FLEET_KEYCLOAK_URL", "https://kc.env.com")
-    monkeypatch.setenv("FLEET_KEYCLOAK_REALM", "env-realm")
-    monkeypatch.setenv("FLEET_KEYCLOAK_ADMIN_SECRET", "env-secret")
-    monkeypatch.setenv("FLEET_AUTH_REALM", "env-auth")
-    monkeypatch.setenv("FLEET_ACME_EMAIL", "env@example.com")
-    argv = ["prog", "--cluster-name", "test-cluster"]
-    with mock.patch("sys.argv", argv), mock.patch(
-        "fleet.tasks.trigger_provision.subprocess.run"
-    ) as mock_run:
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 0, stdout="pipelinerun/pr created", stderr=""
-        )
-        main()
-    assert mock_run.called
+    env_from = doc["spec"]["taskRunTemplate"]["podTemplate"]["envFrom"]
+    assert env_from == [{"configMapRef": {"name": "fleet-pipeline-defaults"}}]

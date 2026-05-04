@@ -16,44 +16,12 @@ from fleet.tasks._log import configure, error, info
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", default=None)
-    parser.add_argument("--base-domain", default=None)
-    parser.add_argument("--keycloak-issuer-url", default=None)
-    parser.add_argument("--keycloak-url", default=None)
-    parser.add_argument("--keycloak-realm", default=None)
-    parser.add_argument("--keycloak-admin-secret", default=None)
-    parser.add_argument("--auth-realm", default=None)
-    parser.add_argument("--acme-email", default=None)
     args = parser.parse_args()
 
     check_configmap_env()
-    args.cluster_name = resolve_required(
-        args.cluster_name, "cluster-name", "trigger-provision"
-    )
-    args.base_domain = resolve_required(
-        args.base_domain, "base-domain", "trigger-provision"
-    )
-    args.keycloak_issuer_url = resolve_required(
-        args.keycloak_issuer_url, "keycloak-issuer-url", "trigger-provision"
-    )
-    args.keycloak_url = resolve_required(
-        args.keycloak_url, "keycloak-url", "trigger-provision"
-    )
-    args.keycloak_realm = resolve_required(
-        args.keycloak_realm, "keycloak-realm", "trigger-provision"
-    )
-    args.keycloak_admin_secret = resolve_required(
-        args.keycloak_admin_secret, "keycloak-admin-secret", "trigger-provision"
-    )
-    args.auth_realm = resolve_required(
-        args.auth_realm, "auth-realm", "trigger-provision"
-    )
-    args.acme_email = resolve_required(
-        args.acme_email, "acme-email", "trigger-provision"
-    )
+    cluster = resolve_required(args.cluster_name, "cluster-name", "trigger-provision")
 
     configure("trigger-provision")
-
-    cluster = args.cluster_name
 
     info("=== Triggering provision pipeline ===")
     info(f"  cluster-name={cluster}")
@@ -69,20 +37,6 @@ def main() -> None:
           params:
             - name: cluster-name
               value: {cluster}
-            - name: base-domain
-              value: {args.base_domain}
-            - name: keycloak-issuer-url
-              value: {args.keycloak_issuer_url}
-            - name: keycloak-url
-              value: {args.keycloak_url}
-            - name: keycloak-realm
-              value: {args.keycloak_realm}
-            - name: keycloak-admin-secret
-              value: {args.keycloak_admin_secret}
-            - name: auth-realm
-              value: {args.auth_realm}
-            - name: acme-email
-              value: {args.acme_email}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:
@@ -90,6 +44,9 @@ def main() -> None:
                 fsGroup: 0
               imagePullSecrets:
                 - name: fleet-pipeline-pull-secret
+              envFrom:
+                - configMapRef:
+                    name: fleet-pipeline-defaults
           workspaces:
             - name: shared-workspace
               volumeClaimTemplate:

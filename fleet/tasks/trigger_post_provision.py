@@ -1,9 +1,7 @@
 """Trigger the post-provision pipeline by creating a PipelineRun.
 
 CLI: fleet-trigger-post-provision --cluster-name NAME --tier TIER
-     --base-domain DOMAIN --keycloak-issuer-url URL
-     --keycloak-url URL --keycloak-realm REALM
-     --keycloak-admin-secret SECRET --auth-realm REALM
+     --base-domain DOMAIN
 Derives dns-zones from the ClusterDeployment baseDomain, then creates a
 PipelineRun for the post-provision pipeline. Exits 1 on failure.
 """
@@ -22,57 +20,24 @@ def main() -> None:
     parser.add_argument("--cluster-name", default=None)
     parser.add_argument("--tier", default=None)
     parser.add_argument("--base-domain", default=None)
-    parser.add_argument("--keycloak-issuer-url", default=None)
-    parser.add_argument("--keycloak-url", default=None)
-    parser.add_argument("--keycloak-realm", default=None)
-    parser.add_argument("--keycloak-admin-secret", default=None)
-    parser.add_argument("--auth-realm", default=None)
-    parser.add_argument("--acme-email", default=None)
     args = parser.parse_args()
 
     check_configmap_env()
-    args.cluster_name = resolve_required(
+    cluster = resolve_required(
         args.cluster_name, "cluster-name", "trigger-post-provision"
     )
-    args.tier = resolve_required(args.tier, "tier", "trigger-post-provision")
-    args.base_domain = resolve_required(
+    tier = resolve_required(args.tier, "tier", "trigger-post-provision")
+    base_domain = resolve_required(
         args.base_domain, "base-domain", "trigger-post-provision"
-    )
-    args.keycloak_issuer_url = resolve_required(
-        args.keycloak_issuer_url, "keycloak-issuer-url", "trigger-post-provision"
-    )
-    args.keycloak_url = resolve_required(
-        args.keycloak_url, "keycloak-url", "trigger-post-provision"
-    )
-    args.keycloak_realm = resolve_required(
-        args.keycloak_realm, "keycloak-realm", "trigger-post-provision"
-    )
-    args.keycloak_admin_secret = resolve_required(
-        args.keycloak_admin_secret, "keycloak-admin-secret", "trigger-post-provision"
-    )
-    args.auth_realm = resolve_required(
-        args.auth_realm, "auth-realm", "trigger-post-provision"
-    )
-    args.acme_email = resolve_required(
-        args.acme_email, "acme-email", "trigger-post-provision"
     )
 
     configure("trigger-post-provision")
 
-    cluster = args.cluster_name
-    tier = args.tier
-    base_domain = args.base_domain
-    keycloak_issuer_url = args.keycloak_issuer_url
-    keycloak_url = args.keycloak_url
-    keycloak_realm = args.keycloak_realm
-    keycloak_admin_secret = args.keycloak_admin_secret
-    auth_realm = args.auth_realm
-    acme_email = args.acme_email
-
     info("=== Triggering post-provision pipeline ===")
     info("Parameters:")
-    for key, value in vars(args).items():
-        info(f"  {key}={value}")
+    info(f"  cluster-name={cluster}")
+    info(f"  tier={tier}")
+    info(f"  base-domain={base_domain}")
 
     info("Reading ClusterDeployment baseDomain...")
     bd_result = subprocess.run(
@@ -118,18 +83,6 @@ def main() -> None:
               value: "{dns_zones}"
             - name: base-domain
               value: {base_domain}
-            - name: keycloak-issuer-url
-              value: {keycloak_issuer_url}
-            - name: keycloak-url
-              value: {keycloak_url}
-            - name: keycloak-realm
-              value: {keycloak_realm}
-            - name: keycloak-admin-secret
-              value: {keycloak_admin_secret}
-            - name: auth-realm
-              value: {auth_realm}
-            - name: acme-email
-              value: {acme_email}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:
@@ -137,6 +90,9 @@ def main() -> None:
                 fsGroup: 0
               imagePullSecrets:
                 - name: fleet-pipeline-pull-secret
+              envFrom:
+                - configMapRef:
+                    name: fleet-pipeline-defaults
           workspaces:
             - name: shared-workspace
               volumeClaimTemplate:
