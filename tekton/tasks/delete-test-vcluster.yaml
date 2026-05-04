@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: teardown-test-vcluster
+  name: delete-test-vcluster
 spec:
   params:
     - name: cluster-name
@@ -13,12 +13,12 @@ spec:
   workspaces:
     - name: shared
   steps:
-    - name: teardown
+    - name: delete
       image: $(params.pipeline-image)
       imagePullPolicy: Always
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        fleet-teardown-test-vcluster \
+        fleet-delete-test-vcluster \
           --cluster-name "$(params.cluster-name)" \
           --namespace "$(params.namespace)"

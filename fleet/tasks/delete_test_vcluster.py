@@ -1,4 +1,4 @@
-"""Tear down a test vCluster and its hub resources."""
+"""Delete a test vCluster and its hub resources."""
 
 import argparse
 import subprocess
@@ -14,38 +14,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cluster = args.cluster_name
-    configure("teardown-test-vcluster")
+    configure("delete-test-vcluster")
 
-    info("=== Tearing down test vCluster ===")
+    info("=== Deleting test vCluster ===")
     info(f"Parameters:")
     info(f"  cluster-name={cluster}")
     info(f"  namespace={args.namespace}")
-
-    info(f"Deleting vCluster '{cluster}'...")
-    result = subprocess.run(
-        [
-            "vcluster",
-            "delete",
-            cluster,
-            "-n",
-            args.namespace,
-            "--delete-namespace=false",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    info(f"  -> vcluster delete exit code: {result.returncode}")
-    if result.returncode != 0:
-        error(f"Failed to delete vCluster: {result.stderr}")
-        sys.exit(1)
-
-    info(f"Deleting namespace '{cluster}'...")
-    result = subprocess.run(
-        ["oc", "delete", "namespace", cluster, "--ignore-not-found=true"],
-        capture_output=True,
-        text=True,
-    )
-    info(f"  -> namespace delete exit code: {result.returncode}")
 
     info(f"Deleting ManagedCluster '{cluster}'...")
     result = subprocess.run(
@@ -55,4 +29,21 @@ def main() -> None:
     )
     info(f"  -> managedcluster delete exit code: {result.returncode}")
 
-    info("Teardown complete")
+    info(f"Deleting vCluster '{cluster}'...")
+    result = subprocess.run(
+        [
+            "vcluster",
+            "delete",
+            cluster,
+            "-n",
+            args.namespace,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    info(f"  -> vcluster delete exit code: {result.returncode}")
+    if result.returncode != 0:
+        error(f"Failed to delete vCluster: {result.stderr}")
+        sys.exit(1)
+
+    info("Delete complete")
