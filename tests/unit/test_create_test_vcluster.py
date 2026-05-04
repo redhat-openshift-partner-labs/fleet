@@ -11,7 +11,8 @@ from fleet.tasks.create_test_vcluster import main
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_create_and_extract_success(_mock_sleep, _mock_makedirs, mock_run):
+def test_create_and_extract_success(_mock_sleep, _mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -47,7 +48,8 @@ def test_create_and_extract_success(_mock_sleep, _mock_makedirs, mock_run):
 @mock.patch("builtins.open", mock.mock_open())
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
-def test_create_fails(_mock_makedirs, mock_run):
+def test_create_fails(_mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=1, stdout="", stderr="error"),
     ]
@@ -72,7 +74,8 @@ def test_create_fails(_mock_makedirs, mock_run):
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_extract_kubeconfig_fails(_mock_sleep, _mock_makedirs, mock_run):
+def test_extract_kubeconfig_fails(_mock_sleep, _mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess([], returncode=1, stdout="", stderr="not found"),
@@ -97,7 +100,8 @@ def test_extract_kubeconfig_fails(_mock_sleep, _mock_makedirs, mock_run):
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_no_extra_values_file(_mock_sleep, _mock_makedirs, mock_run):
+def test_no_extra_values_file(_mock_sleep, _mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -125,7 +129,10 @@ def test_no_extra_values_file(_mock_sleep, _mock_makedirs, mock_run):
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_generated_values_contain_cluster_params(_mock_sleep, _mock_makedirs, mock_run):
+def test_generated_values_contain_cluster_params(
+    _mock_sleep, _mock_makedirs, mock_run, monkeypatch
+):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -157,7 +164,10 @@ def test_generated_values_contain_cluster_params(_mock_sleep, _mock_makedirs, mo
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_kubeconfig_is_base64_decoded(_mock_sleep, _mock_makedirs, mock_run):
+def test_kubeconfig_is_base64_decoded(
+    _mock_sleep, _mock_makedirs, mock_run, monkeypatch
+):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -187,7 +197,10 @@ def test_kubeconfig_is_base64_decoded(_mock_sleep, _mock_makedirs, mock_run):
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_extra_sans_appear_in_generated_values(_mock_sleep, _mock_makedirs, mock_run):
+def test_extra_sans_appear_in_generated_values(
+    _mock_sleep, _mock_makedirs, mock_run, monkeypatch
+):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -246,8 +259,9 @@ def test_generate_values_no_export_kubeconfig_without_route_san():
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
 def test_passthrough_route_created_with_route_san(
-    _mock_sleep, _mock_makedirs, mock_run
+    _mock_sleep, _mock_makedirs, mock_run, monkeypatch
 ):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -293,7 +307,10 @@ def test_passthrough_route_created_with_route_san(
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_route_san_added_to_extra_sans_in_values(_mock_sleep, _mock_makedirs, mock_run):
+def test_route_san_added_to_extra_sans_in_values(
+    _mock_sleep, _mock_makedirs, mock_run, monkeypatch
+):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -328,7 +345,8 @@ def test_route_san_added_to_extra_sans_in_values(_mock_sleep, _mock_makedirs, mo
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_no_route_without_route_san(_mock_sleep, _mock_makedirs, mock_run):
+def test_no_route_without_route_san(_mock_sleep, _mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(
@@ -355,7 +373,8 @@ def test_no_route_without_route_san(_mock_sleep, _mock_makedirs, mock_run):
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
 @mock.patch("fleet.tasks.create_test_vcluster.time.sleep")
-def test_route_creation_fails(_mock_sleep, _mock_makedirs, mock_run):
+def test_route_creation_fails(_mock_sleep, _mock_makedirs, mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
         subprocess.CompletedProcess(

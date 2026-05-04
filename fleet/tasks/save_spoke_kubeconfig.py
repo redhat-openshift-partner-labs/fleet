@@ -10,16 +10,28 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--kubeconfig-file", required=True)
-    parser.add_argument("--namespace", default="openshift-pipelines")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--kubeconfig-file", default=None)
+    parser.add_argument("--namespace", default=None)
     args = parser.parse_args()
 
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "save-spoke-kubeconfig"
+    )
+    args.kubeconfig_file = resolve_required(
+        args.kubeconfig_file, "kubeconfig-file", "save-spoke-kubeconfig"
+    )
+    args.namespace = (
+        resolve(args.namespace, "namespace", "save-spoke-kubeconfig")
+        or "openshift-pipelines"
+    )
     configure("save-spoke-kubeconfig")
 
     info("=== Saving spoke kubeconfig to Hub Secret ===")

@@ -6,18 +6,27 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._env import check_configmap_env, resolve_bool, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--kubeconfig-file", required=True)
-    parser.add_argument("--tier", required=True)
-    parser.add_argument("--create-aws-creds", action="store_true")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--kubeconfig-file", default=None)
+    parser.add_argument("--tier", default=None)
+    parser.add_argument("--create-aws-creds", action="store_true", default=False)
     args = parser.parse_args()
 
-    cluster = args.cluster_name
+    check_configmap_env()
+    cluster = resolve_required(args.cluster_name, "cluster-name", "seed-test-vcluster")
+    args.kubeconfig_file = resolve_required(
+        args.kubeconfig_file, "kubeconfig-file", "seed-test-vcluster"
+    )
+    args.tier = resolve_required(args.tier, "tier", "seed-test-vcluster")
+    args.create_aws_creds = resolve_bool(
+        args.create_aws_creds, "create-aws-creds", "seed-test-vcluster"
+    )
     configure("seed-test-vcluster")
 
     info("=== Seeding hub artifacts for test vCluster ===")
