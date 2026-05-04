@@ -20,7 +20,7 @@ def _fail(**kwargs):
 @mock.patch("builtins.open", mock.mock_open(read_data="kubeconfig-data"))
 @mock.patch("fleet.tasks.seed_test_vcluster.subprocess.run")
 def test_seed_success(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok()]
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok()]
     with mock.patch(
         "sys.argv",
         [
@@ -34,13 +34,13 @@ def test_seed_success(mock_run):
         ],
     ):
         main()
-    assert mock_run.call_count == 3
+    assert mock_run.call_count == 4
 
 
 @mock.patch("builtins.open", mock.mock_open(read_data="kubeconfig-data"))
 @mock.patch("fleet.tasks.seed_test_vcluster.subprocess.run")
 def test_seed_with_aws_creds(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok()]
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok(), _ok()]
     with mock.patch(
         "sys.argv",
         [
@@ -55,8 +55,8 @@ def test_seed_with_aws_creds(mock_run):
         ],
     ):
         main()
-    assert mock_run.call_count == 4
-    aws_call = mock_run.call_args_list[3]
+    assert mock_run.call_count == 5
+    aws_call = mock_run.call_args_list[4]
     assert "aws-credentials" in aws_call.kwargs.get("input", "")
 
 
@@ -147,7 +147,7 @@ def test_kubeconfig_file_not_found(mock_run):
 @mock.patch("builtins.open", mock.mock_open(read_data="kubeconfig-data"))
 @mock.patch("fleet.tasks.seed_test_vcluster.subprocess.run")
 def test_aws_creds_create_fails(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok(), _fail()]
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok(), _fail()]
     with mock.patch(
         "sys.argv",
         [
@@ -159,6 +159,49 @@ def test_aws_creds_create_fails(mock_run):
             "--tier",
             "base",
             "--create-aws-creds",
+        ],
+    ):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert mock_run.call_count == 5
+
+
+@mock.patch("builtins.open", mock.mock_open(read_data="kubeconfig-data"))
+@mock.patch("fleet.tasks.seed_test_vcluster.subprocess.run")
+def test_auto_import_secret_created(mock_run):
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok()]
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            "test-vc",
+            "--kubeconfig-file",
+            "/tmp/kc",
+            "--tier",
+            "base",
+        ],
+    ):
+        main()
+    import_call = mock_run.call_args_list[3]
+    assert "auto-import-secret" in import_call.kwargs.get("input", "")
+    assert "kubeconfig-data" in import_call.kwargs.get("input", "")
+
+
+@mock.patch("builtins.open", mock.mock_open(read_data="kubeconfig-data"))
+@mock.patch("fleet.tasks.seed_test_vcluster.subprocess.run")
+def test_auto_import_secret_fails(mock_run):
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _fail()]
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            "test-vc",
+            "--kubeconfig-file",
+            "/tmp/kc",
+            "--tier",
+            "base",
         ],
     ):
         with pytest.raises(SystemExit, match="1"):

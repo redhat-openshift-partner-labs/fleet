@@ -99,6 +99,30 @@ def main() -> None:
         error(f"Failed to create ManagedCluster: {result.stderr}")
         sys.exit(1)
 
+    indented_kc = textwrap.indent(kubeconfig_data.rstrip(), "    ")
+    import_yaml = (
+        "apiVersion: v1\n"
+        "kind: Secret\n"
+        "metadata:\n"
+        f"  name: auto-import-secret\n"
+        f"  namespace: {cluster}\n"
+        "type: Opaque\n"
+        "stringData:\n"
+        "  kubeconfig: |\n"
+        f"{indented_kc}\n"
+    )
+    info("Creating auto-import-secret...")
+    result = subprocess.run(
+        ["oc", "apply", "-f", "-"],
+        input=import_yaml,
+        capture_output=True,
+        text=True,
+    )
+    info(f"  -> oc apply exit code: {result.returncode}")
+    if result.returncode != 0:
+        error(f"Failed to create auto-import-secret: {result.stderr}")
+        sys.exit(1)
+
     if args.create_aws_creds:
         creds_yaml = textwrap.dedent(f"""\
             apiVersion: v1
