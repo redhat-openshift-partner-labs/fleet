@@ -9,80 +9,26 @@ resources:
 patches:
   - path: patches/install-config.yaml
   - target:
+      kind: Secret
+      name: cluster-placeholder-install-config
+    path: patches/install-config-meta.yaml
+  - target:
       kind: Namespace
       name: cluster-placeholder
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt
+    path: patches/namespace.yaml
   - target:
       kind: ClusterDeployment
       name: cluster-placeholder
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /metadata/namespace
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /spec/clusterName
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /spec/provisioning/installConfigSecretRef/name
-        value: f6f3eba2-redisvirt-install-config
-      - op: replace
-        path: /spec/provisioning/sshPrivateKeySecretRef/name
-        value: f6f3eba2-redisvirt-ssh-key
+    path: patches/clusterdeployment.yaml
   - target:
       kind: MachinePool
       name: cluster-placeholder-worker
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt-worker
-      - op: replace
-        path: /metadata/namespace
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /spec/clusterDeploymentRef/name
-        value: f6f3eba2-redisvirt
+    path: patches/machinepool-worker.yaml
   - target:
       kind: ManagedCluster
       name: cluster-placeholder
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt
-      - op: add
-        path: /metadata/labels/tier
-        value: base
-      - op: add
-        path: /metadata/labels/environment
-        value: development
+    path: patches/managedcluster.yaml
   - target:
       kind: KlusterletAddonConfig
       name: cluster-placeholder
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /metadata/namespace
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /spec/clusterName
-        value: f6f3eba2-redisvirt
-      - op: replace
-        path: /spec/clusterNamespace
-        value: f6f3eba2-redisvirt
-  - target:
-      kind: Secret
-      name: cluster-placeholder-install-config
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: f6f3eba2-redisvirt-install-config
-      - op: replace
-        path: /metadata/namespace
-        value: f6f3eba2-redisvirt
+    path: patches/klusterletaddonconfig.yaml

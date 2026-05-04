@@ -1,0 +1,12 @@
+- op: replace
+  path: /metadata/name
+  value: test-cluster-01-worker
+- op: replace
+  path: /metadata/namespace
+  value: test-cluster-01
+- op: replace
+  path: /spec/clusterDeploymentRef/name
+  value: test-cluster-01
+- op: replace
+  path: /spec/platform/aws/type
+  value: m8i.2xlarge

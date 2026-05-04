@@ -1,0 +1,9 @@
+- op: replace
+  path: /metadata/name
+  value: f6f3eba2-redisvirt
+- op: add
+  path: /metadata/labels/tier
+  value: base
+- op: add
+  path: /metadata/labels/environment
+  value: development

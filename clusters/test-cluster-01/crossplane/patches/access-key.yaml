@@ -1,0 +1,9 @@
+- op: replace
+  path: /metadata/name
+  value: test-cluster-01-access-key
+- op: replace
+  path: /spec/forProvider/userRef/name
+  value: test-cluster-01-ocp-installer
+- op: replace
+  path: /spec/writeConnectionSecretToRef/namespace
+  value: test-cluster-01

@@ -1,0 +1,15 @@
+- op: replace
+  path: /metadata/name
+  value: test-cluster-01
+- op: replace
+  path: /metadata/namespace
+  value: test-cluster-01
+- op: replace
+  path: /spec/clusterName
+  value: test-cluster-01
+- op: replace
+  path: /spec/provisioning/installConfigSecretRef/name
+  value: test-cluster-01-install-config
+- op: replace
+  path: /spec/provisioning/sshPrivateKeySecretRef/name
+  value: test-cluster-01-ssh-key

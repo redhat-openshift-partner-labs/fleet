@@ -1,0 +1,6 @@
+- op: replace
+  path: /metadata/name
+  value: f6f3eba2-redisvirt-install-config
+- op: replace
+  path: /metadata/namespace
+  value: f6f3eba2-redisvirt
