@@ -6,3 +6,4 @@ resources:
   - provision.yaml
   - post-provision.yaml
   - deprovision.yaml
+  - test-vcluster.yaml

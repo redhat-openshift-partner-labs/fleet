@@ -30,3 +30,7 @@ resources:
   - wait-hive-uninstall.yaml
   - cleanup-hub-artifacts.yaml
   - verify-deprovision.yaml
+  - create-test-vcluster.yaml
+  - seed-test-vcluster.yaml
+  - delete-test-vcluster.yaml
+  - run-post-provision.yaml

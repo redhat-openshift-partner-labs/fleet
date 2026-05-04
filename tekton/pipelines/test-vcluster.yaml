@@ -1,0 +1,105 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-vcluster
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: namespace
+      type: string
+    - name: tier
+      type: string
+      default: base
+    - name: pipeline-image
+      type: string
+      default: quay.io/rhopl/fleet-pipeline:latest
+    - name: values-file
+      type: string
+      default: ""
+    - name: extra-sans
+      type: string
+      default: ""
+    - name: route-san
+      type: string
+      default: ""
+    - name: create-aws-creds
+      type: string
+      default: "false"
+    - name: timeout
+      type: string
+      default: "600"
+  workspaces:
+    - name: shared-workspace
+
+  tasks:
+    - name: create-test-vcluster
+      taskRef:
+        name: create-test-vcluster
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: namespace
+          value: $(params.namespace)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: values-file
+          value: $(params.values-file)
+        - name: extra-sans
+          value: $(params.extra-sans)
+        - name: route-san
+          value: $(params.route-san)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: seed-test-vcluster
+      taskRef:
+        name: seed-test-vcluster
+      runAfter:
+        - create-test-vcluster
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: tier
+          value: $(params.tier)
+        - name: create-aws-creds
+          value: $(params.create-aws-creds)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
+    - name: run-post-provision
+      taskRef:
+        name: run-post-provision
+      runAfter:
+        - seed-test-vcluster
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: tier
+          value: $(params.tier)
+        - name: namespace
+          value: $(params.namespace)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: timeout
+          value: $(params.timeout)
+
+    - name: delete-test-vcluster
+      taskRef:
+        name: delete-test-vcluster
+      runAfter:
+        - run-post-provision
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: namespace
+          value: $(params.namespace)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
