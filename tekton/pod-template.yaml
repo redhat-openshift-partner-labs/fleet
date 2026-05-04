@@ -2,3 +2,6 @@ securityContext:
   fsGroup: 0
 imagePullSecrets:
   - name: fleet-pipeline-pull-secret
+envFrom:
+  - configMapRef:
+      name: fleet-pipeline-defaults
