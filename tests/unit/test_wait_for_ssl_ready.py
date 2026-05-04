@@ -8,7 +8,8 @@ from fleet.tasks.wait_for_ssl_ready import main
 
 
 @mock.patch("fleet.tasks.wait_for_ssl_ready.subprocess.run")
-def test_wait_success(mock_run):
+def test_wait_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="", stderr=""
     )
@@ -30,7 +31,8 @@ def test_wait_success(mock_run):
 
 
 @mock.patch("fleet.tasks.wait_for_ssl_ready.subprocess.run")
-def test_wait_custom_timeout(mock_run):
+def test_wait_custom_timeout(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=0, stdout="", stderr=""
     )
@@ -42,7 +44,8 @@ def test_wait_custom_timeout(mock_run):
 
 
 @mock.patch("fleet.tasks.wait_for_ssl_ready.subprocess.run")
-def test_wait_fails(mock_run):
+def test_wait_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="timed out"
     )

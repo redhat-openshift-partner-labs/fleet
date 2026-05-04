@@ -10,16 +10,24 @@ import subprocess
 import sys
 import textwrap
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--namespace", default="openshift-ingress")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--namespace", default=None)
     args = parser.parse_args()
 
-    cluster = args.cluster_name
+    check_configmap_env()
+    cluster = resolve_required(
+        args.cluster_name, "cluster-name", "extract-cert-material"
+    )
+    args.namespace = (
+        resolve(args.namespace, "namespace", "extract-cert-material")
+        or "openshift-ingress"
+    )
     configure("extract-cert-material")
 
     info("=== Extracting leaf certificate material ===")

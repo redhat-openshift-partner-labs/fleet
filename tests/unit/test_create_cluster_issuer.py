@@ -8,7 +8,8 @@ from fleet.tasks.create_cluster_issuer import main
 
 
 @mock.patch("fleet.tasks.create_cluster_issuer.subprocess.run")
-def test_create_cluster_issuer_success(mock_run):
+def test_create_cluster_issuer_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [], returncode=0, stdout="QUFBQUFBQUFBQUFBQUFBQUFBQUE=", stderr=""
@@ -106,7 +107,8 @@ def test_create_cluster_issuer_success(mock_run):
 
 
 @mock.patch("fleet.tasks.create_cluster_issuer.subprocess.run")
-def test_aws_creds_read_failure(mock_run):
+def test_aws_creds_read_failure(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = subprocess.CalledProcessError(1, "oc", stderr="not found")
     with mock.patch(
         "sys.argv",
@@ -123,7 +125,8 @@ def test_aws_creds_read_failure(mock_run):
 
 
 @mock.patch("fleet.tasks.create_cluster_issuer.subprocess.run")
-def test_secret_create_failure(mock_run):
+def test_secret_create_failure(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [], returncode=0, stdout="QUFBQUFBQUFBQUFBQUFBQUFBQUE=", stderr=""
@@ -148,7 +151,8 @@ def test_secret_create_failure(mock_run):
 
 
 @mock.patch("fleet.tasks.create_cluster_issuer.subprocess.run")
-def test_cluster_issuer_create_failure(mock_run):
+def test_cluster_issuer_create_failure(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [], returncode=0, stdout="QUFBQUFBQUFBQUFBQUFBQUFBQUE=", stderr=""

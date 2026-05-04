@@ -8,17 +8,20 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._env import check_configmap_env, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--dns-zones", required=True)
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--dns-zones", default=None)
     args = parser.parse_args()
 
-    cluster = args.cluster_name
-    zones = [z.strip() for z in args.dns_zones.split(",")]
+    check_configmap_env()
+    cluster = resolve_required(args.cluster_name, "cluster-name", "request-ssl-cert")
+    dns_zones_raw = resolve_required(args.dns_zones, "dns-zones", "request-ssl-cert")
+    zones = [z.strip() for z in dns_zones_raw.split(",")]
 
     configure("request-ssl-cert")
 

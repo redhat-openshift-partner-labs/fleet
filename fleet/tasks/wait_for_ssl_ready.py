@@ -8,14 +8,21 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._env import check_configmap_env, resolve, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cluster-name", required=True)
-    parser.add_argument("--timeout", default="15m")
+    parser.add_argument("--cluster-name", default=None)
+    parser.add_argument("--timeout", default=None)
     args = parser.parse_args()
+
+    check_configmap_env()
+    args.cluster_name = resolve_required(
+        args.cluster_name, "cluster-name", "wait-for-ssl-ready"
+    )
+    args.timeout = resolve(args.timeout, "timeout", "wait-for-ssl-ready") or "15m"
 
     configure("wait-for-ssl-ready")
 

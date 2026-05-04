@@ -8,7 +8,8 @@ from fleet.tasks.extract_cert_material import main
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")
-def test_extract_success(mock_run):
+def test_extract_success(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [],
@@ -35,7 +36,8 @@ def test_extract_success(mock_run):
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")
-def test_extract_creates_leaf_cert_secret(mock_run):
+def test_extract_creates_leaf_cert_secret(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [],
@@ -55,7 +57,8 @@ def test_extract_creates_leaf_cert_secret(mock_run):
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")
-def test_extract_default_namespace(mock_run):
+def test_extract_default_namespace(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [],
@@ -73,7 +76,8 @@ def test_extract_default_namespace(mock_run):
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")
-def test_get_secret_fails(mock_run):
+def test_get_secret_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="not found"
     )
@@ -83,7 +87,8 @@ def test_get_secret_fails(mock_run):
 
 
 @mock.patch("fleet.tasks.extract_cert_material.subprocess.run")
-def test_apply_leaf_cert_fails(mock_run):
+def test_apply_leaf_cert_fails(mock_run, monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             [],
