@@ -11,7 +11,7 @@ spec:
       type: string
     - name: timeout
       type: string
-      default: "25m"
+      default: ""
   steps:
     - name: wait
       image: $(params.pipeline-image)

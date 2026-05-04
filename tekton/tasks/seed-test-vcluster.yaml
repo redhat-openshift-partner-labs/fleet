@@ -10,10 +10,10 @@ spec:
       type: string
     - name: tier
       type: string
-      default: base
+      default: ""
     - name: create-aws-creds
       type: string
-      default: "false"
+      default: ""
   workspaces:
     - name: shared
   steps:

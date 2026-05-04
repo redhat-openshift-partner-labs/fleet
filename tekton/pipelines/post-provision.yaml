@@ -10,13 +10,13 @@ spec:
       type: string
     - name: git-repo-url
       type: string
-      default: https://github.com/redhat-openshift-partner-labs/fleet.git
+      default: ""
     - name: git-revision
       type: string
-      default: main
+      default: ""
     - name: pipeline-image
       type: string
-      default: quay.io/rhopl/fleet-pipeline:latest
+      default: ""
     - name: keycloak-url
       type: string
     - name: keycloak-realm
@@ -27,21 +27,21 @@ spec:
       type: string
     - name: base-domain
       type: string
-      default: example.com
+      default: ""
     - name: keycloak-issuer-url
       type: string
-      default: https://keycloak.example.com/realms/openshift
+      default: ""
     - name: provider-name
       type: string
-      default: "RedHat"
+      default: ""
     - name: insecure
       type: string
-      default: "false"
+      default: ""
     - name: dns-zones
       type: string
     - name: acme-email
       type: string
-      default: admin@example.com
+      default: ""
     - name: openshift-cluster
       type: string
       default: "true"

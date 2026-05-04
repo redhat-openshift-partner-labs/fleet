@@ -18,13 +18,13 @@ spec:
       type: string
     - name: auth-realm
       type: string
-      default: "master"
+      default: ""
     - name: provider-name
       type: string
-      default: "RedHat"
+      default: ""
     - name: insecure
       type: string
-      default: "false"
+      default: ""
   steps:
     - name: register
       image: $(params.pipeline-image)

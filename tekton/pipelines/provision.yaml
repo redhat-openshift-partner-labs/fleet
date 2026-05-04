@@ -8,34 +8,34 @@ spec:
       type: string
     - name: git-repo-url
       type: string
-      default: https://github.com/redhat-openshift-partner-labs/fleet.git
+      default: ""
     - name: git-revision
       type: string
-      default: main
+      default: ""
     - name: pipeline-image
       type: string
-      default: quay.io/rhopl/fleet-pipeline:latest
+      default: ""
     - name: base-domain
       type: string
-      default: example.com
+      default: ""
     - name: keycloak-issuer-url
       type: string
-      default: https://keycloak.example.com/realms/openshift
+      default: ""
     - name: keycloak-url
       type: string
-      default: https://keycloak.example.com
+      default: ""
     - name: keycloak-realm
       type: string
-      default: openshift
+      default: ""
     - name: keycloak-admin-secret
       type: string
-      default: keycloak-admin
+      default: ""
     - name: auth-realm
       type: string
-      default: "master"
+      default: ""
     - name: acme-email
       type: string
-      default: admin@example.com
+      default: ""
   workspaces:
     - name: shared-workspace
 

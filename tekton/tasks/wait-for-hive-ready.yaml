@@ -8,7 +8,7 @@ spec:
       type: string
     - name: timeout
       type: string
-      default: "60m"
+      default: ""
     - name: pipeline-image
       type: string
   steps:
