@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-smoke-test
+  namespace: default
+data:
+  status: "ok"
