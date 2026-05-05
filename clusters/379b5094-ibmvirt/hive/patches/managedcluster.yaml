@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: 379b5094-ibmvirt
-- op: add
-  path: /metadata/labels/tier
-  value: base
-- op: add
-  path: /metadata/labels/environment
-  value: development
