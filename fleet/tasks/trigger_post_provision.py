@@ -11,7 +11,7 @@ import subprocess
 import sys
 import textwrap
 
-from fleet.tasks._env import check_configmap_env, resolve_required
+from fleet.tasks._env import resolve_batch
 from fleet.tasks._log import configure, error, info
 
 
@@ -22,14 +22,14 @@ def main() -> None:
     parser.add_argument("--base-domain", default=None)
     args = parser.parse_args()
 
-    check_configmap_env()
-    cluster = resolve_required(
-        args.cluster_name, "cluster-name", "trigger-post-provision"
+    resolve_batch(
+        args,
+        "trigger-post-provision",
+        required=["cluster_name", "tier", "base_domain"],
     )
-    tier = resolve_required(args.tier, "tier", "trigger-post-provision")
-    base_domain = resolve_required(
-        args.base_domain, "base-domain", "trigger-post-provision"
-    )
+    cluster = args.cluster_name
+    tier = args.tier
+    base_domain = args.base_domain
 
     configure("trigger-post-provision")
 
