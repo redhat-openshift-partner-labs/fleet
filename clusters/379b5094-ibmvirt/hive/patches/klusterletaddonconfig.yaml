@@ -1,0 +1,12 @@
+- op: replace
+  path: /metadata/name
+  value: 379b5094-ibmvirt
+- op: replace
+  path: /metadata/namespace
+  value: 379b5094-ibmvirt
+- op: replace
+  path: /spec/clusterName
+  value: 379b5094-ibmvirt
+- op: replace
+  path: /spec/clusterNamespace
+  value: 379b5094-ibmvirt
