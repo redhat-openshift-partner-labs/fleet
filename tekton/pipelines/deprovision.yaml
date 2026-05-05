@@ -9,15 +9,25 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
+
   tasks:
+    - name: load-config
+      taskRef:
+        name: config-loader
+      params:
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: delete-cluster-resources
       taskRef:
         name: delete-cluster-resources
+      runAfter:
+        - load-config
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: wait-hive-uninstall
       taskRef:
@@ -28,7 +38,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       timeout: "30m"
 
     - name: cleanup-hub-artifacts
@@ -40,7 +50,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: verify-deprovision
       taskRef:
@@ -51,4 +61,4 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)

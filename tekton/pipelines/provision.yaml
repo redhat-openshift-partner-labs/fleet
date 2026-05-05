@@ -40,14 +40,39 @@ spec:
     - name: shared-workspace
 
   tasks:
+    - name: load-config
+      taskRef:
+        name: config-loader
+      params:
+        - name: keycloak-url
+          value: $(params.keycloak-url)
+        - name: keycloak-realm
+          value: $(params.keycloak-realm)
+        - name: keycloak-admin-secret
+          value: $(params.keycloak-admin-secret)
+        - name: keycloak-issuer-url
+          value: $(params.keycloak-issuer-url)
+        - name: base-domain
+          value: $(params.base-domain)
+        - name: acme-email
+          value: $(params.acme-email)
+        - name: auth-realm
+          value: $(params.auth-realm)
+        - name: git-repo-url
+          value: $(params.git-repo-url)
+        - name: git-revision
+          value: $(params.git-revision)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: git-clone
       taskRef:
         name: git-clone
       params:
         - name: URL
-          value: $(params.git-repo-url)
+          value: $(tasks.load-config.results.git-repo-url)
         - name: REVISION
-          value: $(params.git-revision)
+          value: $(tasks.load-config.results.git-revision)
         - name: DEPTH
           value: "1"
       workspaces:
@@ -63,7 +88,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -77,7 +102,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       timeout: "1h15m"
 
     - name: wait-for-managed-cluster
@@ -89,7 +114,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: extract-spoke-kubeconfig
       taskRef:
@@ -100,7 +125,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       workspaces:
         - name: shared
           workspace: shared-workspace
@@ -114,7 +139,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: label-for-post-provision
       taskRef:
@@ -125,7 +150,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: trigger-post-provision
       taskRef:
@@ -137,20 +162,6 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: tier
           value: $(tasks.read-cluster-tier.results.tier)
-        - name: base-domain
-          value: $(params.base-domain)
-        - name: keycloak-issuer-url
-          value: $(params.keycloak-issuer-url)
-        - name: keycloak-url
-          value: $(params.keycloak-url)
-        - name: keycloak-realm
-          value: $(params.keycloak-realm)
-        - name: keycloak-admin-secret
-          value: $(params.keycloak-admin-secret)
-        - name: auth-realm
-          value: $(params.auth-realm)
-        - name: acme-email
-          value: $(params.acme-email)

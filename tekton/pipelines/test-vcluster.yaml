@@ -33,16 +33,25 @@ spec:
     - name: shared-workspace
 
   tasks:
+    - name: load-config
+      taskRef:
+        name: config-loader
+      params:
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+
     - name: create-test-vcluster
       taskRef:
         name: create-test-vcluster
+      runAfter:
+        - load-config
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: namespace
           value: $(params.namespace)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: values-file
           value: $(params.values-file)
         - name: extra-sans
@@ -62,7 +71,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: tier
           value: $(params.tier)
         - name: create-aws-creds
@@ -84,7 +93,7 @@ spec:
         - name: namespace
           value: $(params.namespace)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: timeout
           value: $(params.timeout)
 
@@ -99,7 +108,7 @@ spec:
         - name: namespace
           value: $(params.namespace)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       workspaces:
         - name: shared
           workspace: shared-workspace

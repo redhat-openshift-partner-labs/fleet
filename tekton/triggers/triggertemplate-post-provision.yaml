@@ -8,14 +8,6 @@ spec:
     - name: cluster-name
     - name: tier
     - name: dns-zones
-    - name: base-domain
-    - name: keycloak-issuer-url
-    - name: keycloak-url
-    - name: keycloak-realm
-    - name: keycloak-admin-secret
-    - name: auth-realm
-    - name: acme-email
-      default: admin@example.com
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -31,20 +23,6 @@ spec:
             value: $(tt.params.tier)
           - name: dns-zones
             value: $(tt.params.dns-zones)
-          - name: base-domain
-            value: $(tt.params.base-domain)
-          - name: keycloak-issuer-url
-            value: $(tt.params.keycloak-issuer-url)
-          - name: keycloak-url
-            value: $(tt.params.keycloak-url)
-          - name: keycloak-realm
-            value: $(tt.params.keycloak-realm)
-          - name: keycloak-admin-secret
-            value: $(tt.params.keycloak-admin-secret)
-          - name: auth-realm
-            value: $(tt.params.auth-realm)
-          - name: acme-email
-            value: $(tt.params.acme-email)
         taskRunTemplate:
           serviceAccountName: fleet-pipeline
           podTemplate:

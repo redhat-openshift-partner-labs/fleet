@@ -19,12 +19,16 @@ spec:
       default: quay.io/rhopl/fleet-pipeline:latest
     - name: keycloak-url
       type: string
+      default: https://keycloak.example.com
     - name: keycloak-realm
       type: string
+      default: openshift
     - name: keycloak-admin-secret
       type: string
+      default: keycloak-admin
     - name: auth-realm
       type: string
+      default: "master"
     - name: base-domain
       type: string
       default: example.com
@@ -52,14 +56,45 @@ spec:
     - name: shared-workspace
 
   tasks:
+    - name: load-config
+      taskRef:
+        name: config-loader
+      params:
+        - name: keycloak-url
+          value: $(params.keycloak-url)
+        - name: keycloak-realm
+          value: $(params.keycloak-realm)
+        - name: keycloak-admin-secret
+          value: $(params.keycloak-admin-secret)
+        - name: keycloak-issuer-url
+          value: $(params.keycloak-issuer-url)
+        - name: base-domain
+          value: $(params.base-domain)
+        - name: acme-email
+          value: $(params.acme-email)
+        - name: auth-realm
+          value: $(params.auth-realm)
+        - name: provider-name
+          value: $(params.provider-name)
+        - name: insecure
+          value: $(params.insecure)
+        - name: git-repo-url
+          value: $(params.git-repo-url)
+        - name: git-revision
+          value: $(params.git-revision)
+        - name: pipeline-image
+          value: $(params.pipeline-image)
+        - name: openshift-cluster
+          value: $(params.openshift-cluster)
+
     - name: git-clone
       taskRef:
         name: git-clone
       params:
         - name: URL
-          value: $(params.git-repo-url)
+          value: $(tasks.load-config.results.git-repo-url)
         - name: REVISION
-          value: $(params.git-revision)
+          value: $(tasks.load-config.results.git-revision)
         - name: DEPTH
           value: "1"
       workspaces:
@@ -75,7 +110,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: spoke-kubeconfig
           value: $(params.spoke-kubeconfig)
       workspaces:
@@ -91,7 +126,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       workspaces:
         - name: shared
           workspace: shared-workspace
@@ -110,21 +145,21 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: keycloak-url
-          value: $(params.keycloak-url)
+          value: $(tasks.load-config.results.keycloak-url)
         - name: keycloak-realm
-          value: $(params.keycloak-realm)
+          value: $(tasks.load-config.results.keycloak-realm)
         - name: keycloak-admin-secret
-          value: $(params.keycloak-admin-secret)
+          value: $(tasks.load-config.results.keycloak-admin-secret)
         - name: base-domain
-          value: $(params.base-domain)
+          value: $(tasks.load-config.results.base-domain)
         - name: auth-realm
-          value: $(params.auth-realm)
+          value: $(tasks.load-config.results.auth-realm)
         - name: provider-name
-          value: $(params.provider-name)
+          value: $(tasks.load-config.results.provider-name)
         - name: insecure
-          value: $(params.insecure)
+          value: $(tasks.load-config.results.insecure)
 
     - name: configure-spoke-oauth
       when:
@@ -140,11 +175,11 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: keycloak-issuer-url
-          value: $(params.keycloak-issuer-url)
+          value: $(tasks.load-config.results.keycloak-issuer-url)
         - name: provider-name
-          value: $(params.provider-name)
+          value: $(tasks.load-config.results.provider-name)
       workspaces:
         - name: shared
           workspace: shared-workspace
@@ -163,9 +198,9 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: acme-email
-          value: $(params.acme-email)
+          value: $(tasks.load-config.results.acme-email)
 
     - name: request-ssl-cert
       when:
@@ -181,7 +216,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: dns-zones
           value: $(params.dns-zones)
 
@@ -199,7 +234,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       timeout: "20m"
 
     - name: extract-cert-material
@@ -216,7 +251,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
 
     - name: apply-base-workloads
       taskRef:
@@ -227,7 +262,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
         - name: tier
           value: $(params.tier)
       workspaces:
@@ -248,7 +283,7 @@ spec:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: pipeline-image
-          value: $(params.pipeline-image)
+          value: $(tasks.load-config.results.pipeline-image)
       workspaces:
         - name: shared
           workspace: shared-workspace
