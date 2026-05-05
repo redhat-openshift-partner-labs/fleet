@@ -7,6 +7,12 @@ import pytest
 from fleet.tasks.apply_cluster_crs import main
 
 
+def test_configmap_missing():
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "c", "--source-dir", "/d"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
 @mock.patch("fleet.tasks.apply_cluster_crs.subprocess.run")
 def test_apply_success(mock_run, monkeypatch):
     monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")

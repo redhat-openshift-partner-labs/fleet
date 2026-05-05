@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import sys
 
-from fleet.tasks._env import resolve_required
+from fleet.tasks._env import check_configmap_env, resolve_required
 from fleet.tasks._log import configure, error, info
 
 
@@ -16,6 +16,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", default=None)
     args = parser.parse_args()
+    check_configmap_env()
     args.cluster_name = resolve_required(
         args.cluster_name, "cluster-name", "create-namespace"
     )

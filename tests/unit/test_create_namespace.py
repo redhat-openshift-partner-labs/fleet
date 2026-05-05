@@ -2,7 +2,15 @@ from unittest import mock
 
 import subprocess
 
+import pytest
+
 from fleet.tasks.create_namespace import main
+
+
+def test_configmap_missing():
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "c"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
 
 
 def _run(args, **kwargs):

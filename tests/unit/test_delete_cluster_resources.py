@@ -7,6 +7,12 @@ import pytest
 from fleet.tasks.delete_cluster_resources import main
 
 
+def test_configmap_missing():
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "c"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
 def _run(args, **kwargs):
     return subprocess.CompletedProcess(args, returncode=0, stdout="", stderr="")
 
