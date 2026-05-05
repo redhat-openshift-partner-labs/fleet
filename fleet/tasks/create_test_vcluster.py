@@ -8,12 +8,7 @@ import sys
 import textwrap
 import time
 
-from fleet.tasks._env import (
-    check_configmap_env,
-    resolve,
-    resolve_list,
-    resolve_required,
-)
+from fleet.tasks._env import resolve_batch
 from fleet.tasks._log import configure, error, info
 
 
@@ -82,21 +77,13 @@ def main() -> None:
     parser.add_argument("--route-san", default=None)
     args = parser.parse_args()
 
-    check_configmap_env()
-    args.cluster_name = resolve_required(
-        args.cluster_name, "cluster-name", "create-test-vcluster"
+    resolve_batch(
+        args,
+        "create-test-vcluster",
+        required=["cluster_name", "namespace", "output_dir"],
+        optional=["values_file", "route_san"],
+        list_args=["extra_sans"],
     )
-    args.namespace = resolve_required(
-        args.namespace, "namespace", "create-test-vcluster"
-    )
-    args.output_dir = resolve_required(
-        args.output_dir, "output-dir", "create-test-vcluster"
-    )
-    args.values_file = resolve(args.values_file, "values-file", "create-test-vcluster")
-    args.extra_sans = resolve_list(
-        args.extra_sans, "extra-sans", "create-test-vcluster"
-    )
-    args.route_san = resolve(args.route_san, "route-san", "create-test-vcluster")
     configure("create-test-vcluster")
 
     info("=== Creating test vCluster ===")
