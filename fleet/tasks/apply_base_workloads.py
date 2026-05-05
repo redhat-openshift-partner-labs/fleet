@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import sys
 
-from fleet.tasks._env import check_configmap_env, resolve_required
+from fleet.tasks._env import resolve_batch
 from fleet.tasks._log import configure, error, info
 
 
@@ -19,15 +19,10 @@ def main() -> None:
     parser.add_argument("--spoke-kubeconfig", default=None)
     args = parser.parse_args()
 
-    check_configmap_env()
-    args.cluster_name = resolve_required(
-        args.cluster_name, "cluster-name", "apply-base-workloads"
-    )
-    args.source_dir = resolve_required(
-        args.source_dir, "source-dir", "apply-base-workloads"
-    )
-    args.spoke_kubeconfig = resolve_required(
-        args.spoke_kubeconfig, "spoke-kubeconfig", "apply-base-workloads"
+    resolve_batch(
+        args,
+        "apply-base-workloads",
+        required=["cluster_name", "source_dir", "spoke_kubeconfig"],
     )
 
     cluster = args.cluster_name
