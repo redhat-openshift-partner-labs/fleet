@@ -68,7 +68,9 @@ def main() -> None:
     )
     info(f"  -> vcluster delete exit code: {result.returncode}")
     if result.returncode != 0:
-        info(f"vcluster delete failed ({result.stderr.strip()}), falling back to namespace delete")
+        info(
+            f"vcluster delete failed ({result.stderr.strip()}), falling back to namespace delete"
+        )
         result = subprocess.run(
             ["oc", "delete", "namespace", args.namespace, "--ignore-not-found=true"],
             capture_output=True,

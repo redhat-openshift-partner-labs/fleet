@@ -47,7 +47,11 @@ def test_vcluster_delete_fails_fallback_namespace_delete(mock_run, _mock_sleep):
     assert mock_run.call_count == 5
     ns_call = mock_run.call_args_list[4].args[0]
     assert ns_call == [
-        "oc", "delete", "namespace", "test-ns", "--ignore-not-found=true",
+        "oc",
+        "delete",
+        "namespace",
+        "test-ns",
+        "--ignore-not-found=true",
     ]
 
 
@@ -86,6 +90,18 @@ def test_waits_for_managedcluster_removal(mock_run, _mock_sleep):
     ):
         main()
     assert mock_run.call_count == 6
+
+
+@mock.patch("fleet.tasks.delete_test_vcluster.time.sleep")
+@mock.patch("fleet.tasks.delete_test_vcluster.subprocess.run")
+def test_managedcluster_timeout_proceeds(mock_run, _mock_sleep):
+    mock_run.side_effect = [_ok()] + [_ok()] * 60 + [_ok(), _ok()]
+    with mock.patch(
+        "sys.argv",
+        ["prog", "--cluster-name", "test-vc", "--namespace", "test-ns"],
+    ):
+        main()
+    assert mock_run.call_count == 63
 
 
 @mock.patch("fleet.tasks.delete_test_vcluster.time.sleep")
