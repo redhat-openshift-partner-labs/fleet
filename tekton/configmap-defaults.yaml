@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-pipeline-config
+data:
+  keycloak-url: "https://keycloak.example.com"
+  keycloak-realm: "openshift"
+  keycloak-admin-secret: "keycloak-admin"
+  keycloak-issuer-url: "https://keycloak.example.com/realms/openshift"
+  base-domain: "example.com"
+  acme-email: "admin@example.com"
+  auth-realm: "master"
+  provider-name: "RedHat"
+  insecure: "false"
+  git-repo-url: "https://github.com/redhat-openshift-partner-labs/fleet.git"
+  git-revision: "main"
+  pipeline-image: "quay.io/rhopl/fleet-pipeline:latest"
+  openshift-cluster: "true"

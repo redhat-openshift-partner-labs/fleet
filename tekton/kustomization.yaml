@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: openshift-pipelines
 
 resources:
+  - configmap-defaults.yaml
   - rbac/
   - tasks/
   - pipelines/
