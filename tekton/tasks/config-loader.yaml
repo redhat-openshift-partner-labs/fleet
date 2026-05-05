@@ -1,0 +1,87 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: config-loader
+spec:
+  params:
+    - name: keycloak-url
+      type: string
+      default: "https://keycloak.example.com"
+    - name: keycloak-realm
+      type: string
+      default: "openshift"
+    - name: keycloak-admin-secret
+      type: string
+      default: "keycloak-admin"
+    - name: keycloak-issuer-url
+      type: string
+      default: "https://keycloak.example.com/realms/openshift"
+    - name: base-domain
+      type: string
+      default: "example.com"
+    - name: acme-email
+      type: string
+      default: "admin@example.com"
+    - name: auth-realm
+      type: string
+      default: "master"
+    - name: provider-name
+      type: string
+      default: "RedHat"
+    - name: insecure
+      type: string
+      default: "false"
+    - name: git-repo-url
+      type: string
+      default: "https://github.com/redhat-openshift-partner-labs/fleet.git"
+    - name: git-revision
+      type: string
+      default: "main"
+    - name: pipeline-image
+      type: string
+      default: "quay.io/rhopl/fleet-pipeline:latest"
+    - name: openshift-cluster
+      type: string
+      default: "true"
+  results:
+    - name: keycloak-url
+    - name: keycloak-realm
+    - name: keycloak-admin-secret
+    - name: keycloak-issuer-url
+    - name: base-domain
+    - name: acme-email
+    - name: auth-realm
+    - name: provider-name
+    - name: insecure
+    - name: git-repo-url
+    - name: git-revision
+    - name: pipeline-image
+    - name: openshift-cluster
+  steps:
+    - name: load
+      image: quay.io/openshift/origin-cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        CM=$(oc get configmap fleet-pipeline-config -o json)
+        resolve() {
+          local key="$1" override="$2" default="$3" result_path="$4"
+          if [ -n "$override" ] && [ "$override" != "$default" ]; then
+            printf '%s' "$override" > "$result_path"
+          else
+            printf '%s' "$(echo "$CM" | jq -r --arg k "$key" '.data[$k]')" > "$result_path"
+          fi
+        }
+        resolve "keycloak-url" "$(params.keycloak-url)" "https://keycloak.example.com" "$(results.keycloak-url.path)"
+        resolve "keycloak-realm" "$(params.keycloak-realm)" "openshift" "$(results.keycloak-realm.path)"
+        resolve "keycloak-admin-secret" "$(params.keycloak-admin-secret)" "keycloak-admin" "$(results.keycloak-admin-secret.path)"
+        resolve "keycloak-issuer-url" "$(params.keycloak-issuer-url)" "https://keycloak.example.com/realms/openshift" "$(results.keycloak-issuer-url.path)"
+        resolve "base-domain" "$(params.base-domain)" "example.com" "$(results.base-domain.path)"
+        resolve "acme-email" "$(params.acme-email)" "admin@example.com" "$(results.acme-email.path)"
+        resolve "auth-realm" "$(params.auth-realm)" "master" "$(results.auth-realm.path)"
+        resolve "provider-name" "$(params.provider-name)" "RedHat" "$(results.provider-name.path)"
+        resolve "insecure" "$(params.insecure)" "false" "$(results.insecure.path)"
+        resolve "git-repo-url" "$(params.git-repo-url)" "https://github.com/redhat-openshift-partner-labs/fleet.git" "$(results.git-repo-url.path)"
+        resolve "git-revision" "$(params.git-revision)" "main" "$(results.git-revision.path)"
+        resolve "pipeline-image" "$(params.pipeline-image)" "quay.io/rhopl/fleet-pipeline:latest" "$(results.pipeline-image.path)"
+        resolve "openshift-cluster" "$(params.openshift-cluster)" "true" "$(results.openshift-cluster.path)"
