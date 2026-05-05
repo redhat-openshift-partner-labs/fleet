@@ -3,6 +3,9 @@ kind: Kustomization
 
 resources:
   - namespaces.yaml
-  - tekton/
   - cert-manager/
+  - tekton/
+  - argocd/
+  - acm/
   - crossplane/
+  - partner-labs-auth/
