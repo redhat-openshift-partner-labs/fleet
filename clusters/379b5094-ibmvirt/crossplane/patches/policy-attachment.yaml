@@ -1,0 +1,9 @@
+- op: replace
+  path: /metadata/name
+  value: 379b5094-ibmvirt-policy-attachment
+- op: replace
+  path: /spec/forProvider/policyArnRef/name
+  value: 379b5094-ibmvirt-openshift4installerpolicy
+- op: replace
+  path: /spec/forProvider/userRef/name
+  value: 379b5094-ibmvirt-ocp-installer
