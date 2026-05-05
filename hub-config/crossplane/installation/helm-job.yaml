@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: crossplane-helm-installer
+  namespace: crossplane-system
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: crossplane-installer
+    spec:
+      serviceAccountName: crossplane-installer
+      restartPolicy: Never
+      containers:
+        - name: helm-installer
+          image: registry.redhat.io/ubi8/ubi:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "Starting crossplane installation..."
+
+              # Install curl and other tools if needed
+              dnf update -y && dnf install -y curl tar openssl
+
+              # Install helm
+              echo "Downloading helm..."
+              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+              chmod 700 get_helm.sh
+              ./get_helm.sh
+
+              echo "Adding crossplane helm repo..."
+              # Add crossplane helm repo
+              helm repo add crossplane-stable https://charts.crossplane.io/stable
+              helm repo update
+
+              echo "Installing crossplane..."
+              # Install crossplane with OpenShift-compatible settings
+              helm upgrade --install crossplane \
+                crossplane-stable/crossplane \
+                --namespace crossplane-system \
+                --version 2.2.0 \
+                --set args='{--enable-usages}' \
+                --set securityContextCrossplane.runAsUser=null \
+                --set securityContextCrossplane.runAsGroup=null \
+                --set securityContextRBACManager.runAsUser=null \
+                --set securityContextRBACManager.runAsGroup=null \
+                --create-namespace \
+                --wait \
+                --timeout=10m
+
+              echo "Crossplane installation completed successfully"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: false
+            allowPrivilegeEscalation: true
