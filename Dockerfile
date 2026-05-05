@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir /src && \
 
 FROM registry.access.redhat.com/ubi9-minimal:latest
 
-RUN microdnf install -y openssh-clients openssl-libs && microdnf clean all
+RUN microdnf install -y openssh-clients openssl-libs jq && microdnf clean all
 
 COPY --from=build /opt/app-root /opt/app-root
 COPY --from=build /usr/bin/python3.11 /usr/bin/python3.11
