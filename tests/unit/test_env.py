@@ -7,6 +7,7 @@ from fleet.tasks._env import (
     env_var_name,
     generic_env_var_name,
     resolve,
+    resolve_batch,
     resolve_bool,
     resolve_list,
     resolve_required,
@@ -164,3 +165,132 @@ def test_check_configmap_env_missing():
     os.environ.pop("FLEET_CONFIGMAP_LOADED", None)
     with pytest.raises(SystemExit, match="1"):
         check_configmap_env()
+
+
+# --- resolve_batch ---
+
+
+def _make_ns(**kwargs):
+    """Build an argparse.Namespace with given attributes."""
+    import argparse
+
+    return argparse.Namespace(**kwargs)
+
+
+def test_resolve_batch_required_from_cli(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(cluster_name="prod", base_domain="example.com")
+    resolve_batch(ns, "my-task", required=["cluster_name", "base_domain"])
+    assert ns.cluster_name == "prod"
+    assert ns.base_domain == "example.com"
+
+
+def test_resolve_batch_required_from_env(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv("FLEET_MY_TASK_CLUSTER_NAME", "env-cluster")
+    ns = _make_ns(cluster_name=None)
+    resolve_batch(ns, "my-task", required=["cluster_name"])
+    assert ns.cluster_name == "env-cluster"
+
+
+def test_resolve_batch_required_exits_when_missing(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(cluster_name=None)
+    with pytest.raises(SystemExit, match="1"):
+        resolve_batch(ns, "my-task", required=["cluster_name"])
+
+
+def test_resolve_batch_optional_from_cli(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(values_file="/tmp/vals.yaml")
+    resolve_batch(ns, "my-task", optional=["values_file"])
+    assert ns.values_file == "/tmp/vals.yaml"
+
+
+def test_resolve_batch_optional_missing_is_none(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(values_file=None)
+    resolve_batch(ns, "my-task", optional=["values_file"])
+    assert ns.values_file is None
+
+
+def test_resolve_batch_bool_flags(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(insecure=False)
+    monkeypatch.setenv("FLEET_MY_TASK_INSECURE", "true")
+    resolve_batch(ns, "my-task", bool_flags=["insecure"])
+    assert ns.insecure is True
+
+
+def test_resolve_batch_bool_flags_cli_true(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(insecure=True)
+    resolve_batch(ns, "my-task", bool_flags=["insecure"])
+    assert ns.insecure is True
+
+
+def test_resolve_batch_list_args_from_env(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv("FLEET_MY_TASK_EXTRA_SANS", "a.com,b.com")
+    ns = _make_ns(extra_sans=None)
+    resolve_batch(ns, "my-task", list_args=["extra_sans"])
+    assert ns.extra_sans == ["a.com", "b.com"]
+
+
+def test_resolve_batch_list_args_from_cli(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns(extra_sans=["x.com"])
+    resolve_batch(ns, "my-task", list_args=["extra_sans"])
+    assert ns.extra_sans == ["x.com"]
+
+
+def test_resolve_batch_check_configmap_true_by_default():
+    os.environ.pop("FLEET_CONFIGMAP_LOADED", None)
+    ns = _make_ns(cluster_name="x")
+    with pytest.raises(SystemExit, match="1"):
+        resolve_batch(ns, "my-task", required=["cluster_name"])
+
+
+def test_resolve_batch_check_configmap_false(monkeypatch):
+    os.environ.pop("FLEET_CONFIGMAP_LOADED", None)
+    ns = _make_ns(cluster_name="x")
+    resolve_batch(ns, "my-task", required=["cluster_name"], check_configmap=False)
+    assert ns.cluster_name == "x"
+
+
+def test_resolve_batch_field_to_arg_conversion(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv("FLEET_MY_TASK_KEYCLOAK_ADMIN_SECRET", "sec")
+    ns = _make_ns(keycloak_admin_secret=None)
+    resolve_batch(ns, "my-task", required=["keycloak_admin_secret"])
+    assert ns.keycloak_admin_secret == "sec"
+
+
+def test_resolve_batch_mixed_categories(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    monkeypatch.setenv("FLEET_MY_TASK_INSECURE", "true")
+    monkeypatch.setenv("FLEET_MY_TASK_EXTRA_SANS", "a.com")
+    ns = _make_ns(
+        cluster_name="prod",
+        values_file=None,
+        insecure=False,
+        extra_sans=None,
+    )
+    resolve_batch(
+        ns,
+        "my-task",
+        required=["cluster_name"],
+        optional=["values_file"],
+        bool_flags=["insecure"],
+        list_args=["extra_sans"],
+    )
+    assert ns.cluster_name == "prod"
+    assert ns.values_file is None
+    assert ns.insecure is True
+    assert ns.extra_sans == ["a.com"]
+
+
+def test_resolve_batch_no_args_is_noop(monkeypatch):
+    monkeypatch.setenv("FLEET_CONFIGMAP_LOADED", "true")
+    ns = _make_ns()
+    resolve_batch(ns, "my-task")

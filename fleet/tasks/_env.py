@@ -7,11 +7,11 @@ Every argparse argument gets a two-level env var lookup:
 Resolution order: CLI arg > tool-specific env > generic env > error (if required).
 
 Usage (each task):
-    from fleet.tasks._env import check_configmap_env, resolve_required
-    check_configmap_env()
-    args.cluster_name = resolve_required(args.cluster_name, "cluster-name", "my-task")
+    from fleet.tasks._env import resolve_batch
+    resolve_batch(args, "my-task", required=["cluster_name", "base_domain"])
 """
 
+import argparse
 import os
 import sys
 
@@ -85,3 +85,45 @@ def resolve_list(
     if env is not None:
         return [item.strip() for item in env.split(",") if item.strip()]
     return []
+
+
+def _field_to_arg(field: str) -> str:
+    return field.replace("_", "-")
+
+
+def resolve_batch(  # pylint: disable=too-many-arguments
+    args: argparse.Namespace,
+    task_name: str,
+    *,
+    required: list[str] | None = None,
+    optional: list[str] | None = None,
+    bool_flags: list[str] | None = None,
+    list_args: list[str] | None = None,
+    check_configmap: bool = True,
+) -> None:
+    if check_configmap:
+        check_configmap_env()
+    for field in required or []:
+        setattr(
+            args,
+            field,
+            resolve_required(getattr(args, field), _field_to_arg(field), task_name),
+        )
+    for field in optional or []:
+        setattr(
+            args,
+            field,
+            resolve(getattr(args, field), _field_to_arg(field), task_name),
+        )
+    for field in bool_flags or []:
+        setattr(
+            args,
+            field,
+            resolve_bool(getattr(args, field), _field_to_arg(field), task_name),
+        )
+    for field in list_args or []:
+        setattr(
+            args,
+            field,
+            resolve_list(getattr(args, field), _field_to_arg(field), task_name),
+        )
