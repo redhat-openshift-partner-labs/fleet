@@ -1,9 +1,6 @@
 """Trigger the post-provision pipeline by creating a PipelineRun.
 
 CLI: fleet-trigger-post-provision --cluster-name NAME --tier TIER
-     --base-domain DOMAIN --keycloak-issuer-url URL
-     --keycloak-url URL --keycloak-realm REALM
-     --keycloak-admin-secret SECRET --auth-realm REALM
 Derives dns-zones from the ClusterDeployment baseDomain, then creates a
 PipelineRun for the post-provision pipeline. Exits 1 on failure.
 """
@@ -20,26 +17,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--tier", required=True)
-    parser.add_argument("--base-domain", required=True)
-    parser.add_argument("--keycloak-issuer-url", required=True)
-    parser.add_argument("--keycloak-url", required=True)
-    parser.add_argument("--keycloak-realm", required=True)
-    parser.add_argument("--keycloak-admin-secret", required=True)
-    parser.add_argument("--auth-realm", required=True)
-    parser.add_argument("--acme-email", required=True)
     args = parser.parse_args()
 
     configure("trigger-post-provision")
 
     cluster = args.cluster_name
     tier = args.tier
-    base_domain = args.base_domain
-    keycloak_issuer_url = args.keycloak_issuer_url
-    keycloak_url = args.keycloak_url
-    keycloak_realm = args.keycloak_realm
-    keycloak_admin_secret = args.keycloak_admin_secret
-    auth_realm = args.auth_realm
-    acme_email = args.acme_email
 
     info("=== Triggering post-provision pipeline ===")
     info("Parameters:")
@@ -88,20 +71,6 @@ def main() -> None:
               value: {tier}
             - name: dns-zones
               value: "{dns_zones}"
-            - name: base-domain
-              value: {base_domain}
-            - name: keycloak-issuer-url
-              value: {keycloak_issuer_url}
-            - name: keycloak-url
-              value: {keycloak_url}
-            - name: keycloak-realm
-              value: {keycloak_realm}
-            - name: keycloak-admin-secret
-              value: {keycloak_admin_secret}
-            - name: auth-realm
-              value: {auth_realm}
-            - name: acme-email
-              value: {acme_email}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:
