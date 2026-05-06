@@ -63,7 +63,7 @@ spec:
     - name: cluster-admins
   steps:
     - name: load
-      image: quay.io/openshift/origin-cli:latest
+      image: $(params.pipeline-image)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
