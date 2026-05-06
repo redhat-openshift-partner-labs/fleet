@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: test-cluster-01-policy-attachment
-- op: replace
-  path: /spec/forProvider/policyArnRef/name
-  value: test-cluster-01-openshift4installerpolicy
-- op: replace
-  path: /spec/forProvider/userRef/name
-  value: test-cluster-01-ocp-installer
