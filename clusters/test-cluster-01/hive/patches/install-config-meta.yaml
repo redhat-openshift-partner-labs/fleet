@@ -1,6 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: test-cluster-01-install-config
-- op: replace
-  path: /metadata/namespace
-  value: test-cluster-01

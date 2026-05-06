@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: test-cluster-01
-- op: add
-  path: /metadata/labels/tier
-  value: base
-- op: add
-  path: /metadata/labels/environment
-  value: development

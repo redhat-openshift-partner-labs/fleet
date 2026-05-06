@@ -1,6 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: test-cluster-01-openshift4installerpolicy
-- op: replace
-  path: /spec/forProvider/name
-  value: test-cluster-01-OpenShift4InstallerPolicy
