@@ -16,22 +16,30 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--spoke-kubeconfig", required=True)
+    parser.add_argument("--cluster-admins", default="")
     args = parser.parse_args()
 
     configure("configure-spoke-rbac")
 
+    admins = [u.strip() for u in args.cluster_admins.split(",") if u.strip()]
+
     info("=== Configuring spoke RBAC ===")
-    info(f"Parameters:")
+    info("Parameters:")
     info(f"  cluster-name={args.cluster_name}")
     info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
+    info(f"  cluster-admins={admins}")
 
-    rbac_yaml = textwrap.dedent("""\
+    if admins:
+        users_block = "users:\n" + "".join(f"- {u}\n" for u in admins)
+    else:
+        users_block = "users: []\n"
+
+    rbac_yaml = textwrap.dedent(f"""\
         apiVersion: user.openshift.io/v1
         kind: Group
         metadata:
           name: cluster-admins
-        users: []
-        ---
+        {users_block}---
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRoleBinding
         metadata:

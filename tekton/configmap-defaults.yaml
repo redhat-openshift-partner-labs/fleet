@@ -16,3 +16,4 @@ data:
   git-revision: "main"
   pipeline-image: "quay.io/rhopl/fleet-pipeline:latest"
   openshift-cluster: "true"
+  cluster-admins: ""
