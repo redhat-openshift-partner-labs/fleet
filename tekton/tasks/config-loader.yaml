@@ -43,6 +43,9 @@ spec:
     - name: openshift-cluster
       type: string
       default: "true"
+    - name: cluster-admins
+      type: string
+      default: ""
   results:
     - name: keycloak-url
     - name: keycloak-realm
@@ -57,6 +60,7 @@ spec:
     - name: git-revision
     - name: pipeline-image
     - name: openshift-cluster
+    - name: cluster-admins
   steps:
     - name: load
       image: quay.io/openshift/origin-cli:latest
@@ -85,3 +89,4 @@ spec:
         resolve "git-revision" "$(params.git-revision)" "main" "$(results.git-revision.path)"
         resolve "pipeline-image" "$(params.pipeline-image)" "quay.io/rhopl/fleet-pipeline:latest" "$(results.pipeline-image.path)"
         resolve "openshift-cluster" "$(params.openshift-cluster)" "true" "$(results.openshift-cluster.path)"
+        resolve "cluster-admins" "$(params.cluster-admins)" "" "$(results.cluster-admins.path)"

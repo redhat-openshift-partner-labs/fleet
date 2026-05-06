@@ -52,6 +52,9 @@ spec:
     - name: spoke-kubeconfig
       type: string
       default: ""
+    - name: cluster-admins
+      type: string
+      default: ""
   workspaces:
     - name: shared-workspace
 
@@ -86,6 +89,8 @@ spec:
           value: $(params.pipeline-image)
         - name: openshift-cluster
           value: $(params.openshift-cluster)
+        - name: cluster-admins
+          value: $(params.cluster-admins)
 
     - name: git-clone
       taskRef:
@@ -284,6 +289,8 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
+        - name: cluster-admins
+          value: $(tasks.load-config.results.cluster-admins)
       workspaces:
         - name: shared
           workspace: shared-workspace
