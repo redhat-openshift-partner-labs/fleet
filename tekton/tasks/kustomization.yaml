@@ -25,6 +25,7 @@ resources:
   - request-ssl-cert.yaml
   - wait-for-ssl-ready.yaml
   - extract-cert-material.yaml
+  - configure-spoke-default-cert.yaml
   - apply-base-workloads.yaml
   - configure-spoke-rbac.yaml
   - delete-cluster-resources.yaml

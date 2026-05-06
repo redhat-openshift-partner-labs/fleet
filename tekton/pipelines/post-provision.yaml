@@ -258,11 +258,30 @@ spec:
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
 
+    - name: configure-spoke-default-cert
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
+      taskRef:
+        name: configure-spoke-default-cert
+      runAfter:
+        - extract-cert-material
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
     - name: apply-base-workloads
       taskRef:
         name: apply-base-workloads
       runAfter:
-        - extract-cert-material
+        - configure-spoke-default-cert
       params:
         - name: cluster-name
           value: $(params.cluster-name)
