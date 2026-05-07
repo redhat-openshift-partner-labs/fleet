@@ -13,9 +13,9 @@
 - op: replace
   path: /spec/platform/aws/zones
   value:
-  - us-east-2a
-  - us-east-2b
-  - us-east-2c
+    - us-east-2a
+    - us-east-2b
+    - us-east-2c
 - op: replace
   path: /spec/replicas
   value: 0
