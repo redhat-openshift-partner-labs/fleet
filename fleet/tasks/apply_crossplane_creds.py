@@ -6,9 +6,9 @@ Builds clusters/{cluster}/ with kustomize and applies the output. Exits 1 on bui
 
 import argparse
 import os
-import subprocess
 import sys
 
+from fleet._retry import run_with_retry
 from fleet.tasks._log import configure, error, info
 
 
@@ -31,7 +31,7 @@ def main() -> None:
     info(f"  crossplane-dir={crossplane_dir}")
 
     info(f"Running kustomize build on {crossplane_dir}...")
-    build = subprocess.run(
+    build = run_with_retry(
         ["kustomize", "build", crossplane_dir],
         capture_output=True,
         text=True,
@@ -44,8 +44,8 @@ def main() -> None:
     info(f"  -> kustomize produced {doc_count} YAML documents")
 
     info("Applying Crossplane resources...")
-    apply = subprocess.run(
-        ["oc", "apply", "-f", "-"],
+    apply = run_with_retry(
+        ["oc", "apply", "--server-side=true", "--force-conflicts", "-f", "-"],
         input=build.stdout,
         capture_output=True,
         text=True,

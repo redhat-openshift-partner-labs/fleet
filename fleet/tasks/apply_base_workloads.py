@@ -5,9 +5,9 @@ Runs kustomize build on source-dir and applies output to spoke. Exits 1 on failu
 """
 
 import argparse
-import subprocess
 import sys
 
+from fleet._retry import run_with_retry
 from fleet.tasks._log import configure, error, info
 
 
@@ -28,7 +28,7 @@ def main() -> None:
     info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
 
     info(f"Running kustomize build on {args.source_dir}...")
-    build = subprocess.run(
+    build = run_with_retry(
         ["kustomize", "build", args.source_dir],
         capture_output=True,
         text=True,
@@ -41,7 +41,7 @@ def main() -> None:
     info(f"  -> kustomize produced {doc_count} YAML documents")
 
     info(f"Applying workloads to spoke (kubeconfig: {args.spoke_kubeconfig})...")
-    apply = subprocess.run(
+    apply = run_with_retry(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],
         input=build.stdout,
         capture_output=True,
