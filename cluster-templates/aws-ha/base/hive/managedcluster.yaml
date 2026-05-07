@@ -6,7 +6,6 @@ metadata:
     cloud: Amazon
     vendor: OpenShift
     cluster.open-cluster-management.io/clusterset: default
-    provisioned: gitops
 spec:
   hubAcceptsClient: true
 ---
