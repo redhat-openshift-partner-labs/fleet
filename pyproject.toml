@@ -54,6 +54,7 @@ fleet-create-test-vcluster = "fleet.tasks.create_test_vcluster:main"
 fleet-seed-test-vcluster = "fleet.tasks.seed_test_vcluster:main"
 fleet-delete-test-vcluster = "fleet.tasks.delete_test_vcluster:main"
 fleet-run-post-provision = "fleet.tasks.run_post_provision:main"
+fleet-scaffold-cluster = "fleet.tasks.scaffold_cluster:main"
 
 [tool.pylint.messages_control]
 disable = [
@@ -65,6 +66,8 @@ disable = [
     "line-too-long",
     "too-many-locals",
     "too-many-statements",
+    "missing-class-docstring",
+    "too-many-instance-attributes",
 ]
 
 [tool.bandit]
