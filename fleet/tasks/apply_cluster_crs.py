@@ -6,9 +6,9 @@ Builds clusters/{cluster}/ with kustomize and applies via oc. Exits 1 on build o
 
 import argparse
 import os
-import subprocess
 import sys
 
+from fleet._retry import run_with_retry
 from fleet.tasks._log import configure, error, info
 
 
@@ -31,7 +31,7 @@ def main() -> None:
     info(f"  hive-dir={hive_dir}")
 
     info(f"Running kustomize build on {hive_dir}...")
-    build = subprocess.run(
+    build = run_with_retry(
         ["kustomize", "build", hive_dir],
         capture_output=True,
         text=True,
@@ -44,7 +44,7 @@ def main() -> None:
     info(f"  -> kustomize produced {doc_count} YAML documents")
 
     info("Applying cluster CRs via oc apply (server-side, force-conflicts)...")
-    apply = subprocess.run(
+    apply = run_with_retry(
         ["oc", "apply", "--server-side=true", "--force-conflicts", "-f", "-"],
         input=build.stdout,
         capture_output=True,

@@ -7,13 +7,23 @@ import pytest
 from fleet.tasks.apply_base_workloads import main
 
 
-@mock.patch("fleet.tasks.apply_base_workloads.subprocess.run")
-def test_apply_success(mock_run):
-    mock_run.side_effect = [
-        subprocess.CompletedProcess(
-            [], returncode=0, stdout="apiVersion: v1\nkind: List\nitems: []", stderr=""
-        ),
-        subprocess.CompletedProcess([], returncode=0, stdout="configured", stderr=""),
+def _ok(**overrides):
+    defaults = {"args": [], "returncode": 0, "stdout": "yaml-output", "stderr": ""}
+    defaults.update(overrides)
+    return subprocess.CompletedProcess(**defaults)
+
+
+def _fail(**overrides):
+    defaults = {"args": [], "returncode": 1, "stdout": "", "stderr": "error"}
+    defaults.update(overrides)
+    return subprocess.CompletedProcess(**defaults)
+
+
+@mock.patch("fleet.tasks.apply_base_workloads.run_with_retry")
+def test_apply_success(mock_retry):
+    mock_retry.side_effect = [
+        _ok(stdout="apiVersion: v1\nkind: List\nitems: []"),
+        _ok(stdout="configured"),
     ]
     with mock.patch(
         "sys.argv",
@@ -28,18 +38,16 @@ def test_apply_success(mock_run):
         ],
     ):
         main()
-    assert mock_run.call_count == 2
-    kustomize_call = mock_run.call_args_list[0]
+    assert mock_retry.call_count == 2
+    kustomize_call = mock_retry.call_args_list[0]
     assert "kustomize" in " ".join(kustomize_call.args[0])
-    apply_call = mock_run.call_args_list[1]
+    apply_call = mock_retry.call_args_list[1]
     assert "--kubeconfig=/workspace/kubeconfig" in apply_call.args[0]
 
 
-@mock.patch("fleet.tasks.apply_base_workloads.subprocess.run")
-def test_kustomize_build_fails(mock_run):
-    mock_run.return_value = subprocess.CompletedProcess(
-        [], returncode=1, stdout="", stderr="error building kustomization"
-    )
+@mock.patch("fleet.tasks.apply_base_workloads.run_with_retry")
+def test_kustomize_build_fails(mock_retry):
+    mock_retry.return_value = _fail(stderr="error building kustomization")
     with mock.patch(
         "sys.argv",
         [
@@ -56,13 +64,11 @@ def test_kustomize_build_fails(mock_run):
             main()
 
 
-@mock.patch("fleet.tasks.apply_base_workloads.subprocess.run")
-def test_apply_fails(mock_run):
-    mock_run.side_effect = [
-        subprocess.CompletedProcess(
-            [], returncode=0, stdout="apiVersion: v1\nkind: List", stderr=""
-        ),
-        subprocess.CompletedProcess([], returncode=1, stdout="", stderr="forbidden"),
+@mock.patch("fleet.tasks.apply_base_workloads.run_with_retry")
+def test_apply_fails(mock_retry):
+    mock_retry.side_effect = [
+        _ok(stdout="apiVersion: v1\nkind: List"),
+        _fail(stderr="forbidden"),
     ]
     with mock.patch(
         "sys.argv",
@@ -80,11 +86,11 @@ def test_apply_fails(mock_run):
             main()
 
 
-@mock.patch("fleet.tasks.apply_base_workloads.subprocess.run")
-def test_uses_source_dir_for_kustomize(mock_run):
-    mock_run.side_effect = [
-        subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
-        subprocess.CompletedProcess([], returncode=0, stdout="", stderr=""),
+@mock.patch("fleet.tasks.apply_base_workloads.run_with_retry")
+def test_uses_source_dir_for_kustomize(mock_retry):
+    mock_retry.side_effect = [
+        _ok(stdout=""),
+        _ok(stdout=""),
     ]
     with mock.patch(
         "sys.argv",
@@ -99,5 +105,5 @@ def test_uses_source_dir_for_kustomize(mock_run):
         ],
     ):
         main()
-    kustomize_call = mock_run.call_args_list[0]
+    kustomize_call = mock_retry.call_args_list[0]
     assert "/custom/workloads/path" in kustomize_call.args[0]
