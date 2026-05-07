@@ -1,0 +1,6 @@
+- op: replace
+  path: /metadata/name
+  value: test-cluster-01-ocp-installer
+- op: replace
+  path: /metadata/namespace
+  value: test-cluster-01
