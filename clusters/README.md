@@ -37,6 +37,12 @@ All patches are in separate files under `patches/`. The `kustomization.yaml` fil
 | `hive/patches/` | `install-config.yaml` (strategic merge) | Full install-config with infra settings |
 | `hive/patches/` | All others (JSON patch) | Resource names, namespace, region, labels, secret refs |
 
+## Pushing Clusters
+
+The EventListener CEL interceptor extracts one cluster name per push. If a single commit or push adds multiple cluster directories, only the first one triggers the pre-provision pipeline — the rest are silently dropped.
+
+**Push one cluster per commit.** If you need to provision multiple clusters, push them as separate commits or in separate pushes.
+
 ## Creating a New Cluster
 
 Copy an existing overlay and replace every occurrence of the old cluster name. The `379b5094-ibmvirt` overlay is a good reference since it patches the region (us-east-2).
