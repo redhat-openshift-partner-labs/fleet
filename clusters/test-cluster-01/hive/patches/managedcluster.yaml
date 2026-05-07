@@ -2,14 +2,14 @@
   path: /metadata/name
   value: test-cluster-01
 - op: add
+  path: /metadata/labels/name
+  value: test-cluster-01
+- op: add
   path: /metadata/labels/tier
   value: base
 - op: add
   path: /metadata/labels/environment
-  value: development
-- op: add
-  path: /metadata/labels/name
-  value: test-cluster-01
+  value: dev
 - op: add
   path: /metadata/labels/region
-  value: us-east-1
+  value: us-east-2

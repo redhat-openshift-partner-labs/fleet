@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-placeholder-install-config
+  namespace: cluster-placeholder
+type: Opaque
+stringData:
+  install-config.yaml: "apiVersion: v1\nbaseDomain: openshiftpartnerlabs.com\nmetadata:\n\
+    \  name: test-cluster-01\ncontrolPlane:\n  name: master\n  platform:\n    aws:\n\
+    \      type: m7i.4xlarge\n      zones:\n      - us-east-2a\n      - us-east-2b\n\
+    \      - us-east-2c\n  replicas: 1\ncompute:\n- name: worker\n  platform:\n  \
+    \  aws:\n      rootVolume:\n        iops: 4000\n        size: 100\n        type:\
+    \ gp3\n      type: m7i.2xlarge\n      zones:\n      - us-east-2a\n      - us-east-2b\n\
+    \      - us-east-2c\n  replicas: 0\nnetworking:\n  clusterNetwork:\n  - cidr:\
+    \ 10.128.0.0/14\n    hostPrefix: 23\n  machineNetwork:\n  - cidr: 10.0.0.0/16\n\
+    \  serviceNetwork:\n  - 172.30.0.0/16\n  networkType: OVNKubernetes\nplatform:\n\
+    \  aws:\n    region: us-east-2\npublish: External\n"
