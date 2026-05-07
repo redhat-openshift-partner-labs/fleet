@@ -50,8 +50,6 @@ def main() -> None:
                 text=True,
                 check=True,
             )
-            with open(key_path, encoding="utf-8") as fh:
-                _ = fh.read()
 
             dry_run = subprocess.run(
                 [
@@ -62,7 +60,7 @@ def main() -> None:
                     secret_name,
                     "-n",
                     cluster,
-                    "--from-literal=ssh-privatekey=[redacted]",
+                    f"--from-file=ssh-privatekey={key_path}",
                     "--dry-run=client",
                     "-o",
                     "yaml",
@@ -71,13 +69,13 @@ def main() -> None:
                 text=True,
                 check=True,
             )
-        _ = subprocess.run(
-            ["oc", "apply", "-f", "-"],
-            input=dry_run.stdout,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+            subprocess.run(
+                ["oc", "apply", "-f", "-"],
+                input=dry_run.stdout,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
     except subprocess.CalledProcessError as exc:
         error(f"Failed to create {secret_name} in {cluster}: {exc}")
         sys.exit(1)

@@ -31,7 +31,6 @@ def test_secret_already_exists(mock_run):
     )
 
 
-@mock.patch("builtins.open", mock.mock_open(read_data="PRIVATE-KEY-DATA"))
 @mock.patch("fleet.tasks.create_ssh_key.tempfile.TemporaryDirectory")
 @mock.patch("fleet.tasks.create_ssh_key.subprocess.run")
 def test_ssh_key_created(mock_run, mock_tmpdir):
@@ -76,7 +75,7 @@ def test_ssh_key_created(mock_run, mock_tmpdir):
             "test-cluster-ssh-key",
             "-n",
             "test-cluster",
-            "--from-literal=ssh-privatekey=[redacted]",
+            "--from-file=ssh-privatekey=/tmp/fakedir/key",
             "--dry-run=client",
             "-o",
             "yaml",
@@ -108,7 +107,6 @@ def test_keygen_fails(mock_run, mock_tmpdir):
             main()
 
 
-@mock.patch("builtins.open", mock.mock_open(read_data="PRIVATE-KEY-DATA"))
 @mock.patch("fleet.tasks.create_ssh_key.tempfile.TemporaryDirectory")
 @mock.patch("fleet.tasks.create_ssh_key.subprocess.run")
 def test_apply_fails(mock_run, mock_tmpdir):
