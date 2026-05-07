@@ -7,3 +7,9 @@
 - op: add
   path: /metadata/labels/environment
   value: development
+- op: add
+  path: /metadata/labels/name
+  value: 379b5094-ibmvirt
+- op: add
+  path: /metadata/labels/region
+  value: us-east-2

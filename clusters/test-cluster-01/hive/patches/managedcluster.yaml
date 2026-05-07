@@ -1,6 +1,6 @@
 - op: replace
   path: /metadata/name
-  value: f6f3eba2-redisvirt
+  value: test-cluster-01
 - op: add
   path: /metadata/labels/tier
   value: base
@@ -9,7 +9,7 @@
   value: development
 - op: add
   path: /metadata/labels/name
-  value: f6f3eba2-redisvirt
+  value: test-cluster-01
 - op: add
   path: /metadata/labels/region
-  value: us-east-2
+  value: us-east-1
