@@ -230,12 +230,14 @@ def generate_hive_patches(params: ClusterParams) -> dict[str, str]:
     patches["patches/managedcluster.yaml"] = yaml.dump(
         [
             {"op": "replace", "path": "/metadata/name", "value": n},
+            {"op": "add", "path": "/metadata/labels/name", "value": n},
             {"op": "add", "path": "/metadata/labels/tier", "value": params.tier},
             {
                 "op": "add",
                 "path": "/metadata/labels/environment",
                 "value": params.environment,
             },
+            {"op": "add", "path": "/metadata/labels/region", "value": params.region},
         ],
         default_flow_style=False,
         sort_keys=False,
@@ -252,6 +254,7 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
         {
             "apiVersion": "kustomize.config.k8s.io/v1beta1",
             "kind": "Kustomization",
+            "namespace": n,
             "resources": ["../../../cluster-templates/aws-ha/base/crossplane"],
             "patches": [
                 {
@@ -294,7 +297,8 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
                 "op": "replace",
                 "path": "/metadata/name",
                 "value": f"{n}-ocp-installer",
-            }
+            },
+            {"op": "replace", "path": "/metadata/namespace", "value": n},
         ],
         default_flow_style=False,
         sort_keys=False,
@@ -307,6 +311,7 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
                 "path": "/metadata/name",
                 "value": f"{n}-openshift4installerpolicy",
             },
+            {"op": "replace", "path": "/metadata/namespace", "value": n},
             {
                 "op": "replace",
                 "path": "/spec/forProvider/name",
@@ -324,6 +329,7 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
                 "path": "/metadata/name",
                 "value": f"{n}-policy-attachment",
             },
+            {"op": "replace", "path": "/metadata/namespace", "value": n},
             {
                 "op": "replace",
                 "path": "/spec/forProvider/policyArnRef/name",
@@ -346,6 +352,7 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
                 "path": "/metadata/name",
                 "value": f"{n}-access-key",
             },
+            {"op": "replace", "path": "/metadata/namespace", "value": n},
             {
                 "op": "replace",
                 "path": "/spec/forProvider/userRef/name",
