@@ -312,11 +312,6 @@ def generate_crossplane_patches(params: ClusterParams) -> dict[str, str]:
                 "value": f"{n}-openshift4installerpolicy",
             },
             {"op": "replace", "path": "/metadata/namespace", "value": n},
-            {
-                "op": "replace",
-                "path": "/spec/forProvider/name",
-                "value": f"{n}-OpenShift4InstallerPolicy",
-            },
         ],
         default_flow_style=False,
         sort_keys=False,
