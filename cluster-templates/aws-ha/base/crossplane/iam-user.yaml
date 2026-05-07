@@ -4,6 +4,10 @@ metadata:
   name: cluster-placeholder-ocp-installer
   namespace: cluster-placeholder
 spec:
-  forProvider: {}
+  forProvider:
+    tags:
+      Purpose: OpenShift-Installer
+      CreatedBy: Crossplane
+      Product: OpenShift
   providerConfigRef:
     name: default

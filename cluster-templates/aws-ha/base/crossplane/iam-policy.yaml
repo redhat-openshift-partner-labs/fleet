@@ -5,7 +5,11 @@ metadata:
   namespace: cluster-placeholder
 spec:
   forProvider:
-    name: cluster-placeholder-OpenShift4InstallerPolicy
+    description: "Permissions required for OpenShift 4.x installation on AWS"
+    tags:
+      Purpose: OpenShift-Installer
+      CreatedBy: Crossplane
+      Product: OpenShift
     policy: |
       {
         "Version": "2012-10-17",
