@@ -20,12 +20,12 @@ def test_all_secrets_present(mock_run):
     mock_run.return_value = _ok()
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 4
+    assert mock_run.call_count == 3
 
 
 @mock.patch("fleet.tasks.validate_inputs.subprocess.run")
 def test_missing_secret_fails(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok(), _fail()]
+    mock_run.side_effect = [_ok(), _ok(), _fail()]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
@@ -41,16 +41,7 @@ def test_checks_correct_secrets(mock_run):
         "aws-credentials",
         "pull-secret",
         "mycluster-ssh-key",
-        "mycluster-install-config",
     ]
-
-
-@mock.patch("fleet.tasks.validate_inputs.subprocess.run")
-def test_install_config_missing_fails(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok(), _fail()]
-    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
-        with pytest.raises(SystemExit, match="1"):
-            main()
 
 
 @mock.patch("fleet.tasks.validate_inputs.subprocess.run")
@@ -71,7 +62,7 @@ def test_imageset_validated_when_provided(mock_run):
 
 @mock.patch("fleet.tasks.validate_inputs.subprocess.run")
 def test_imageset_missing_fails(mock_run):
-    mock_run.side_effect = [_ok(), _ok(), _ok(), _ok(), _fail()]
+    mock_run.side_effect = [_ok(), _ok(), _ok(), _fail()]
     with mock.patch(
         "sys.argv",
         ["prog", "--cluster-name", "c1", "--image-set", "nonexistent"],
@@ -85,4 +76,4 @@ def test_no_imageset_flag_skips_check(mock_run):
     mock_run.return_value = _ok()
     with mock.patch("sys.argv", ["prog", "--cluster-name", "c1"]):
         main()
-    assert mock_run.call_count == 4
+    assert mock_run.call_count == 3

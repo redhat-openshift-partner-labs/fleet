@@ -1,7 +1,7 @@
 """Validate that required Secrets exist before provisioning.
 
 CLI: fleet-validate-inputs --cluster-name NAME [--image-set IMAGESET]
-Checks: aws-credentials, pull-secret, {cluster}-ssh-key, {cluster}-install-config
+Checks: aws-credentials, pull-secret, {cluster}-ssh-key
 in namespace {cluster}. Optionally checks ClusterImageSet existence.
 Exits 1 if any resource is missing.
 """
@@ -31,7 +31,6 @@ def main() -> None:
         "aws-credentials",
         "pull-secret",
         f"{cluster}-ssh-key",
-        f"{cluster}-install-config",
     ]
 
     errors = 0
