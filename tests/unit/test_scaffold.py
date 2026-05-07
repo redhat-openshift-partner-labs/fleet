@@ -128,6 +128,20 @@ class TestGenerateHivePatches:
         env_ops = [op for op in mc if op["path"] == "/metadata/labels/environment"]
         assert env_ops[0]["value"] == "development"
 
+    def test_managedcluster_has_name_label(self, params):
+        patches = generate_hive_patches(params)
+        mc = yaml.safe_load(patches["patches/managedcluster.yaml"])
+        name_ops = [op for op in mc if op["path"] == "/metadata/labels/name"]
+        assert len(name_ops) == 1
+        assert name_ops[0]["value"] == "my-cluster"
+
+    def test_managedcluster_has_region_label(self, params):
+        patches = generate_hive_patches(params)
+        mc = yaml.safe_load(patches["patches/managedcluster.yaml"])
+        region_ops = [op for op in mc if op["path"] == "/metadata/labels/region"]
+        assert len(region_ops) == 1
+        assert region_ops[0]["value"] == "us-east-2"
+
     def test_machinepool_has_worker_type(self, params):
         patches = generate_hive_patches(params)
         mp = yaml.safe_load(patches["patches/machinepool-worker.yaml"])
@@ -162,6 +176,39 @@ class TestGenerateCrossplanePatches:
         policy = yaml.safe_load(patches["patches/policy.yaml"])
         meta_name = [op for op in policy if op["path"] == "/metadata/name"]
         assert meta_name[0]["value"] == "my-cluster-openshift4installerpolicy"
+
+    def test_kustomization_namespace(self, params):
+        patches = generate_crossplane_patches(params)
+        kust = yaml.safe_load(patches["kustomization.yaml"])
+        assert kust["namespace"] == "my-cluster"
+
+    def test_user_patch_has_namespace(self, params):
+        patches = generate_crossplane_patches(params)
+        user = yaml.safe_load(patches["patches/user.yaml"])
+        ns_ops = [op for op in user if op["path"] == "/metadata/namespace"]
+        assert len(ns_ops) == 1
+        assert ns_ops[0]["value"] == "my-cluster"
+
+    def test_policy_patch_has_namespace(self, params):
+        patches = generate_crossplane_patches(params)
+        policy = yaml.safe_load(patches["patches/policy.yaml"])
+        ns_ops = [op for op in policy if op["path"] == "/metadata/namespace"]
+        assert len(ns_ops) == 1
+        assert ns_ops[0]["value"] == "my-cluster"
+
+    def test_policy_attachment_patch_has_namespace(self, params):
+        patches = generate_crossplane_patches(params)
+        pa = yaml.safe_load(patches["patches/policy-attachment.yaml"])
+        ns_ops = [op for op in pa if op["path"] == "/metadata/namespace"]
+        assert len(ns_ops) == 1
+        assert ns_ops[0]["value"] == "my-cluster"
+
+    def test_access_key_patch_has_namespace(self, params):
+        patches = generate_crossplane_patches(params)
+        ak = yaml.safe_load(patches["patches/access-key.yaml"])
+        ns_ops = [op for op in ak if op["path"] == "/metadata/namespace"]
+        assert len(ns_ops) == 1
+        assert ns_ops[0]["value"] == "my-cluster"
 
     def test_access_key_namespace(self, params):
         patches = generate_crossplane_patches(params)
