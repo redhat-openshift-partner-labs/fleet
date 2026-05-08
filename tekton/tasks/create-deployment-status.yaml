@@ -1,0 +1,35 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-deployment-status
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: pipeline-run-id
+      type: string
+    - name: clusters-repo
+      type: string
+    - name: github-app-id
+      type: string
+    - name: github-app-installation-id
+      type: string
+    - name: github-app-key-secret
+      type: string
+  steps:
+    - name: create-deployment-status
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-create-deployment-status \
+          --cluster-name "$(params.cluster-name)" \
+          --pipeline-run-id "$(params.pipeline-run-id)" \
+          --repo "$(params.clusters-repo)" \
+          --github-app-id "$(params.github-app-id)" \
+          --github-app-installation-id "$(params.github-app-installation-id)" \
+          --github-app-key-secret "$(params.github-app-key-secret)"
