@@ -25,6 +25,5 @@ spec:
         fleet-configure-spoke-oauth \
           --cluster-name "$(params.cluster-name)" \
           --spoke-kubeconfig "$(workspaces.shared.path)/kubeconfig" \
-          --cluster-dir "$(workspaces.shared.path)/clusters/$(params.cluster-name)" \
           --keycloak-issuer-url "$(params.keycloak-issuer-url)" \
           --provider-name "$(params.provider-name)"

@@ -1,7 +1,7 @@
 """Configure OAuth identity providers on the spoke cluster.
 
 CLI: fleet-configure-spoke-oauth --cluster-name NAME --spoke-kubeconfig PATH
-     --cluster-dir PATH --keycloak-issuer-url URL --provider-name NAME
+     --keycloak-issuer-url URL --provider-name NAME
 Reads the keycloak-client secret from the hub, pushes it to the spoke, then
 applies htpasswd Secret + OAuth CR to spoke. Exits 1 on failure.
 """
@@ -32,7 +32,6 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--spoke-kubeconfig", required=True)
-    parser.add_argument("--cluster-dir", required=True)
     parser.add_argument("--keycloak-issuer-url", required=True)
     parser.add_argument("--provider-name", default="RedHat")
     args = parser.parse_args()
@@ -43,7 +42,6 @@ def main() -> None:
     info(f"Parameters:")
     info(f"  cluster-name={args.cluster_name}")
     info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
-    info(f"  cluster-dir={args.cluster_dir}")
     info(f"  keycloak-issuer-url={args.keycloak_issuer_url}")
     info(f"  provider-name={args.provider_name}")
 
