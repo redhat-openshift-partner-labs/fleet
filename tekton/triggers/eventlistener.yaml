@@ -22,12 +22,12 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.added.exists(f, f.startsWith('clusters/') && !f.endsWith('/.deprovision')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('provision/')))
             - name: overlays
               value:
                 - key: cluster_name
                   expression: >-
-                    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/') && !f.endsWith('/.deprovision')))
+                    body.commits.map(c, c.added.filter(f, f.startsWith('provision/')))
                     .flatten()
                     .map(f, f.split('/')[1])
                     .filter(n, n != '')
@@ -53,14 +53,14 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.added.exists(f, f.startsWith('clusters/') && f.endsWith('/.deprovision')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('deprovision/')))
             - name: overlays
               value:
                 - key: cluster_name
                   expression: >-
-                    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/') && f.endsWith('/.deprovision')))
+                    body.commits.map(c, c.added.filter(f, f.startsWith('deprovision/')))
                     .flatten()
-                    .map(f, f.split('/')[1])
+                    .map(f, f.split('/')[1].replace('-archive', ''))
                     .filter(n, n != '')
                     [0]
       bindings:
