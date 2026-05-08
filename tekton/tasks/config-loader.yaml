@@ -46,6 +46,21 @@ spec:
     - name: cluster-admins
       type: string
       default: ""
+    - name: clusters-repo
+      type: string
+      default: "redhat-openshift-partner-labs/fleet-clusters"
+    - name: clusters-repo-revision
+      type: string
+      default: "main"
+    - name: github-app-id
+      type: string
+      default: ""
+    - name: github-app-installation-id
+      type: string
+      default: ""
+    - name: github-app-key-secret
+      type: string
+      default: "fleet-github-app-key"
   results:
     - name: keycloak-url
     - name: keycloak-realm
@@ -61,6 +76,11 @@ spec:
     - name: pipeline-image
     - name: openshift-cluster
     - name: cluster-admins
+    - name: clusters-repo
+    - name: clusters-repo-revision
+    - name: github-app-id
+    - name: github-app-installation-id
+    - name: github-app-key-secret
   steps:
     - name: load
       image: $(params.pipeline-image)
@@ -90,3 +110,8 @@ spec:
         resolve "pipeline-image" "$(params.pipeline-image)" "quay.io/rhopl/fleet-pipeline:latest" "$(results.pipeline-image.path)"
         resolve "openshift-cluster" "$(params.openshift-cluster)" "true" "$(results.openshift-cluster.path)"
         resolve "cluster-admins" "$(params.cluster-admins)" "" "$(results.cluster-admins.path)"
+        resolve "clusters-repo" "$(params.clusters-repo)" "redhat-openshift-partner-labs/fleet-clusters" "$(results.clusters-repo.path)"
+        resolve "clusters-repo-revision" "$(params.clusters-repo-revision)" "main" "$(results.clusters-repo-revision.path)"
+        resolve "github-app-id" "$(params.github-app-id)" "" "$(results.github-app-id.path)"
+        resolve "github-app-installation-id" "$(params.github-app-installation-id)" "" "$(results.github-app-installation-id.path)"
+        resolve "github-app-key-secret" "$(params.github-app-key-secret)" "fleet-github-app-key" "$(results.github-app-key-secret.path)"
