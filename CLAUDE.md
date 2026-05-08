@@ -2,16 +2,14 @@
 
 ## Project Overview
 
-OpenShift cluster fleet management control plane for Red Hat OpenShift Partner Labs. Hub-and-spoke architecture using Tekton (workflows), ArgoCD (manifest delivery), and ACM/Hive (cluster lifecycle). This repo holds declarative cluster definitions, Tekton pipelines, and hub config — not spoke workloads.
+OpenShift cluster fleet management control plane for Red Hat OpenShift Partner Labs. Hub-and-spoke architecture using Tekton (workflows), ArgoCD (manifest delivery), and ACM/Hive (cluster lifecycle). This repo holds Tekton pipelines, hub config, and day-2 workload overlays — cluster specs and templates live in the [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repo.
 
 ## Repo Layout
 
 ```
 bootstrap/          — Hub bootstrap (ArgoCD, Tekton install, ACM config)
 tekton/             — Pipeline, Task, EventListener, Trigger definitions
-clusters/           — One directory per cluster (spec, tier label, overrides)
 hub-config/         — cert-manager, baseline hub operators
-cluster-templates/  — Kustomize bases for cluster specs (by tier)
 workloads/          — Tier-specific day-2 overlays (base / virt / ai)
 docs/               — Architecture, runbooks, diagrams
 ```
@@ -41,7 +39,6 @@ Repeat this cycle for each logical unit of work. Never skip steps or reorder the
 |----------|------|------|
 | All YAML | `yamllint` | Every commit (tox, pre-commit) |
 | Tekton Task/Pipeline YAML | `tekton-lint` | Every commit (tox) |
-| Kustomize overlays | `kustomize build` + `kubeconform` | Every commit (tox) |
 | Python CLI tools | `pytest` with 100% coverage | Every commit (tox) |
 | Pipeline integration | Manual `tkn pipeline start` on hub | Per-phase acceptance |
 | End-to-end lifecycle | Provision → post-provision → deprovision on test cluster | Phase 3+ |
@@ -52,13 +49,11 @@ Repeat this cycle for each logical unit of work. Never skip steps or reorder the
 tests/
 ├── conftest.py
 ├── unit/           # Python CLI tool tests (all tasks)
-├── validation/     # kustomize build + kubeconform checks
 └── data/           # fixtures (sample cluster dirs, expected outputs)
 ```
 
 **Rules:**
 - `tox` orchestrates all checks — `tox` must pass before any commit
-- Validation tests for Kustomize overlays come before the YAML they validate
 - Python CLI tools require pytest tests before implementation (TDD)
 - Integration tests are run manually against a real hub cluster, not in CI initially
 
@@ -128,7 +123,7 @@ tests/
 
 - Kustomize for manifest templating (no Helm unless existing charts require it)
 - YAML manifests follow OpenShift conventions
-- Cluster definitions live under `clusters/<name>/`
+- Cluster definitions live in the fleet-clusters repo under `provision/<name>/`
 - Tier labels on ManagedCluster: `tier=base|virt|ai`
 
 ## Architecture Principles
