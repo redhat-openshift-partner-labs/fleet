@@ -62,3 +62,24 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
+
+    - name: create-deployment-status
+      taskRef:
+        name: create-deployment-status
+      runAfter:
+        - verify-deprovision
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: pipeline-run-id
+          value: $(context.pipelineRun.name)
+        - name: clusters-repo
+          value: $(tasks.load-config.results.clusters-repo)
+        - name: github-app-id
+          value: $(tasks.load-config.results.github-app-id)
+        - name: github-app-installation-id
+          value: $(tasks.load-config.results.github-app-installation-id)
+        - name: github-app-key-secret
+          value: $(tasks.load-config.results.github-app-key-secret)
