@@ -17,3 +17,8 @@ data:
   pipeline-image: "quay.io/rhopl/fleet-pipeline:latest"
   openshift-cluster: "true"
   cluster-admins: ""
+  clusters-repo: "redhat-openshift-partner-labs/fleet-clusters"
+  clusters-repo-revision: "main"
+  github-app-id: ""
+  github-app-installation-id: ""
+  github-app-key-secret: "fleet-github-app-key"
