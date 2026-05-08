@@ -8,7 +8,7 @@ spec:
       type: string
     - name: git-repo-url
       type: string
-      default: https://github.com/redhat-openshift-partner-labs/fleet.git
+      default: https://github.com/redhat-openshift-partner-labs/fleet-clusters.git
     - name: git-revision
       type: string
       default: main
