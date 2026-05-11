@@ -75,6 +75,12 @@ def main() -> None:
         sys.exit(1)
 
     pem_bytes = base64.b64decode(result.stdout)
+    if not pem_bytes or not pem_bytes.strip().startswith(b"-----BEGIN"):
+        error(
+            "Private key data is empty or not valid PEM. "
+            "Verify the secret has a 'private-key' data key containing a PEM-encoded RSA key."
+        )
+        sys.exit(1)
     info("  -> Private key loaded")
 
     now = time.time()
@@ -114,7 +120,7 @@ def main() -> None:
             "auto_merge": False,
             "required_contexts": [],
             "payload": {
-                "cluster_id": args.cluster_name,
+                "cluster_name": args.cluster_name,
                 "pipeline_run_id": args.pipeline_run_id,
             },
         },
