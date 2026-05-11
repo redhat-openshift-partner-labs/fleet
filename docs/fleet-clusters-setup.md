@@ -33,7 +33,8 @@ The `create-deployment-status` task uses a GitHub App to write deployment status
 4. Generate a private key and store it as a Kubernetes Secret on the hub cluster:
    ```bash
    kubectl create secret generic fleet-github-app-key \
-     --from-file=key.pem=/path/to/private-key.pem
+     --namespace openshift-pipelines \
+     --from-file=private-key=/path/to/private-key.pem
    ```
 5. Update `fleet-pipeline-config` ConfigMap with the app credentials:
    ```yaml
