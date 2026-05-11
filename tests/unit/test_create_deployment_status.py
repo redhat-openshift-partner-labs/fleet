@@ -97,7 +97,7 @@ def test_success(mock_run, mock_requests, mock_sign, mock_time):
     assert "/deployments" in deploy_call.args[0]
     payload = deploy_call.kwargs["json"]
     assert payload["environment"] == "deprovision"
-    assert payload["payload"]["cluster_id"] == "test-cluster"
+    assert payload["payload"]["cluster_name"] == "test-cluster"
     assert payload["payload"]["pipeline_run_id"] == "run-abc123"
     assert payload["auto_merge"] is False
     assert payload["required_contexts"] == []
@@ -209,6 +209,28 @@ def test_sign_jwt_rejects_non_rsa_key():
     )
     with pytest.raises(TypeError, match="Expected RSA private key"):
         _sign_jwt(pem_bytes, "12345", 1700000000.0)
+
+
+@mock.patch("fleet.tasks.create_deployment_status.subprocess.run")
+def test_empty_pem_data(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout="", stderr=""
+    )
+
+    with mock.patch("sys.argv", BASE_ARGV):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
+@mock.patch("fleet.tasks.create_deployment_status.subprocess.run")
+def test_invalid_pem_data(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout=base64.b64encode(b"not a pem file").decode(), stderr=""
+    )
+
+    with mock.patch("sys.argv", BASE_ARGV):
+        with pytest.raises(SystemExit, match="1"):
+            main()
 
 
 def test_missing_required_args():
