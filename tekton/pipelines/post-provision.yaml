@@ -278,6 +278,12 @@ spec:
           workspace: shared-workspace
 
     - name: apply-base-workloads
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "base"
+            - "virt"
       taskRef:
         name: apply-base-workloads
       runAfter:
@@ -293,6 +299,43 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: apply-virt-workloads
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "virt"
+      taskRef:
+        name: apply-virt-workloads
+      runAfter:
+        - configure-spoke-default-cert
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: tier
+          value: $(params.tier)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: add-baremetal-workers
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "virt"
+      taskRef:
+        name: add-baremetal-workers
+      runAfter:
+        - apply-virt-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
     - name: configure-spoke-rbac
       when:
         - input: $(params.openshift-cluster)
@@ -303,6 +346,7 @@ spec:
         name: configure-spoke-rbac
       runAfter:
         - apply-base-workloads
+        - add-baremetal-workers
       params:
         - name: cluster-name
           value: $(params.cluster-name)

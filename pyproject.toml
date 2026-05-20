@@ -56,6 +56,8 @@ fleet-delete-test-vcluster = "fleet.tasks.delete_test_vcluster:main"
 fleet-run-post-provision = "fleet.tasks.run_post_provision:main"
 fleet-scaffold-cluster = "fleet.tasks.scaffold_cluster:main"
 fleet-create-deployment-status = "fleet.tasks.create_deployment_status:main"
+fleet-apply-virt-workloads = "fleet.tasks.apply_virt_workloads:main"
+fleet-add-baremetal-workers = "fleet.tasks.add_baremetal_workers:main"
 
 [tool.pylint.messages_control]
 disable = [
