@@ -1,0 +1,55 @@
+apiVersion: hco.kubevirt.io/v1beta1
+kind: HyperConverged
+metadata:
+  name: kubevirt-hyperconverged
+  namespace: openshift-cnv
+spec:
+  # Basic configuration for OpenShift Virtualization
+  # Enables virtualization functionality on all compatible nodes
+
+  # Configure feature gates
+  featureGates:
+    # Enable live migration for VMs
+    liveMigration: true
+    # Enable SR-IOV support for network performance
+    sriovLiveMigration: false
+    # Enable GPU passthrough support
+    gpu: false
+    # Enable host devices passthrough
+    hostDevices: false
+    # Enable snapshot support
+    snapshot: true
+    # Enable cluster profiling
+    enableClusterProfiler: false
+
+  # Configure certificates for live migration and other features
+  certificateRotationStrategy:
+    # Self-signed certificates for internal communication
+    selfSigned:
+      # Certificate authority configuration
+      ca:
+        duration: 8760h  # 1 year
+        renewBefore: 720h  # 30 days
+
+  # Configure workload placement and scheduling
+  infra: {}
+  workloads: {}
+
+  # Configure storage for VM disks and images
+  # Use default storage class for now
+  storageImport:
+    # Allow insecure registries for dev/test environments
+    insecureRegistries: []
+
+  # Network configuration
+  # Use default CNI for VM networking
+  networkBinding: {}
+
+  # Resource allocation for virtualization components
+  resourceRequirements:
+    # Moderate resource allocation suitable for baremetal workers
+    vmiCPUAllocationRatio: 10
+    # Development/testing appropriate memory overcommit
+    developerConfiguration:
+      # Reduce memory requirements for development
+      memoryOvercommit: 150
