@@ -293,6 +293,46 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    - name: apply-ai-workloads
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "ai"
+      taskRef:
+        name: apply-ai-workloads
+      runAfter:
+        - apply-base-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: source-dir
+          value: "$(workspaces.shared-workspace.path)/workloads/ai"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: add-gpu-workers
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "ai"
+      taskRef:
+        name: add-gpu-workers
+      runAfter:
+        - apply-ai-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: configure-spoke-rbac
       when:
         - input: $(params.openshift-cluster)
@@ -303,6 +343,7 @@ spec:
         name: configure-spoke-rbac
       runAfter:
         - apply-base-workloads
+        - add-gpu-workers
       params:
         - name: cluster-name
           value: $(params.cluster-name)

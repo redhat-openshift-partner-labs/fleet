@@ -1,0 +1,17 @@
+apiVersion: nfd.openshift.io/v1
+kind: NodeFeatureDiscovery
+metadata:
+  name: nfd-instance
+  namespace: openshift-nfd
+spec:
+  operand:
+    imagePullPolicy: Always
+  workerConfig:
+    configData: |
+      core:
+        sleepInterval: 60s
+        sources: [all]
+      featureSources:
+        pci:
+          deviceClassWhitelist: ["03", "0b", "12"]
+          deviceLabelFields: [class, vendor]
