@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  resourceHealthChecks:
+    - group: nvidia.com
+      kind: ClusterPolicy
+      check: |
+        hs = {}
+        if obj.status ~= nil and obj.status.state == "ready" then
+          hs.status = "Healthy"
+          hs.message = "ClusterPolicy is ready"
+        elseif obj.status ~= nil and obj.status.state == "notReady" then
+          hs.status = "Progressing"
+          hs.message = "GPU drivers and components are still deploying"
+        else
+          hs.status = "Progressing"
+          hs.message = "Waiting for ClusterPolicy status"
+        end
+        return hs
+    - group: nfd.openshift.io
+      kind: NodeFeatureDiscovery
+      check: |
+        hs = {}
+        if obj.status ~= nil and obj.status.conditions ~= nil then
+          for _, c in ipairs(obj.status.conditions) do
+            if c.type == "Available" and c.status == "True" then
+              hs.status = "Healthy"
+              hs.message = "NFD is available"
+              return hs
+            end
+          end
+        end
+        hs.status = "Progressing"
+        hs.message = "Waiting for NFD to become available"
+        return hs
+    - group: datasciencecluster.opendatahub.io
+      kind: DataScienceCluster
+      check: |
+        hs = {}
+        if obj.status ~= nil and obj.status.phase == "Ready" then
+          hs.status = "Healthy"
+          hs.message = "DataScienceCluster is ready"
+        elseif obj.status ~= nil and obj.status.phase == "Error" then
+          hs.status = "Degraded"
+          hs.message = "DataScienceCluster in error state"
+        else
+          hs.status = "Progressing"
+          hs.message = "DataScienceCluster is deploying components"
+        end
+        return hs
