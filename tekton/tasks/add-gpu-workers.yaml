@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: add-gpu-workers
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: add-workers
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-add-gpu-workers \
+          --cluster-name "$(params.cluster-name)" \
+          --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig"

@@ -27,6 +27,8 @@ resources:
   - extract-cert-material.yaml
   - configure-spoke-default-cert.yaml
   - apply-base-workloads.yaml
+  - apply-ai-workloads.yaml
+  - add-gpu-workers.yaml
   - configure-spoke-rbac.yaml
   - delete-cluster-resources.yaml
   - wait-hive-uninstall.yaml
