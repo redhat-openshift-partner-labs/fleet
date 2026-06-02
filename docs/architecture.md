@@ -16,7 +16,7 @@
 | **Cluster provisioning** | Hive, driven by ArgoCD-applied CRs | Hive, driven by Tekton-applied CRs |
 | **Wait for cluster ready** | PostSync `Job` polling every 30s | `oc wait --for=condition=Provisioned` inside a Tekton task |
 | **Secret protection during deprovision** | Custom finalizers + cluster-wide 5-min `CronJob` | Pipeline controls the order; no custom finalizers needed |
-| **Tier variation (virt / AI / base)** | N/A (not yet supported cleanly) | Tekton post-provision for imperative steps; tier workload delivery approach TBD (see §7) |
+| **Tier variation (virt / AI / base)** | N/A (not yet supported cleanly) | Tekton for imperative steps (SSL, OAuth, RBAC); ArgoCD ApplicationSets with ACM Placement for tier-specific operators |
 | **Hub → spoke secret handoff** | Out-of-band `oc create secret` + implicit trust | Explicit Tekton task that derives and pushes the minimum |
 | **Total deprovision time** | 15–25 min (up to 5 min CronJob poll tail) | ~15–20 min, deterministic, no poll tail |
 
@@ -579,7 +579,7 @@ Recommended sequence (each step delivers value and is reversible if needed):
 - **Ansible vs Tekton for post-provision imperative steps.** Tekton wins for our case (custom logic, external API integration), but if a step is naturally Ansible (e.g., registering with ServiceNow), a Tekton task can invoke an Ansible Runner. We'll decide per step.
 - **Spoke drift after bootstrap.** `ApplicationSet` catches workload drift. ACM `Policy` may be worth adding for baseline config enforcement on spokes (NetworkPolicies, baseline RBAC). TBD.
 - **Cert rotation.** cert-manager handles renewal on hub automatically. A companion "rotate-spoke-cert" pipeline triggered by renewal events will re-run the push-to-spoke task only. Not in the initial scope.
-- **Tier-specific workload delivery model.** Post-provision imperative steps (SSL, OAuth, RBAC) are Tekton tasks. For tier-specific operator installation (CNV, GPU Operator, OpenShift AI), two models remain under consideration: (a) Tekton tasks in the post-provision pipeline with tier branching, or (b) layered ArgoCD ApplicationSets with tier-specific Placement label selectors. Decision deferred until base-tier post-provision is proven end-to-end.
+- **Tier-specific workload delivery model (decided).** Post-provision imperative steps (SSL, OAuth, RBAC) remain Tekton tasks. Tier-specific operator installation (CNV, GPU Operator, OpenShift AI) uses layered ArgoCD ApplicationSets with ACM Placement label selectors. Each tier has its own ApplicationSet + Placement pair in `bootstrap/argocd-applicationsets.yaml`. Clusters with `bootstrapped: "true"` and a matching `tier` label automatically receive the corresponding workloads from `workloads/<tier>/`. Sync-wave annotations enforce operator ordering within each tier.
 - **Human approval gates.** Prod deprovision should require a human click. Tekton supports this via manual-approval tasks; wiring TBD.
 
 ---
