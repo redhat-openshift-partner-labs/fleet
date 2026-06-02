@@ -10,7 +10,7 @@ lint-yaml:
 lint-tekton:
 	tox -e tekton-lint
 
-validate:
+validate: ## Validate Kustomize manifests and ArgoCD ApplicationSet structure
 	tox -e validate-kustomize
 
 # Hub config management targets
