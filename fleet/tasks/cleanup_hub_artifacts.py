@@ -6,11 +6,95 @@ Non-critical deletions are best-effort. Exits 1 if namespace deletion fails.
 """
 
 import argparse
+import json
 import subprocess
 import sys
 import time
 
-from fleet.tasks._log import configure, error, info
+from fleet.tasks._log import configure, error, info, warn
+
+_IAM_RESOURCES = [
+    "userpolicyattachment.iam",
+    "policy.iam",
+    "accesskey.iam",
+    "user.iam",
+]
+
+_POLL_INTERVAL = 2
+_POLL_TIMEOUT = 60
+
+
+def _delete_iam_no_wait(cluster: str) -> None:
+    for resource in _IAM_RESOURCES:
+        info(f"Deleting {resource} resources (no-wait)...")
+        result = subprocess.run(
+            [
+                "oc",
+                "delete",
+                resource,
+                "-n",
+                cluster,
+                "--all",
+                "--wait=false",
+                "--ignore-not-found=true",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        info(f"  -> {resource}: exit code {result.returncode}")
+
+
+def _wait_iam_deleted(cluster: str, timeout: int = _POLL_TIMEOUT) -> bool:
+    max_attempts = timeout // _POLL_INTERVAL
+    for attempt in range(max_attempts):
+        all_gone = True
+        for resource in _IAM_RESOURCES:
+            result = subprocess.run(
+                ["oc", "get", resource, "-n", cluster, "-o", "json"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                continue
+            try:
+                items = json.loads(result.stdout).get("items", [])
+            except (json.JSONDecodeError, KeyError):
+                warn(f"  -> Failed to parse {resource} response, will retry")
+                all_gone = False
+                continue
+            if items:
+                all_gone = False
+        if all_gone:
+            info("  -> All IAM resources deleted")
+            return True
+        if attempt < max_attempts - 1:
+            time.sleep(_POLL_INTERVAL)
+    warn(f"IAM resources still present after {timeout}s timeout")
+    return False
+
+
+def _force_remove_finalizers(cluster: str) -> None:
+    patch_payload = json.dumps({"metadata": {"finalizers": None}})
+    for resource in _IAM_RESOURCES:
+        info(f"Removing finalizers from {resource}...")
+        result = subprocess.run(
+            [
+                "oc",
+                "patch",
+                resource,
+                "-n",
+                cluster,
+                "--all",
+                "--type=merge",
+                f"-p={patch_payload}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            warn(f"  -> Failed to patch {resource}: {result.stderr}")
+        else:
+            info(f"  -> {resource} finalizers removed")
 
 
 def main() -> None:
@@ -73,32 +157,13 @@ def main() -> None:
     )
     info(f"  -> Secret {cluster}-cert-manager-aws deleted")
 
-    iam_resources = [
-        "userpolicyattachment.iam",
-        "policy.iam",
-        "accesskey.iam",
-        "user.iam",
-    ]
-    for resource in iam_resources:
-        info(f"Deleting {resource} resources...")
-        result = subprocess.run(
-            [
-                "oc",
-                "delete",
-                resource,
-                "-n",
-                cluster,
-                "--all",
-                "--ignore-not-found=true",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        info(f"  -> {resource}: exit code {result.returncode}")
-    info("  -> Crossplane IAM resources deleted")
+    info("Deleting Crossplane IAM resources...")
+    _delete_iam_no_wait(cluster)
 
-    info("Waiting 15s for Crossplane resources to be fully cleaned up...")
-    time.sleep(15)
+    info("Waiting for IAM resources to be fully deleted...")
+    if not _wait_iam_deleted(cluster):
+        warn("Some IAM resources still exist, removing Crossplane finalizers...")
+        _force_remove_finalizers(cluster)
 
     info(f"Deleting namespace {cluster}...")
     result = subprocess.run(
