@@ -25,3 +25,7 @@ node_modules/
 tmp/
 kustomize
 .coverage
+docs/plans
+.claude/
+.serena/
+.mcp.json
