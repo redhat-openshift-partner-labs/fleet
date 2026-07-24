@@ -51,16 +51,50 @@ def main() -> None:
     client_secret = _read_hub_secret_key(hub_secret, "client-secret")
     info("  -> Hub secret read OK")
 
-    htpasswd_secret_yaml = textwrap.dedent("""\
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: htpasswd-secret
-          namespace: openshift-config
-        type: Opaque
-        data:
-          htpasswd: ""
-    """)
+    info(f"Reading admin password from ClusterDeployment '{args.cluster_name}'...")
+    pwd_secret_result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "clusterdeployment",
+            args.cluster_name,
+            "-n",
+            args.cluster_name,
+            "-o",
+            "jsonpath={.spec.clusterMetadata.adminPasswordSecretRef.name}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if pwd_secret_result.returncode != 0:
+        error(f"Failed to read admin password secret ref: {pwd_secret_result.stderr}")
+        sys.exit(1)
+    admin_pwd_secret = pwd_secret_result.stdout.strip()
+    info(f"  -> admin password secret: {admin_pwd_secret}")
+    admin_password = _read_hub_secret_key(admin_pwd_secret, "password")
+    info("  -> admin password read OK")
+
+    htpasswd_result = subprocess.run(
+        ["htpasswd", "-Bbn", "kubeadmin", admin_password],
+        capture_output=True,
+        text=True,
+    )
+    if htpasswd_result.returncode != 0:
+        error(f"Failed to generate htpasswd entry: {htpasswd_result.stderr}")
+        sys.exit(1)
+    htpasswd_entry = htpasswd_result.stdout.strip()
+    info("  -> htpasswd entry generated")
+
+    htpasswd_secret_yaml = (
+        "apiVersion: v1\n"
+        "kind: Secret\n"
+        "metadata:\n"
+        "  name: htpasswd-secret\n"
+        "  namespace: openshift-config\n"
+        "type: Opaque\n"
+        "stringData:\n"
+        f"  htpasswd: {htpasswd_entry}\n"
+    )
     info("Applying htpasswd Secret to openshift-config...")
     result = subprocess.run(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],

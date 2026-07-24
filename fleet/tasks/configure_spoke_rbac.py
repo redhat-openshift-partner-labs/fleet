@@ -7,7 +7,6 @@ Creates cluster-admins group and ClusterRoleBinding on spoke. Exits 1 on failure
 import argparse
 import subprocess
 import sys
-import textwrap
 
 from fleet.tasks._log import configure, error, info
 
@@ -30,29 +29,31 @@ def main() -> None:
     info(f"  cluster-admins={admins}")
 
     if admins:
-        users_block = "users:\n" + "".join(f"- {u}\n" for u in admins)
+        users_lines = "users:\n" + "".join(f"  - {u}\n" for u in admins)
     else:
-        users_block = "users: []\n"
+        users_lines = "users: []\n"
 
-    rbac_yaml = textwrap.dedent(f"""\
-        apiVersion: user.openshift.io/v1
-        kind: Group
-        metadata:
-          name: cluster-admins
-        {users_block}---
-        apiVersion: rbac.authorization.k8s.io/v1
-        kind: ClusterRoleBinding
-        metadata:
-          name: cluster-admins-binding
-        roleRef:
-          apiGroup: rbac.authorization.k8s.io
-          kind: ClusterRole
-          name: cluster-admin
-        subjects:
-        - apiGroup: rbac.authorization.k8s.io
-          kind: Group
-          name: cluster-admins
-    """)
+    rbac_yaml = (
+        "---\n"
+        "apiVersion: user.openshift.io/v1\n"
+        "kind: Group\n"
+        "metadata:\n"
+        "  name: cluster-admins\n"
+        f"{users_lines}"
+        "---\n"
+        "apiVersion: rbac.authorization.k8s.io/v1\n"
+        "kind: ClusterRoleBinding\n"
+        "metadata:\n"
+        "  name: cluster-admins-binding\n"
+        "roleRef:\n"
+        "  apiGroup: rbac.authorization.k8s.io\n"
+        "  kind: ClusterRole\n"
+        "  name: cluster-admin\n"
+        "subjects:\n"
+        "- apiGroup: rbac.authorization.k8s.io\n"
+        "  kind: Group\n"
+        "  name: cluster-admins\n"
+    )
     info("Applying cluster-admins group and ClusterRoleBinding...")
     result = subprocess.run(
         ["oc", "apply", "-f", "-", f"--kubeconfig={args.spoke_kubeconfig}"],
