@@ -3,6 +3,7 @@ from unittest import mock
 import subprocess
 
 import pytest
+import yaml
 
 from fleet.tasks.configure_spoke_rbac import main
 
@@ -132,6 +133,10 @@ def test_rbac_empty_cluster_admins_yields_empty_users(mock_run):
     ]
     combined = "\n".join(all_stdin)
     assert "users: []" in combined
+    docs = list(yaml.safe_load_all(combined))
+    group_doc = docs[0]
+    assert group_doc["kind"] == "Group"
+    assert group_doc["users"] == []
 
 
 @mock.patch("fleet.tasks.configure_spoke_rbac.subprocess.run")
@@ -161,6 +166,10 @@ def test_rbac_populates_users_from_cluster_admins(mock_run):
     assert "- alice" in combined
     assert "- bob" in combined
     assert "users: []" not in combined
+    docs = list(yaml.safe_load_all(combined))
+    group_doc = docs[0]
+    assert group_doc["kind"] == "Group"
+    assert group_doc["users"] == ["alice", "bob"]
 
 
 @mock.patch("fleet.tasks.configure_spoke_rbac.subprocess.run")
@@ -188,3 +197,7 @@ def test_rbac_single_cluster_admin(mock_run):
     ]
     combined = "\n".join(all_stdin)
     assert "- carol" in combined
+    docs = list(yaml.safe_load_all(combined))
+    group_doc = docs[0]
+    assert group_doc["kind"] == "Group"
+    assert group_doc["users"] == ["carol"]
