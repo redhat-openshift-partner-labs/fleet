@@ -1739,7 +1739,7 @@ metadata:
 spec:
   params:
     - name: git-repo-url
-      value: $(body.repository.clone_url)
+      value: $(body.repository.ssh_url)
     - name: git-revision
       value: $(body.after)
     - name: cluster-name

@@ -33,7 +33,7 @@ spec:
       default: "false"
     - name: git-repo-url
       type: string
-      default: "https://github.com/redhat-openshift-partner-labs/fleet.git"
+      default: "git@github.com:redhat-openshift-partner-labs/fleet.git"
     - name: git-revision
       type: string
       default: "main"
@@ -105,7 +105,7 @@ spec:
         resolve "auth-realm" "$(params.auth-realm)" "master" "$(results.auth-realm.path)"
         resolve "provider-name" "$(params.provider-name)" "RedHat" "$(results.provider-name.path)"
         resolve "insecure" "$(params.insecure)" "false" "$(results.insecure.path)"
-        resolve "git-repo-url" "$(params.git-repo-url)" "https://github.com/redhat-openshift-partner-labs/fleet.git" "$(results.git-repo-url.path)"
+        resolve "git-repo-url" "$(params.git-repo-url)" "git@github.com:redhat-openshift-partner-labs/fleet.git" "$(results.git-repo-url.path)"
         resolve "git-revision" "$(params.git-revision)" "main" "$(results.git-revision.path)"
         resolve "pipeline-image" "$(params.pipeline-image)" "quay.io/rhopl/fleet-pipeline:latest" "$(results.pipeline-image.path)"
         resolve "openshift-cluster" "$(params.openshift-cluster)" "true" "$(results.openshift-cluster.path)"
