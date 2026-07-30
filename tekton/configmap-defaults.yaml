@@ -12,7 +12,7 @@ data:
   auth-realm: "master"
   provider-name: "RedHat"
   insecure: "false"
-  git-repo-url: "https://github.com/redhat-openshift-partner-labs/fleet.git"
+  git-repo-url: "git@github.com:redhat-openshift-partner-labs/fleet.git"
   git-revision: "main"
   pipeline-image: "quay.io/rhopl/fleet-pipeline:latest"
   openshift-cluster: "true"
