@@ -10,11 +10,13 @@ import json
 import sys
 import time
 
+from typing import Any
+
 from fleet._retry import run_with_retry
 from fleet.tasks._log import configure, error, info
 
 
-def get_cluster_region_and_zones(cluster_name: str) -> dict[str, any] | None:
+def get_cluster_region_and_zones(cluster_name: str) -> dict[str, Any] | None:
     """Get the AWS region and availability zones from existing ClusterDeployment."""
     info(f"Getting region and zones for cluster {cluster_name}")
 
@@ -85,7 +87,7 @@ def get_cluster_region_and_zones(cluster_name: str) -> dict[str, any] | None:
 
 
 def create_baremetal_machinepool(
-    cluster_name: str, region_info: dict[str, any]
+    cluster_name: str, region_info: dict[str, Any]
 ) -> bool:
     """Create a new MachinePool for baremetal workers."""
     mp_name = f"{cluster_name}-baremetal"

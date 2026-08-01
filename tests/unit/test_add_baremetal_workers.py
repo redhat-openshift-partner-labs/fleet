@@ -137,13 +137,17 @@ def test_create_baremetal_machinepool_success(mock_retry):
     json_input = json.loads(kwargs["input"])
     assert json_input["kind"] == "MachinePool"
     assert json_input["metadata"]["name"] == "test-cluster-baremetal"
-    assert json_input["spec"]["platform"]["aws"]["zones"] == ["us-east-2a", "us-east-2b"]
-
+    assert json_input["spec"]["platform"]["aws"]["zones"] == [
+        "us-east-2a",
+        "us-east-2b",
+    ]
 
 
 @mock.patch("fleet.tasks.add_baremetal_workers.json.dumps")
 def test_create_baremetal_machinepool_json_serialization_fails(mock_json_dumps):
-    mock_json_dumps.side_effect = TypeError("Object of type set is not JSON serializable")
+    mock_json_dumps.side_effect = TypeError(
+        "Object of type set is not JSON serializable"
+    )
 
     region_info = {"region": "us-east-2", "zones": ["us-east-2a"]}
     result = create_baremetal_machinepool("test-cluster", region_info)
