@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fleet"
-version = "0.1.0"
+version = "0.3.0"
 description = "CLI tools for fleet Tekton pipeline tasks"
 packages = [{include = "fleet"}]
 
