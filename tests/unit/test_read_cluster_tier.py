@@ -34,6 +34,17 @@ def test_read_tier_success(mock_run, capsys):
 
 
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
+def test_read_virt_tier_success(mock_run, capsys):
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout="virt", stderr=""
+    )
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "virt"
+
+
+@mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
 def test_read_tier_fails(mock_run):
     mock_run.return_value = subprocess.CompletedProcess(
         [], returncode=1, stdout="", stderr="not found"

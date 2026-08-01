@@ -128,6 +128,20 @@ def test_pipelinerun_yaml_params(mock_run, _mock_sleep):
 
 @mock.patch("fleet.tasks.run_post_provision.time.sleep")
 @mock.patch("fleet.tasks.run_post_provision.subprocess.run")
+def test_pipelinerun_yaml_params_with_virt_tier(mock_run, _mock_sleep):
+    virt_argv = list(BASE_ARGV)
+    virt_argv[4] = "virt"
+    mock_run.side_effect = [_create_result(), _status_succeeded()]
+    with mock.patch("sys.argv", virt_argv):
+        main()
+    create_call = mock_run.call_args_list[0]
+    doc = yaml.safe_load(create_call.kwargs["input"])
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["tier"] == "virt"
+
+
+@mock.patch("fleet.tasks.run_post_provision.time.sleep")
+@mock.patch("fleet.tasks.run_post_provision.subprocess.run")
 def test_pipelinerun_has_workspace_and_sa(mock_run, _mock_sleep):
     mock_run.side_effect = [_create_result(), _status_succeeded()]
     with mock.patch("sys.argv", BASE_ARGV):
