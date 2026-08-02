@@ -15,10 +15,10 @@ import textwrap
 from fleet.tasks._log import configure, error, info
 
 
-def _read_hub_secret_key(secret_name: str, key: str) -> str:
+def _read_hub_secret_key(namespace: str, secret_name: str, key: str) -> str:
     jsonpath = f"jsonpath={{.data.{key}}}"
     result = subprocess.run(
-        ["oc", "get", "secret", secret_name, "-o", jsonpath],
+        ["oc", "get", "secret", secret_name, "-n", namespace, "-o", jsonpath],
         capture_output=True,
         text=True,
     )
@@ -47,8 +47,10 @@ def main() -> None:
 
     hub_secret = f"{args.cluster_name}-keycloak-client"
     info(f"Reading keycloak client credentials from hub secret '{hub_secret}'...")
-    client_id = _read_hub_secret_key(hub_secret, "client-id")
-    client_secret = _read_hub_secret_key(hub_secret, "client-secret")
+    client_id = _read_hub_secret_key("openshift-pipelines", hub_secret, "client-id")
+    client_secret = _read_hub_secret_key(
+        "openshift-pipelines", hub_secret, "client-secret"
+    )
     info("  -> Hub secret read OK")
 
     info(f"Reading admin password from ClusterDeployment '{args.cluster_name}'...")
@@ -71,7 +73,9 @@ def main() -> None:
         sys.exit(1)
     admin_pwd_secret = pwd_secret_result.stdout.strip()
     info(f"  -> admin password secret: {admin_pwd_secret}")
-    admin_password = _read_hub_secret_key(admin_pwd_secret, "password")
+    admin_password = _read_hub_secret_key(
+        args.cluster_name, admin_pwd_secret, "password"
+    )
     info("  -> admin password read OK")
 
     htpasswd_result = subprocess.run(
