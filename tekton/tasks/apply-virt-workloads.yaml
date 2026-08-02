@@ -21,5 +21,5 @@ spec:
         set -euo pipefail
         fleet-apply-virt-workloads \
           --cluster-name "$(params.cluster-name)" \
-          --source-dir "$(workspaces.source.path)/workloads/$(params.tier)" \
+          --source-dir "$(workspaces.source.path)/workloads/virt" \
           --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig"
