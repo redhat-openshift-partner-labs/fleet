@@ -41,3 +41,22 @@ def test_add_baremetal_workers_runs_only_for_virt_after_virt_workloads():
     task = tasks["add-baremetal-workers"]
     assert _tier_when_values(task) == ["virt"]
     assert task.get("runAfter") == ["apply-virt-workloads"]
+
+
+def _openshift_when_values(task):
+    for condition in task.get("when", []):
+        if condition["input"] == "$(params.openshift-cluster)":
+            return condition["values"]
+    return []
+
+
+def test_finalize_spoke_runs_only_for_openshift():
+    tasks = _load_tasks_by_name()
+    values = _openshift_when_values(tasks["finalize-spoke"])
+    assert values == ["true"]
+
+
+def test_finalize_spoke_runs_after_rbac():
+    tasks = _load_tasks_by_name()
+    task = tasks["finalize-spoke"]
+    assert task.get("runAfter") == ["configure-spoke-rbac"]

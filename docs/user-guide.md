@@ -105,6 +105,7 @@ The post-provision pipeline runs automatically after a successful provision. It 
 8. **extract-cert-material** — extracts the signed cert and key
 9. **apply-base-workloads** — applies tier-specific day-2 workloads to the spoke
 10. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
+11. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
 
 ## Monitoring Pipeline Runs
 
