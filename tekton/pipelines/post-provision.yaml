@@ -362,3 +362,22 @@ spec:
       workspaces:
         - name: shared
           workspace: shared-workspace
+
+    - name: finalize-spoke
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
+      taskRef:
+        name: finalize-spoke
+      runAfter:
+        - configure-spoke-rbac
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace

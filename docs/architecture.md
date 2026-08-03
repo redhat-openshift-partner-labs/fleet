@@ -325,13 +325,14 @@ sequenceDiagram
 
 Replaces: out-of-band `oc create secret` for IDP, manual SSL setup, no RBAC automation.
 
-The post-provision pipeline is a **10-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
+The post-provision pipeline is an **11-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
 
 1. **Workspace setup** — git-clone of fleet repo, extraction and saving of spoke kubeconfig from hub Secret
 2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI entry point, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
 3. **SSL certificate** — request via cert-manager on hub, wait for signing, derive leaf-only material, push to spoke ingress
 4. **Workloads** — apply tier-specific baseline workloads via kustomize
 5. **RBAC** — create a local `cluster-admins` group on spoke, add per-cluster users, bind to `cluster-admin`
+6. **Finalization** — delete leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
 
 Tier-specific workload delivery (CNV, GPU operators) is a separate decision — see section 7.
 
@@ -340,7 +341,7 @@ Tier-specific workload delivery (CNV, GPU operators) is a separate decision — 
 **Keycloak client registration:** An existing idempotent Python script registers a new OIDC client in the hub Keycloak instance. Per CLAUDE.md constraints, this script is packaged as a `pyproject.toml` entry point and invoked by a thin bash stub in the Tekton Task YAML. The task produces a client ID and secret, stored in a hub-side Secret for the OAuth configuration task to consume.
 
 ```mermaid
-%% Post-provision pipeline: 10 implemented tasks + 1 aspirational
+%% Post-provision pipeline: 11 implemented tasks + 1 aspirational
 %% Aspirational tasks shown in grey (not yet implemented)
 sequenceDiagram
     autonumber
@@ -420,8 +421,14 @@ sequenceDiagram
         Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
     end
 
+    rect rgb(230, 247, 237)
+        Note over Pipe,Spoke: Task 11: finalize-spoke<br/>(cleanup before handoff)
+        Pipe->>Spoke: Delete installer pods<br/>(label app=installer, status.phase=Failed)
+        Pipe->>Spoke: Delete kubeadmin secret<br/>from kube-system
+    end
+
     rect rgb(200, 200, 200)
-        Note over Pipe,ACM: Task 11 (not yet implemented): mark-bootstrapped
+        Note over Pipe,ACM: Task 12 (not yet implemented): mark-bootstrapped
         Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
         ACM-->>ACM: Placement re-evaluates
         Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin

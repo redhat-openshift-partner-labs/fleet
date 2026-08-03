@@ -50,7 +50,7 @@ For day-to-day operations (provisioning, deprovisioning, troubleshooting), see t
 | Container image build (multi-arch, quay.io/rhopl) | ✅ Done |
 | Cluster templates (AWS HA base tier) | ✅ Done |
 | Provision pipeline (13 tasks, triggers) | ✅ Done |
-| Post-provision pipeline (base tier, 10 tasks, triggers) | ✅ Done |
+| Post-provision pipeline (base tier, 11 tasks, triggers) | ✅ Done |
 | Post-provision pipeline (virt, ai tiers) | ⏳ Planned |
 | Deprovision pipeline (4 tasks, triggers) | ✅ Done |
 | Tekton triggers (provision, post-provision, deprovision) | ✅ Done |
