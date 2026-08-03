@@ -13,28 +13,27 @@ import time
 
 from fleet.tasks._log import configure, error, info, warn
 
-_IAM_RESOURCES = [
-    "userpolicyattachment.iam",
-    "policy.iam",
-    "accesskey.iam",
-    "user.iam",
-]
+_IAM_RESOURCES = {
+    "userpolicyattachment.iam": "policy-attachment",
+    "policy.iam": "openshift4installerpolicy",
+    "accesskey.iam": "access-key",
+    "user.iam": "ocp-installer",
+}
 
 _POLL_INTERVAL = 2
 _POLL_TIMEOUT = 60
 
 
 def _delete_iam_no_wait(cluster: str) -> None:
-    for resource in _IAM_RESOURCES:
-        info(f"Deleting {resource} resources (no-wait)...")
+    for resource, suffix in _IAM_RESOURCES.items():
+        name = f"{cluster}-{suffix}"
+        info(f"Deleting {resource} {name} (no-wait)...")
         result = subprocess.run(
             [
                 "oc",
                 "delete",
                 resource,
-                "-n",
-                cluster,
-                "--all",
+                name,
                 "--wait=false",
                 "--ignore-not-found=true",
             ],
@@ -48,22 +47,16 @@ def _wait_iam_deleted(cluster: str, timeout: int = _POLL_TIMEOUT) -> bool:
     max_attempts = timeout // _POLL_INTERVAL
     for attempt in range(max_attempts):
         all_gone = True
-        for resource in _IAM_RESOURCES:
+        for resource, suffix in _IAM_RESOURCES.items():
+            name = f"{cluster}-{suffix}"
             result = subprocess.run(
-                ["oc", "get", resource, "-n", cluster, "-o", "json"],
+                ["oc", "get", resource, name],
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
                 continue
-            try:
-                items = json.loads(result.stdout).get("items", [])
-            except (json.JSONDecodeError, KeyError):
-                warn(f"  -> Failed to parse {resource} response, will retry")
-                all_gone = False
-                continue
-            if items:
-                all_gone = False
+            all_gone = False
         if all_gone:
             info("  -> All IAM resources deleted")
             return True
@@ -75,16 +68,15 @@ def _wait_iam_deleted(cluster: str, timeout: int = _POLL_TIMEOUT) -> bool:
 
 def _force_remove_finalizers(cluster: str) -> None:
     patch_payload = json.dumps({"metadata": {"finalizers": None}})
-    for resource in _IAM_RESOURCES:
-        info(f"Removing finalizers from {resource}...")
+    for resource, suffix in _IAM_RESOURCES.items():
+        name = f"{cluster}-{suffix}"
+        info(f"Removing finalizers from {resource} {name}...")
         result = subprocess.run(
             [
                 "oc",
                 "patch",
                 resource,
-                "-n",
-                cluster,
-                "--all",
+                name,
                 "--type=merge",
                 f"-p={patch_payload}",
             ],
