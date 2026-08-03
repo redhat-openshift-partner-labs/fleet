@@ -208,6 +208,38 @@ def test_provider_name_in_oauth_yaml(mock_run):
 
 
 @mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
+def test_htpasswd_provider_name_in_oauth_yaml(mock_run):
+    mock_run.side_effect = _all_ok()
+    argv = [
+        "prog",
+        "--cluster-name",
+        "c1",
+        "--spoke-kubeconfig",
+        "/kc",
+        "--keycloak-issuer-url",
+        "https://sso.example.com/realms/r",
+        "--provider-name",
+        "RedHat",
+        "--htpasswd-provider-name",
+        "MyHTPasswd",
+    ]
+    with mock.patch("sys.argv", argv):
+        main()
+    oauth_yaml = mock_run.call_args_list[7].kwargs["input"]
+    assert "- name: MyHTPasswd" in oauth_yaml
+    assert "type: HTPasswd" in oauth_yaml
+
+
+@mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
+def test_htpasswd_provider_name_defaults_to_htpasswd(mock_run):
+    mock_run.side_effect = _all_ok()
+    with mock.patch("sys.argv", BASE_ARGV):
+        main()
+    oauth_yaml = mock_run.call_args_list[7].kwargs["input"]
+    assert "- name: htpasswd" in oauth_yaml
+
+
+@mock.patch("fleet.tasks.configure_spoke_oauth.subprocess.run")
 def test_client_secret_name_matches_register_task(mock_run):
     mock_run.side_effect = _all_ok()
     with mock.patch("sys.argv", BASE_ARGV):

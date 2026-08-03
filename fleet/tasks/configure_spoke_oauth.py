@@ -34,6 +34,7 @@ def main() -> None:
     parser.add_argument("--spoke-kubeconfig", required=True)
     parser.add_argument("--keycloak-issuer-url", required=True)
     parser.add_argument("--provider-name", default="RedHat")
+    parser.add_argument("--htpasswd-provider-name", default="htpasswd")
     args = parser.parse_args()
 
     configure("configure-spoke-oauth")
@@ -142,7 +143,7 @@ def main() -> None:
           name: cluster
         spec:
           identityProviders:
-          - name: htpasswd
+          - name: {args.htpasswd_provider_name}
             type: HTPasswd
             mappingMethod: claim
             htpasswd:

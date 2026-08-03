@@ -64,17 +64,26 @@ Within a pipeline, one task can produce a result that a downstream task consumes
 flowchart TD
     subgraph "provision pipeline"
         direction TB
+        GC[git-clone]
+        RCM[read-cluster-metadata]
         WMC[wait-for-managed-cluster]
         RCT[read-cluster-tier]
         ESK[extract-spoke-kubeconfig]
         LPP[label-for-post-provision]
         TPP[trigger-post-provision]
 
+        GC --> RCM
         WMC --> RCT
         WMC --> ESK
         ESK --> LPP
         RCT -->|"$(tasks.read-cluster-tier.results.tier)"| TPP
+        RCM -->|"$(tasks.read-cluster-metadata.results.htpasswd-provider-name)"| TPP
         LPP --> TPP
+    end
+
+    subgraph "read-cluster-metadata task"
+        direction TB
+        RCM_script["fleet-read-cluster-metadata<br/>--cluster-dir .../provision/$(params.cluster-name)<br/>→ jq extracts per-key results"]
     end
 
     subgraph "read-cluster-tier task"
@@ -84,14 +93,17 @@ flowchart TD
 
     subgraph "trigger-post-provision task"
         direction TB
-        TPP_script["fleet-trigger-post-provision<br/>--tier $(params.tier)<br/>--cluster-name $(params.cluster-name)<br/>..."]
+        TPP_script["fleet-trigger-post-provision<br/>--tier $(params.tier)<br/>--htpasswd-provider-name $(params.htpasswd-provider-name)<br/>--cluster-name $(params.cluster-name)<br/>..."]
     end
 
+    RCM -.-> RCM_script
     RCT -.-> RT_script
     TPP -.-> TPP_script
 ```
 
 The `read-cluster-tier` task writes the tier label value to `$(results.tier.path)`. The pipeline references it as `$(tasks.read-cluster-tier.results.tier)` and passes it to `trigger-post-provision` as the `tier` param.
+
+The `read-cluster-metadata` task reads `metadata.yaml` from the cluster directory (cloned by git-clone) and extracts per-cluster values as individual results. These are threaded to `trigger-post-provision` alongside `tier`. See [per-cluster-metadata.md](per-cluster-metadata.md) for the full list of supported keys and how to add new ones.
 
 ## Cross-pipeline threading
 
@@ -236,10 +248,11 @@ flowchart TD
         T_AC["apply-cluster-crs<br/>$(params.cluster-name)"]
         T_WH["wait-for-hive-ready<br/>$(params.cluster-name)"]
         T_WM["wait-for-managed-cluster<br/>$(params.cluster-name)"]
+        T_RM["read-cluster-metadata<br/>$(params.cluster-name)<br/>→ result: htpasswd-provider-name"]
         T_RC["read-cluster-tier<br/>$(params.cluster-name)<br/>→ result: tier"]
         T_ES["extract-spoke-kubeconfig<br/>$(params.cluster-name)"]
         T_LP["label-for-post-provision<br/>$(params.cluster-name)"]
-        T_TP["trigger-post-provision<br/>$(params.cluster-name)<br/>$(tasks.read-cluster-tier.results.tier)"]
+        T_TP["trigger-post-provision<br/>$(params.cluster-name)<br/>$(tasks.read-cluster-tier.results.tier)<br/>$(tasks.read-cluster-metadata.results.htpasswd-provider-name)"]
     end
 
     subgraph "post-provision trigger"
@@ -252,9 +265,11 @@ flowchart TD
 
     GH --> EL3 --> TB3 --> TT3 --> P3
     P3 --> T_AC --> T_WH --> T_WM
+    P3 --> T_RM
     T_WM --> T_RC
     T_WM --> T_ES --> T_LP
     T_RC --> T_TP
+    T_RM --> T_TP
     T_LP --> T_TP
     T_TP -->|"HTTP POST"| EL4 --> TB4 --> TT4 --> PP4
 ```

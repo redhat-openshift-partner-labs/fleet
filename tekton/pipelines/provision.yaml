@@ -130,6 +130,20 @@ spec:
         - name: shared
           workspace: shared-workspace
 
+    - name: read-cluster-metadata
+      taskRef:
+        name: read-cluster-metadata
+      runAfter:
+        - git-clone
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: read-cluster-tier
       taskRef:
         name: read-cluster-tier
@@ -158,6 +172,7 @@ spec:
       runAfter:
         - label-for-post-provision
         - read-cluster-tier
+        - read-cluster-metadata
       params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -165,3 +180,5 @@ spec:
           value: $(tasks.load-config.results.pipeline-image)
         - name: tier
           value: $(tasks.read-cluster-tier.results.tier)
+        - name: htpasswd-provider-name
+          value: $(tasks.read-cluster-metadata.results.htpasswd-provider-name)

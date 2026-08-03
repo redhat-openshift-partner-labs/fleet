@@ -13,7 +13,7 @@ archive/                — Completed lifecycle records (moved from provision/)
 
 ### Sentinel Files
 
-**Provision**: push a directory to `provision/<cluster-name>/` containing the cluster's Kustomize overlay (kustomization.yaml, patches, etc.). The push event triggers the pre-provision pipeline.
+**Provision**: push a directory to `provision/<cluster-name>/` containing the cluster's Kustomize overlay (kustomization.yaml, patches, etc.) and an optional `metadata.yaml` for per-cluster configuration (see [per-cluster-metadata.md](per-cluster-metadata.md)). The push event triggers the pre-provision pipeline.
 
 **Deprovision**: push a file to `deprovision/<cluster-name>-archive`. The filename suffix `-archive` is stripped by the CEL overlay to extract the cluster name. The push event triggers the deprovision pipeline.
 

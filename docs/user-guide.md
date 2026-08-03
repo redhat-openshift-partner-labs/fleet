@@ -74,9 +74,10 @@ The pipeline runs these tasks in sequence:
 10. **wait-for-hive-ready** — waits for Hive to report the cluster as installed
 11. **wait-for-managed-cluster** — waits for ACM to report the cluster as joined and available
 12. **extract-spoke-kubeconfig** — extracts the spoke kubeconfig from the hub
-13. **read-cluster-tier** — reads the tier label from the ManagedCluster
-14. **label-for-post-provision** — labels the cluster to signal readiness
-15. **trigger-post-provision** — triggers the post-provision pipeline
+13. **read-cluster-metadata** — reads per-cluster values from `metadata.yaml` (see [per-cluster-metadata.md](per-cluster-metadata.md))
+14. **read-cluster-tier** — reads the tier label from the ManagedCluster
+15. **label-for-post-provision** — labels the cluster to signal readiness
+16. **trigger-post-provision** — triggers the post-provision pipeline (forwards tier and metadata values)
 
 ## Cluster Tiers
 
@@ -209,5 +210,6 @@ tkn pipelinerun describe <pipelinerun-name> -n openshift-pipelines
 ## Related Documentation
 
 - [Architecture and design rationale](architecture.md)
+- [Per-cluster metadata](per-cluster-metadata.md)
 - [Image pull secret setup](image-pull-secret-setup.md)
 - [Pipeline sequence diagrams](diagrams/)
