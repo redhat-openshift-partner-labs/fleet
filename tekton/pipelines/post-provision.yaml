@@ -52,6 +52,9 @@ spec:
     - name: spoke-kubeconfig
       type: string
       default: ""
+    - name: htpasswd-provider-name
+      type: string
+      default: "htpasswd"
     - name: cluster-admins
       type: string
       default: ""
@@ -185,6 +188,8 @@ spec:
           value: $(tasks.load-config.results.keycloak-issuer-url)
         - name: provider-name
           value: $(tasks.load-config.results.provider-name)
+        - name: htpasswd-provider-name
+          value: $(params.htpasswd-provider-name)
       workspaces:
         - name: shared
           workspace: shared-workspace

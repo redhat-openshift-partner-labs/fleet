@@ -13,6 +13,9 @@ spec:
     - name: provider-name
       type: string
       default: "RedHat"
+    - name: htpasswd-provider-name
+      type: string
+      default: "htpasswd"
   workspaces:
     - name: shared
   steps:
@@ -26,4 +29,5 @@ spec:
           --cluster-name "$(params.cluster-name)" \
           --spoke-kubeconfig "$(workspaces.shared.path)/kubeconfig" \
           --keycloak-issuer-url "$(params.keycloak-issuer-url)" \
-          --provider-name "$(params.provider-name)"
+          --provider-name "$(params.provider-name)" \
+          --htpasswd-provider-name "$(params.htpasswd-provider-name)"

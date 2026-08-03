@@ -17,6 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--tier", required=True)
+    parser.add_argument("--htpasswd-provider-name", default="htpasswd")
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -71,6 +72,8 @@ def main() -> None:
               value: {tier}
             - name: dns-zones
               value: "{dns_zones}"
+            - name: htpasswd-provider-name
+              value: {args.htpasswd_provider_name}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

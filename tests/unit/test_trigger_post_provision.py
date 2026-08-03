@@ -129,4 +129,26 @@ def test_trigger_only_passes_per_run_params(mock_run):
     mock_run.side_effect = [_basedomain_result(), _create_result()]
     doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
-    assert set(params.keys()) == {"cluster-name", "tier", "dns-zones"}
+    assert set(params.keys()) == {
+        "cluster-name",
+        "tier",
+        "dns-zones",
+        "htpasswd-provider-name",
+    }
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_forwards_htpasswd_provider_name(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    argv = [*BASE_ARGV, "--htpasswd-provider-name", "PartnerIDP"]
+    doc = _run_and_capture_yaml(mock_run, argv)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["htpasswd-provider-name"] == "PartnerIDP"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_htpasswd_provider_name_defaults(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["htpasswd-provider-name"] == "htpasswd"

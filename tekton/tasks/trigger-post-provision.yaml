@@ -10,6 +10,9 @@ spec:
       type: string
     - name: tier
       type: string
+    - name: htpasswd-provider-name
+      type: string
+      default: "htpasswd"
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -19,4 +22,5 @@ spec:
         set -euo pipefail
         fleet-trigger-post-provision \
           --cluster-name "$(params.cluster-name)" \
-          --tier "$(params.tier)"
+          --tier "$(params.tier)" \
+          --htpasswd-provider-name "$(params.htpasswd-provider-name)"
