@@ -1,0 +1,133 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: fleet-workloads-base
+  namespace: openshift-gitops
+spec:
+  generators:
+    - clusterDecisionResource:
+        configMapRef: acm-placement
+        labelSelector:
+          matchLabels:
+            cluster.open-cluster-management.io/placement: fleet-workloads
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: workload-base-{{name}}
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/redhat-openshift-partner-labs/fleet.git
+        targetRevision: main
+        path: workloads/base
+      destination:
+        server: "{{server}}"
+        namespace: fleet-workloads
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: fleet-workloads-virt
+  namespace: openshift-gitops
+spec:
+  generators:
+    - clusterDecisionResource:
+        configMapRef: acm-placement
+        labelSelector:
+          matchLabels:
+            cluster.open-cluster-management.io/placement: fleet-workloads-virt
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: workload-virt-{{name}}
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/redhat-openshift-partner-labs/fleet.git
+        targetRevision: main
+        path: workloads/virt
+      destination:
+        server: "{{server}}"
+        namespace: openshift-cnv
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: fleet-workloads-ai
+  namespace: openshift-gitops
+spec:
+  generators:
+    - clusterDecisionResource:
+        configMapRef: acm-placement
+        labelSelector:
+          matchLabels:
+            cluster.open-cluster-management.io/placement: fleet-workloads-ai
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: workload-ai-{{name}}
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/redhat-openshift-partner-labs/fleet.git
+        targetRevision: main
+        path: workloads/ai
+      destination:
+        server: "{{server}}"
+        namespace: redhat-ods-operator
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: fleet-workloads
+  namespace: openshift-gitops
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            bootstrapped: "true"
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: fleet-workloads-virt
+  namespace: openshift-gitops
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            bootstrapped: "true"
+            tier: virt
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: fleet-workloads-ai
+  namespace: openshift-gitops
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            bootstrapped: "true"
+            tier: ai
