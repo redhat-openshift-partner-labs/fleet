@@ -22,7 +22,8 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.added.exists(f, f.startsWith('provision/')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('provision/'))) &&
+                !body.head_commit.message.contains('[skip-provision]')
             - name: overlays
               value:
                 - key: cluster_name
@@ -53,7 +54,8 @@ spec:
             - name: filter
               value: >-
                 body.ref == 'refs/heads/main' &&
-                body.commits.exists(c, c.added.exists(f, f.startsWith('deprovision/')))
+                body.commits.exists(c, c.added.exists(f, f.startsWith('deprovision/'))) &&
+                !body.head_commit.message.contains('[skip-deprovision]')
             - name: overlays
               value:
                 - key: cluster_name
