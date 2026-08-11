@@ -1,0 +1,101 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One-sentence description of the feature
+      placeholder: "Support AI tier with GPU-enabled workers and NVIDIA operator installation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: What problem does this solve? Why is it needed?
+      placeholder: |
+        Partners need AI/ML workloads (LLMs, model training) but the current
+        base tier lacks GPU support and CUDA drivers.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: How would you implement this?
+      placeholder: |
+        - Add `tier=ai` label to ManagedCluster
+        - Create workload overlay: `workloads/ai/`
+        - Post-provision: install NFD, GPU Operator, OpenShift AI
+        - Reference: virt tier implementation in `workloads/virt/`
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: components
+    attributes:
+      label: Components Affected
+      options:
+        - label: Tekton pipelines (provision / post-provision / deprovision)
+        - label: Python CLI tools (fleet/tasks/)
+        - label: Hub config (operators, ArgoCD, hub-config/)
+        - label: Workload overlays (workloads/)
+        - label: Kustomize (cluster-templates/)
+        - label: Documentation
+
+  - type: checkboxes
+    id: tiers
+    attributes:
+      label: Tier Applicability
+      description: Which cluster tiers does this affect?
+      options:
+        - label: base (AWS HA, general workloads)
+        - label: virt (OpenShift Virtualization)
+        - label: ai (AI/ML, GPUs)
+        - label: All tiers
+
+  - type: textarea
+    id: file-changes
+    attributes:
+      label: Proposed File Changes
+      description: New and modified files (one per line)
+      placeholder: |
+        workloads/ai/kustomization.yaml (new)
+        fleet/tasks/apply_ai_workloads.py (new)
+        tekton/pipelines/post-provision.yaml (modify)
+    validations:
+      required: false
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing Strategy
+      description: How will this be tested? (TDD - tests first)
+      placeholder: |
+        - Unit tests for AI workload config generation (pytest)
+        - Integration: provision ai-tier cluster, verify operators installed
+    validations:
+      required: true
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Dependencies / Blockers
+      placeholder: |
+        - Depends on #42 (GPU operator stability)
+        - Blocked on vendor certification for NVIDIA drivers
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related Issues
+      placeholder: "#42, #55"
+    validations:
+      required: false
