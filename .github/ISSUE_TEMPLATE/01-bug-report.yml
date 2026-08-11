@@ -1,0 +1,97 @@
+name: Bug Report
+description: Report a bug in the fleet control plane
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the issue
+      placeholder: "Post-provision pipeline fails when cluster tier is 'virt'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which part of the fleet is affected?
+      options:
+        - Provision pipeline
+        - Post-provision pipeline
+        - Deprovision pipeline
+        - Hub config (operators, ArgoCD, Crossplane)
+        - Python CLI tools (fleet/tasks/)
+        - Tekton task definitions
+        - Kustomize / workloads
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior
+      description: What is actually happening?
+      placeholder: |
+        Pipeline task `configure-spoke-rbac` exits with:
+        ```
+        Error: YAML parsing failed at line 42
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Reproduction Steps
+      description: How to reproduce the issue
+      placeholder: |
+        1. Create cluster spec with `tier: virt`
+        2. Push to fleet-clusters repo
+        3. Monitor provision pipeline
+        4. Issue occurs at step N
+    validations:
+      required: false
+
+  - type: textarea
+    id: root-cause
+    attributes:
+      label: Root Cause Hypothesis
+      description: What do you think is causing this?
+      placeholder: |
+        textwrap.dedent() doesn't handle multi-line f-strings correctly
+    validations:
+      required: false
+
+  - type: textarea
+    id: affected-files
+    attributes:
+      label: Affected Files
+      description: File paths involved (one per line)
+      placeholder: |
+        fleet/tasks/configure_spoke_rbac.py
+        tekton/tasks/configure-rbac.yaml
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical (blocks all provisioning)
+        - High (impacts specific tier or scenario)
+        - Medium (workaround exists)
+        - Low (minor, non-blocking)
+    validations:
+      required: true
