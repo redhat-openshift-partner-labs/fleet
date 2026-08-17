@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: 379b5094-ibmvirt-access-key
-- op: replace
-  path: /spec/forProvider/userRef/name
-  value: 379b5094-ibmvirt-ocp-installer
-- op: replace
-  path: /spec/writeConnectionSecretToRef/namespace
-  value: 379b5094-ibmvirt

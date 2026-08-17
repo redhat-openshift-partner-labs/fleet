@@ -1,3 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: 379b5094-ibmvirt-ocp-installer

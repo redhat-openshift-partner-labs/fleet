@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: f6f3eba2-redisvirt-access-key
-- op: replace
-  path: /spec/forProvider/userRef/name
-  value: f6f3eba2-redisvirt-ocp-installer
-- op: replace
-  path: /spec/writeConnectionSecretToRef/namespace
-  value: f6f3eba2-redisvirt

@@ -1,9 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: f6f3eba2-redisvirt-policy-attachment
-- op: replace
-  path: /spec/forProvider/policyArnRef/name
-  value: f6f3eba2-redisvirt-openshift4installerpolicy
-- op: replace
-  path: /spec/forProvider/userRef/name
-  value: f6f3eba2-redisvirt-ocp-installer
