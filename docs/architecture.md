@@ -28,9 +28,9 @@
 
 ### 1.1 How it works today
 
-The current repo (`bootstrap/argocd-app-of-apps.yaml` + `clusters/<name>/`) implements the app-of-apps pattern:
+The predecessor repo (`bootstrap/argocd-app-of-apps.yaml` + cluster directories) implemented the app-of-apps pattern:
 
-1. A top-level ArgoCD `Application` recurses into `clusters/*/argocd-application.yaml`
+1. A top-level ArgoCD `Application` recursed into per-cluster `argocd-application.yaml` files
 2. Each cluster directory declares a child `Application` that applies `ClusterDeployment`, `MachinePool`, `ManagedCluster`, `KlusterletAddonConfig`, and an `install-config` Secret
 3. Sync waves (`-1` → `0` → `1` → `2`) order the CR application
 4. A `PostSync` `Job` polls every 30 seconds waiting for Hive to create the `<cluster>-metadata-json` Secret, then stamps finalizers onto `aws-credentials` and `<cluster>-metadata-json`
@@ -99,7 +99,7 @@ We have effectively re-implemented a workflow engine on top of a reconciler, usi
 flowchart TB
     subgraph Git["Git (source of truth)"]
         direction TB
-        GitClusters["clusters/NAME/<br/>(ClusterDeployment, MachinePool,<br/>install-config, tier label)"]
+        GitClusters["fleet-clusters: provision/NAME/<br/>(ClusterDeployment, MachinePool,<br/>install-config, tier label)"]
         GitPipelines["tekton/pipelines/<br/>(provision, post-provision, deprovision)"]
         GitWorkloads["workloads/TIER/<br/>(day-2 manifests)"]
         GitHubConfig["hub-config/<br/>(ACM, Tekton, cert-manager)"]
@@ -227,8 +227,8 @@ sequenceDiagram
 
     Note over Dev,AWS: 13-task linear pipeline replaces sync-waves + PostSync polling Job
 
-    Dev->>Git: PR merged to clusters/NAME/
-    Git-->>EL: Webhook (path filter: clusters/**)
+    Dev->>Git: PR merged to fleet-clusters provision/NAME/
+    Git-->>EL: Webhook (path filter: provision/**)
     EL->>Pipe: Create PipelineRun<br/>params: cluster-name, pipeline-image
 
     rect rgb(230, 247, 237)
@@ -244,7 +244,7 @@ sequenceDiagram
 
     rect rgb(230, 247, 237)
         Note over Pipe,XP: Task 3: apply-crossplane-credentials<br/>(trigger per-cluster IAM user generation)
-        Pipe->>K8s: Apply Crossplane IAM user CRs<br/>(from cluster-templates)
+        Pipe->>K8s: Apply Crossplane IAM user CRs
         XP->>AWS: Create IAM user + access key
     end
 
@@ -336,7 +336,7 @@ The post-provision pipeline is an **11-task linear Tekton pipeline** triggered b
 
 Tier-specific workload delivery (CNV, GPU operators) is a separate decision — see section 7.
 
-**Per-cluster user list:** Each cluster definition (`clusters/<name>/`) specifies the htpasswd users for that cluster. These users are added to both the htpasswd identity provider and the `cluster-admins` group. This is the convention for per-cluster access control.
+**Per-cluster user list:** Each cluster definition (in fleet-clusters under `provision/<name>/`) specifies the htpasswd users for that cluster. These users are added to both the htpasswd identity provider and the `cluster-admins` group. This is the convention for per-cluster access control.
 
 **Keycloak client registration:** An existing idempotent Python script registers a new OIDC client in the hub Keycloak instance. Per CLAUDE.md constraints, this script is packaged as a `pyproject.toml` entry point and invoked by a thin bash stub in the Tekton Task YAML. The task produces a client ID and secret, stored in a hub-side Secret for the OAuth configuration task to consume.
 
@@ -466,8 +466,8 @@ sequenceDiagram
 
     Note over Dev,CertMgr: Replaces: custom finalizers + cluster-wide 5-min CronJob + namespace-terminating dance
 
-    Dev->>Git: PR: delete clusters/NAME/
-    Git-->>EL: Webhook (path delete under clusters/**)
+    Dev->>Git: Push deprovision sentinel to fleet-clusters
+    Git-->>EL: Webhook (path: deprovision/**)
     EL->>Pipe: Create PipelineRun: deprovision<br/>params: cluster-name
 
     rect rgb(200, 200, 200)
@@ -532,7 +532,7 @@ sequenceDiagram
 - **ArgoCD** for delivering hub-side static manifests — the Tekton installation itself, ACM config, cert-manager `ClusterIssuer`, baseline hub operators.
 - **ArgoCD `ApplicationSet` with ACM cluster generator** for day-2 workload delivery to spokes. This is ArgoCD at its best: continuous reconciliation of ongoing state against git.
 - **ACM + Hive** for the actual cluster provisioning. They are purpose-built for this.
-- **The `clusters/<name>/` folder convention** as the trigger surface — a commit under this path is what kicks off Tekton.
+- **The `provision/<name>/` folder convention** in fleet-clusters as the trigger surface — a commit under this path is what kicks off Tekton.
 
 ### 4.2 Remove
 
@@ -548,7 +548,7 @@ sequenceDiagram
 - **OpenShift Pipelines (Tekton)** on the hub.
 - **A `tekton/` directory** in this repo containing `Pipeline`, `Task`, `TriggerBinding`, `TriggerTemplate`, and `EventListener` definitions for provision, post-provision, and deprovision flows.
 - **`cert-manager`** on the hub with a `ClusterIssuer` pointing at internal PKI.
-- **A git webhook** on this repo pointing at the Tekton `EventListener`. Pipeline selection is by changed path (`clusters/**` vs `workloads/**` vs deletion events).
+- **A git webhook** on the fleet-clusters repo pointing at the Tekton `EventListener`. Pipeline selection is by changed path (`provision/**` vs `deprovision/**`).
 - **Tier labels** on `ManagedCluster` (`tier=virt|ai|base`) read by the post-provision pipeline and by `ApplicationSet` placement.
 
 ---
@@ -576,7 +576,7 @@ Recommended sequence (each step delivers value and is reversible if needed):
 3. **Add the deprovision pipeline**. Migrate one test cluster through its full lifecycle (provision → deprovision) via Tekton. Validate that deprovision finishes cleanly without the CronJob.
 4. **Add tier branching** (`virt`, then `ai`) to the post-provision pipeline.
 5. **Switch the day-2 delivery model** to `ApplicationSet` with ACM cluster generator. Existing per-cluster ArgoCD `Application`s are replaced by placement-driven generation.
-6. **Migrate existing clusters** one at a time. For each cluster: ensure it has the right tier label, let `ApplicationSet` take over, then remove its `argocd-application.yaml` from `clusters/<name>/`.
+6. **Migrate existing clusters** one at a time. For each cluster: ensure it has the right tier label, let `ApplicationSet` take over, then remove its per-cluster ArgoCD `Application`.
 7. **Retire** `deprovision-cleanup-cronjob.yaml`, the `PostSync` Job, and the custom finalizer only after all clusters have moved. These stay deployed until then as a safety net.
 
 ---

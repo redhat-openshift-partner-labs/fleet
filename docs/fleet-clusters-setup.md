@@ -5,7 +5,6 @@ The [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clus
 ## Repository Structure
 
 ```
-cluster-templates/      — Kustomize bases for cluster specs (by tier)
 provision/              — Active cluster specs (one directory per cluster)
 deprovision/            — Sentinel files that trigger cluster teardown
 archive/                — Completed lifecycle records (moved from provision/)
@@ -67,12 +66,3 @@ After the deprovision pipeline completes, `create-deployment-status` posts a Git
 
 See [`docs/examples/fleet-clusters-archive-workflow.yml`](examples/fleet-clusters-archive-workflow.yml) for a reference workflow.
 
-## Migration from In-Repo Clusters
-
-If you have existing cluster directories under `fleet/clusters/`:
-
-1. Copy cluster-templates to `fleet-clusters/cluster-templates/`
-2. For each active cluster, copy `clusters/<name>/` to `fleet-clusters/provision/<name>/`
-3. Update each cluster's `kustomization.yaml` to reference the new `cluster-templates/` path
-4. Verify with `kustomize build` on each cluster directory
-5. Remove `clusters/` and `cluster-templates/` from the fleet repo once migration is confirmed

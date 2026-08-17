@@ -30,8 +30,6 @@ For day-to-day operations (provisioning, deprovisioning, troubleshooting), see t
 ├── bootstrap/          # Hub bootstrap (ArgoCD Application for hub-config)
 ├── hub-config/         # Hub operators: Tekton, cert-manager, Crossplane provider
 ├── tekton/             # Pipeline, Task, EventListener, Trigger definitions
-├── clusters/           # One directory per cluster (spec, tier label, overrides)
-├── cluster-templates/  # Kustomize bases for cluster specs (by tier)
 ├── workloads/          # Tier-specific day-2 overlays (base / virt / ai)
 ├── fleet/              # Python CLI tools for Tekton pipeline tasks
 ├── tests/              # Unit, validation, and fixture data
@@ -48,7 +46,6 @@ For day-to-day operations (provisioning, deprovisioning, troubleshooting), see t
 | Development tooling (yamllint, tox, pytest) | ✅ Done |
 | CI (GitHub Actions: gitleaks, tox, tekton-lint, kustomize) | ✅ Done |
 | Container image build (multi-arch, quay.io/rhopl) | ✅ Done |
-| Cluster templates (AWS HA base tier) | ✅ Done |
 | Provision pipeline (13 tasks, triggers) | ✅ Done |
 | Post-provision pipeline (base tier, 11 tasks, triggers) | ✅ Done |
 | Post-provision pipeline (virt, ai tiers) | ⏳ Planned |
@@ -63,4 +60,4 @@ This repo supersedes the cluster-lifecycle portions of [`labargocd`](https://git
 
 ## Contributing
 
-Not open for contributions yet. Issues and discussion welcome as scaffolding lands.
+Not open for contributions yet. Issues and discussion welcome.

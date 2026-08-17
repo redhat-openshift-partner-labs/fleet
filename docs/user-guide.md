@@ -17,19 +17,20 @@ Before operating the fleet control plane you need:
 
 ## Provisioning a Cluster
 
-Provisioning is triggered by committing a new cluster directory under `clusters/`.
+Provisioning is triggered by committing a new cluster directory to the [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repository under `provision/`.
 
 ### 1. Create the cluster directory
 
-Copy the example cluster and rename it:
+In the fleet-clusters repo, create a new cluster directory under `provision/`:
 
 ```bash
-cp -r clusters/test-cluster-01 clusters/<cluster-name>
+cd fleet-clusters
+cp -r provision/<existing-cluster> provision/<cluster-name>
 ```
 
 ### 2. Customize the kustomization
 
-Edit `clusters/<cluster-name>/kustomization.yaml` and replace every occurrence of the placeholder name with your cluster name. The key fields to set:
+Edit `provision/<cluster-name>/kustomization.yaml` and replace every occurrence of the placeholder name with your cluster name. The key fields to set:
 
 | Field | Location | Description |
 |-------|----------|-------------|
@@ -40,23 +41,27 @@ Edit `clusters/<cluster-name>/kustomization.yaml` and replace every occurrence o
 
 ### 3. Customize install config (optional)
 
-Edit `clusters/<cluster-name>/patches/install-config.yaml` to override:
+Edit `provision/<cluster-name>/patches/install-config.yaml` to override:
 
 - AWS region
 - Compute node instance type or count
 - Network CIDR ranges
 - Any other install-config fields
 
-### 4. Commit and push
+### 4. Add per-cluster metadata (optional)
+
+Create `provision/<cluster-name>/metadata.yaml` for per-cluster configuration. See [per-cluster-metadata.md](per-cluster-metadata.md) for details.
+
+### 5. Commit and push
 
 ```bash
 git checkout -b feat/add-<cluster-name>
-git add clusters/<cluster-name>/
+git add provision/<cluster-name>/
 git commit -S -s -m "feat(clusters): add <cluster-name>"
 git push origin feat/add-<cluster-name>
 ```
 
-Once the commit lands on `main` (via PR merge), the EventListener detects the new `clusters/**` path and triggers the **provision pipeline**.
+Once the commit lands on `main` (via PR merge), the EventListener detects the new `provision/**` path and triggers the **pre-provision pipeline**.
 
 ### What the provision pipeline does
 
@@ -128,18 +133,21 @@ Navigate to **Pipelines → PipelineRuns** in the `openshift-pipelines` namespac
 
 ## Deprovisioning a Cluster
 
-Deprovisioning is triggered by removing a cluster directory from `clusters/`.
+Deprovisioning is triggered by pushing a sentinel file to the [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repository under `deprovision/`.
 
-### 1. Delete the cluster directory
+### 1. Create the deprovision sentinel
+
+In the fleet-clusters repo:
 
 ```bash
 git checkout -b feat/remove-<cluster-name>
-git rm -r clusters/<cluster-name>/
-git commit -S -s -m "feat(clusters): remove <cluster-name>"
+touch deprovision/<cluster-name>-archive
+git add deprovision/<cluster-name>-archive
+git commit -S -s -m "feat(clusters): deprovision <cluster-name>"
 git push origin feat/remove-<cluster-name>
 ```
 
-Once merged to `main`, the EventListener detects the removed `clusters/**` path and triggers the **deprovision pipeline**.
+Once merged to `main`, the EventListener detects the new `deprovision/**` path and triggers the **deprovision pipeline**. After successful deprovision, the archive workflow in fleet-clusters moves the cluster from `provision/` to `archive/`.
 
 ### What the deprovision pipeline does
 
