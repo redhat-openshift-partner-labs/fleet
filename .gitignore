@@ -29,3 +29,5 @@ docs/plans
 .claude/
 .serena/
 .mcp.json
+.lola
+THREAT_MODEL.md
