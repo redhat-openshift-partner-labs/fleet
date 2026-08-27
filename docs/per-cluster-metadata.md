@@ -30,6 +30,7 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | Key | Default | Used by | Description |
 |-----|---------|---------|-------------|
 | `htpasswd-provider-name` | `htpasswd` | `configure-spoke-oauth` | Display name for the htpasswd identity provider in the spoke's OAuth configuration |
+| `openshift-ai-version` | `v3` | `apply-ai-workloads` | OpenShift AI version (`v2` or `v3`); controls prerequisite operator stack |
 
 ## How values flow through the pipeline
 

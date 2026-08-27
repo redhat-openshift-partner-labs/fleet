@@ -13,3 +13,4 @@ ignore: |
   .venv/
   tmp/
   .serena/
+  *kubeconfig*
