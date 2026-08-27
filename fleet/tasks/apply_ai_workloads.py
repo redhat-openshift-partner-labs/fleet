@@ -251,6 +251,18 @@ def _install_v3_operators(version_dir: str, kubeconfig: str) -> bool:
     ):
         return False
 
+    info("Phase 8b: Creating JobSet operand")
+    if not apply_manifest(f"{version_dir}/jobset-operand.yaml", kubeconfig):
+        return False
+    if not wait_for_condition(
+        "JobSetOperator",
+        "cluster",
+        "openshift-jobset-operator",
+        "Available",
+        kubeconfig,
+    ):
+        return False
+
     info("Phase 9: Installing Service Mesh v3 operator")
     if not apply_manifest(f"{version_dir}/servicemesh-subscription.yaml", kubeconfig):
         return False
