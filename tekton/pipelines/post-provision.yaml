@@ -58,6 +58,9 @@ spec:
     - name: cluster-admins
       type: string
       default: ""
+    - name: openshift-ai-version
+      type: string
+      default: "v3"
   workspaces:
     - name: shared-workspace
 
@@ -289,6 +292,7 @@ spec:
           values:
             - "base"
             - "virt"
+            - "ai"
       taskRef:
         name: apply-base-workloads
       runAfter:
@@ -341,6 +345,45 @@ spec:
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
 
+    - name: apply-ai-workloads
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "ai"
+      taskRef:
+        name: apply-ai-workloads
+      runAfter:
+        - apply-base-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: tier
+          value: $(params.tier)
+        - name: openshift-ai-version
+          value: $(params.openshift-ai-version)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: add-ai-workers
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "ai"
+      taskRef:
+        name: add-ai-workers
+      runAfter:
+        - apply-ai-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
     - name: configure-spoke-rbac
       when:
         - input: $(params.openshift-cluster)
@@ -352,6 +395,7 @@ spec:
       runAfter:
         - apply-base-workloads
         - add-baremetal-workers
+        - add-ai-workers
       params:
         - name: cluster-name
           value: $(params.cluster-name)

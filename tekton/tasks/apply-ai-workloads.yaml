@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: apply-ai-workloads
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: tier
+      type: string
+    - name: openshift-ai-version
+      type: string
+      default: "v3"
+  workspaces:
+    - name: source
+  steps:
+    - name: apply-ai
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-apply-ai-workloads \
+          --cluster-name "$(params.cluster-name)" \
+          --source-dir "$(workspaces.source.path)/workloads/ai" \
+          --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig" \
+          --openshift-ai-version "$(params.openshift-ai-version)"
