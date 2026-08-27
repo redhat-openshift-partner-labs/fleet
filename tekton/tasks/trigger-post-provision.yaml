@@ -13,6 +13,9 @@ spec:
     - name: htpasswd-provider-name
       type: string
       default: "htpasswd"
+    - name: openshift-ai-version
+      type: string
+      default: "v3"
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -23,4 +26,5 @@ spec:
         fleet-trigger-post-provision \
           --cluster-name "$(params.cluster-name)" \
           --tier "$(params.tier)" \
-          --htpasswd-provider-name "$(params.htpasswd-provider-name)"
+          --htpasswd-provider-name "$(params.htpasswd-provider-name)" \
+          --openshift-ai-version "$(params.openshift-ai-version)"
