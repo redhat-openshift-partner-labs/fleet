@@ -240,6 +240,7 @@ def test_main_v3_default_success(mock_wait_condition, mock_wait_csv, mock_apply)
     # v3-specific operators
     assert "/tmp/test/v3/cert-manager-subscription.yaml" in apply_calls
     assert "/tmp/test/v3/jobset-subscription.yaml" in apply_calls
+    assert "/tmp/test/v3/jobset-operand.yaml" in apply_calls
     assert "/tmp/test/v3/servicemesh-subscription.yaml" in apply_calls
 
     # v3 OpenShift AI subscription
@@ -611,11 +612,56 @@ def test_main_v3_jobset_csv_fails(mock_wait_condition, mock_wait_csv, mock_apply
 @mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
 @mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
 @mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_jobset_operand_apply_fails(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    # Common ok, v3 cert-manager ok, jobset sub ok, jobset operand apply fails
+    mock_apply.side_effect = [True, True, True, True, True, True, True, True, False]
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+
+    with mock.patch("sys.argv", [*_BASE_ARGV, "--openshift-ai-version", "v3"]):
+        with pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code == 1
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_jobset_operand_condition_fails(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    mock_apply.return_value = True
+    mock_wait_csv.return_value = True
+    # NFD operand, GPU policy ok; jobset operand condition fails
+    mock_wait_condition.side_effect = [True, True, False]
+
+    with mock.patch("sys.argv", [*_BASE_ARGV, "--openshift-ai-version", "v3"]):
+        with pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code == 1
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
 def test_main_v3_servicemesh_subscription_fails(
     mock_wait_condition, mock_wait_csv, mock_apply
 ):
-    # Common ok, v3 cert-manager ok, jobset ok, servicemesh v3 fails
-    mock_apply.side_effect = [True, True, True, True, True, True, True, True, False]
+    # Common ok, v3 cert-manager ok, jobset + operand ok, servicemesh v3 fails
+    mock_apply.side_effect = [
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+        False,
+    ]
     mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
 
@@ -661,8 +707,9 @@ def test_main_v3_openshift_ai_csv_fails(mock_wait_condition, mock_wait_csv, mock
 def test_main_v3_openshift_ai_subscription_fails(
     mock_wait_condition, mock_wait_csv, mock_apply
 ):
-    # All common + v3 operators ok, OpenShift AI subscription fails
+    # All common + v3 operators + operands ok, OpenShift AI subscription fails
     mock_apply.side_effect = [
+        True,
         True,
         True,
         True,

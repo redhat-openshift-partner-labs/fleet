@@ -5,4 +5,5 @@ resources:
   - servicemesh-subscription.yaml
   - cert-manager-subscription.yaml
   - jobset-subscription.yaml
+  - jobset-operand.yaml
   - openshift-ai-subscription.yaml
