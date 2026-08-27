@@ -59,6 +59,8 @@ fleet-create-deployment-status = "fleet.tasks.create_deployment_status:main"
 fleet-apply-virt-workloads = "fleet.tasks.apply_virt_workloads:main"
 fleet-add-baremetal-workers = "fleet.tasks.add_baremetal_workers:main"
 fleet-finalize-spoke = "fleet.tasks.finalize_spoke:main"
+fleet-apply-ai-workloads = "fleet.tasks.apply_ai_workloads:main"
+fleet-add-ai-workers = "fleet.tasks.add_ai_workers:main"
 
 [tool.pylint.messages_control]
 disable = [
@@ -72,6 +74,7 @@ disable = [
     "too-many-statements",
     "missing-class-docstring",
     "too-many-instance-attributes",
+    "too-many-return-statements",
 ]
 
 [tool.bandit]
