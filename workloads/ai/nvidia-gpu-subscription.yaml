@@ -9,7 +9,7 @@ metadata:
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  generateName: nvidia-gpu-operator-
+  name: nvidia-gpu-operator
   namespace: nvidia-gpu-operator
 spec:
   targetNamespaces:
@@ -24,7 +24,7 @@ metadata:
   namespace: nvidia-gpu-operator
 spec:
   channel: stable
-  installPlanApproval: Manual
+  installPlanApproval: Automatic
   name: gpu-operator-certified
   source: certified-operators
   sourceNamespace: openshift-marketplace

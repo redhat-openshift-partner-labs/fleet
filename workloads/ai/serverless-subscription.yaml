@@ -11,9 +11,7 @@ kind: OperatorGroup
 metadata:
   name: openshift-serverless
   namespace: openshift-serverless
-spec:
-  targetNamespaces:
-    - openshift-serverless
+spec: {}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
