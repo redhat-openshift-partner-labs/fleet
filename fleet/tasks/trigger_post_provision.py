@@ -18,6 +18,7 @@ def main() -> None:
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--tier", required=True)
     parser.add_argument("--htpasswd-provider-name", default="htpasswd")
+    parser.add_argument("--openshift-ai-version", default="v3")
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -74,6 +75,8 @@ def main() -> None:
               value: "{dns_zones}"
             - name: htpasswd-provider-name
               value: {args.htpasswd_provider_name}
+            - name: openshift-ai-version
+              value: {args.openshift_ai_version}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

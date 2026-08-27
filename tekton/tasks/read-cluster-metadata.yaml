@@ -13,6 +13,8 @@ spec:
   results:
     - name: htpasswd-provider-name
       description: Name for the htpasswd identity provider
+    - name: openshift-ai-version
+      description: OpenShift AI version (v2 or v3)
   steps:
     - name: read-metadata
       image: $(params.pipeline-image)
@@ -24,3 +26,5 @@ spec:
         META=$(fleet-read-cluster-metadata --cluster-dir "$DIR")
         echo "$META" | jq -r '.["htpasswd-provider-name"] // "htpasswd"' \
           | tee "$(results.htpasswd-provider-name.path)"
+        echo "$META" | jq -r '.["openshift-ai-version"] // "v3"' \
+          | tee "$(results.openshift-ai-version.path)"
