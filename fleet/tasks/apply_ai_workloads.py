@@ -247,7 +247,7 @@ def _install_v3_operators(version_dir: str, kubeconfig: str) -> bool:
     if not apply_manifest(f"{version_dir}/jobset-subscription.yaml", kubeconfig):
         return False
     if not wait_for_csv(
-        "openshift-jobset-operator", "job-set", kubeconfig, timeout=600
+        "openshift-jobset-operator", "jobset-operator", kubeconfig, timeout=600
     ):
         return False
 
