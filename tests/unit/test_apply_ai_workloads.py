@@ -242,6 +242,7 @@ def test_main_v3_default_success(mock_wait_condition, mock_wait_csv, mock_apply)
     assert "/tmp/test/v3/jobset-subscription.yaml" in apply_calls
     assert "/tmp/test/v3/jobset-operand.yaml" in apply_calls
     assert "/tmp/test/v3/servicemesh-subscription.yaml" in apply_calls
+    assert "/tmp/test/v3/openshift-ai-operand.yaml" in apply_calls
 
     # v3 OpenShift AI subscription
     assert "/tmp/test/v3/openshift-ai-subscription.yaml" in apply_calls
@@ -651,16 +652,16 @@ def test_main_v3_servicemesh_subscription_fails(
 ):
     # Common ok, v3 cert-manager ok, jobset + operand ok, servicemesh v3 fails
     mock_apply.side_effect = [
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        False,
+        True,  # nfd-sub
+        True,  # nfd-operand
+        True,  # gpu-sub
+        True,  # gpu-policy
+        True,  # serverless-sub
+        True,  # authorino-sub
+        True,  # cert-manager-sub
+        True,  # jobset-sub
+        True,  # jobset-operand
+        False,  # servicemesh-sub fails
     ]
     mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
@@ -679,6 +680,51 @@ def test_main_v3_servicemesh_csv_fails(mock_wait_condition, mock_wait_csv, mock_
     # NFD, GPU, Serverless, Authorino, cert-manager, jobset ok; servicemesh CSV fails
     mock_wait_csv.side_effect = [True, True, True, True, True, True, False]
     mock_wait_condition.return_value = True
+
+    with mock.patch("sys.argv", [*_BASE_ARGV, "--openshift-ai-version", "v3"]):
+        with pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code == 1
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_dsc_operand_apply_fails(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    mock_apply.side_effect = [
+        True,  # nfd-sub
+        True,  # nfd-operand
+        True,  # gpu-sub
+        True,  # gpu-policy
+        True,  # serverless-sub
+        True,  # authorino-sub
+        True,  # cert-manager-sub
+        True,  # jobset-sub
+        True,  # jobset-operand
+        True,  # servicemesh-sub
+        False,  # openshift-ai-operand fails
+    ]
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+
+    with mock.patch("sys.argv", [*_BASE_ARGV, "--openshift-ai-version", "v3"]):
+        with pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code == 1
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_dsc_operand_condition_fails(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    mock_apply.return_value = True
+    mock_wait_csv.return_value = True
+    # NFD Available, GPU Ready, JobSet Available ok; DSC Ready fails
+    mock_wait_condition.side_effect = [True, True, True, False]
 
     with mock.patch("sys.argv", [*_BASE_ARGV, "--openshift-ai-version", "v3"]):
         with pytest.raises(SystemExit) as exc:
@@ -709,17 +755,18 @@ def test_main_v3_openshift_ai_subscription_fails(
 ):
     # All common + v3 operators + operands ok, OpenShift AI subscription fails
     mock_apply.side_effect = [
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        True,
-        False,
+        True,  # nfd-sub
+        True,  # nfd-operand
+        True,  # gpu-sub
+        True,  # gpu-policy
+        True,  # serverless-sub
+        True,  # authorino-sub
+        True,  # cert-manager-sub
+        True,  # jobset-sub
+        True,  # jobset-operand
+        True,  # servicemesh-sub
+        True,  # openshift-ai-operand
+        False,  # openshift-ai-sub fails
     ]
     mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
