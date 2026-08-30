@@ -1,0 +1,68 @@
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+  labels:
+    app.kubernetes.io/name: datasciencecluster
+spec:
+  components:
+    ogx:
+      managementState: Managed
+    sparkoperator:
+      managementState: Removed
+    kserve:
+      wva:
+        managementState: Removed
+      rawDeploymentServiceConfig: Headless
+      nim:
+        airGapped: false
+        managementState: Managed
+      modelCache:
+        managementState: Removed
+      modelsAsService:
+        managementState: Removed
+      managementState: Managed
+    modelregistry:
+      registriesNamespace: rhoai-model-registries
+      managementState: Managed
+    feastoperator:
+      managementState: Managed
+    trustyai:
+      eval:
+        lmeval:
+          permitCodeExecution: deny
+          permitOnline: deny
+      mcpGuardrailsMode: false
+      managementState: Managed
+    aipipelines:
+      argoWorkflowsControllers:
+        managementState: Managed
+      managementState: Managed
+    ray:
+      managementState: Managed
+    kueue:
+      autoCreateQueues: false
+      defaultClusterQueueName: default
+      defaultLocalQueueName: default
+      managementState: Removed
+    workbenches:
+      workbenchNamespace: rhods-notebooks
+      managementState: Managed
+    mlflowoperator:
+      managementState: Managed
+    dashboard:
+      managementState: Managed
+    mcplifecycleoperator:
+      managementState: Removed
+    trainer:
+      managementState: Managed
+    llamastackoperator:
+      managementState: Removed
+    aigateway:
+      batchGateway:
+        managementState: Removed
+      modelsAsAService:
+        managementState: Removed
+      managementState: Removed
+    trainingoperator:
+      managementState: Removed

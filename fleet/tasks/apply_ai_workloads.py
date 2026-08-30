@@ -271,6 +271,18 @@ def _install_v3_operators(version_dir: str, kubeconfig: str) -> bool:
     ):
         return False
 
+    info("Phase 10: Create DataScienceCluster operand")
+    if not apply_manifest(f"{version_dir}/openshift-ai-operand.yaml", kubeconfig):
+        return False
+    if not wait_for_condition(
+        "DataScienceCluster",
+        "default-dsc",
+        "",
+        "Ready",
+        kubeconfig,
+    ):
+        return False
+
     return True
 
 
