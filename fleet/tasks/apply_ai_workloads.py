@@ -271,18 +271,6 @@ def _install_v3_operators(version_dir: str, kubeconfig: str) -> bool:
     ):
         return False
 
-    info("Phase 10: Create DataScienceCluster operand")
-    if not apply_manifest(f"{version_dir}/openshift-ai-operand.yaml", kubeconfig):
-        return False
-    if not wait_for_condition(
-        "DataScienceCluster",
-        "default-dsc",
-        "",
-        "Ready",
-        kubeconfig,
-    ):
-        return False
-
     return True
 
 
@@ -327,5 +315,18 @@ def main() -> None:
         "redhat-ods-operator", "rhods-operator", kubeconfig, timeout=900
     ):
         sys.exit(1)
+
+    if version == "v3":
+        info("Creating DataScienceCluster operand")
+        if not apply_manifest(f"{version_dir}/openshift-ai-operand.yaml", kubeconfig):
+            sys.exit(1)
+        if not wait_for_condition(
+            "DataScienceCluster",
+            "default-dsc",
+            "",
+            "Ready",
+            kubeconfig,
+        ):
+            sys.exit(1)
 
     info(f"AI workloads ({version}) successfully applied and ready")
