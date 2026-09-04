@@ -242,10 +242,13 @@ def test_main_v3_default_success(mock_wait_condition, mock_wait_csv, mock_apply)
     assert "/tmp/test/v3/jobset-subscription.yaml" in apply_calls
     assert "/tmp/test/v3/jobset-operand.yaml" in apply_calls
     assert "/tmp/test/v3/servicemesh-subscription.yaml" in apply_calls
-    assert "/tmp/test/v3/openshift-ai-operand.yaml" in apply_calls
 
     # v3 OpenShift AI subscription
     assert "/tmp/test/v3/openshift-ai-subscription.yaml" in apply_calls
+    assert "/tmp/test/v3/openshift-ai-operand.yaml" in apply_calls
+    assert apply_calls.index(
+        "/tmp/test/v3/openshift-ai-subscription.yaml"
+    ) < apply_calls.index("/tmp/test/v3/openshift-ai-operand.yaml")
 
     # v2 files should NOT be present
     v2_calls = [c for c in apply_calls if "/v2/" in c]
@@ -704,6 +707,7 @@ def test_main_v3_dsc_operand_apply_fails(
         True,  # jobset-sub
         True,  # jobset-operand
         True,  # servicemesh-sub
+        True,  # openshift-ai-sub
         False,  # openshift-ai-operand fails
     ]
     mock_wait_csv.return_value = True
@@ -753,7 +757,7 @@ def test_main_v3_openshift_ai_csv_fails(mock_wait_condition, mock_wait_csv, mock
 def test_main_v3_openshift_ai_subscription_fails(
     mock_wait_condition, mock_wait_csv, mock_apply
 ):
-    # All common + v3 operators + operands ok, OpenShift AI subscription fails
+    # All common + v3 operators + JobSet operand ok, OpenShift AI subscription fails
     mock_apply.side_effect = [
         True,  # nfd-sub
         True,  # nfd-operand
@@ -765,7 +769,6 @@ def test_main_v3_openshift_ai_subscription_fails(
         True,  # jobset-sub
         True,  # jobset-operand
         True,  # servicemesh-sub
-        True,  # openshift-ai-operand
         False,  # openshift-ai-sub fails
     ]
     mock_wait_csv.return_value = True
