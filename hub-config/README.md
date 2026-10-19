@@ -62,6 +62,28 @@ Before applying the configuration, ensure you have:
      -n crossplane-system
    ```
 
+   For **scoped AWS clusters** (the default from `fleet-cluster-scaffold`), this identity needs these IAM actions on top of the user, policy and access-key permissions legacy clusters use:
+
+   | Purpose | IAM actions |
+   |---|---|
+   | BYO node roles | `iam:CreateRole`, `iam:GetRole`, `iam:DeleteRole`, `iam:UpdateRole`, `iam:UpdateAssumeRolePolicy`, `iam:TagRole`, `iam:UntagRole`, `iam:ListRoleTags`, `iam:PutRolePolicy`, `iam:GetRolePolicy`, `iam:DeleteRolePolicy`, `iam:ListRolePolicies`, `iam:ListAttachedRolePolicies`, `iam:ListInstanceProfilesForRole` |
+   | Post-install policy updates (`scope-aws-credentials`) | `iam:CreatePolicyVersion`, `iam:DeletePolicyVersion`, `iam:ListPolicyVersions`, `iam:GetPolicyVersion` |
+
+   Check (empty output = OK):
+   ```bash
+   aws iam simulate-principal-policy --policy-source-arn <crossplane-identity-arn> \
+     --action-names iam:CreateRole iam:GetRole iam:DeleteRole iam:UpdateRole iam:UpdateAssumeRolePolicy \
+       iam:TagRole iam:UntagRole iam:ListRoleTags iam:PutRolePolicy iam:GetRolePolicy iam:DeleteRolePolicy \
+       iam:ListRolePolicies iam:ListAttachedRolePolicies iam:ListInstanceProfilesForRole \
+       iam:CreatePolicyVersion iam:DeletePolicyVersion iam:ListPolicyVersions iam:GetPolicyVersion \
+     --query 'EvaluationResults[?EvalDecision!=`allowed`].EvalActionName'
+   ```
+   What happens without them:
+   - **Missing role actions:** `wait-for-aws-component-credentials` times out and lists the node roles with an `AccessDenied` message.
+   - **Missing policy-version actions:** the operator `Policy` resources report `Synced=False` after `scope-aws-credentials`, so partner LoadBalancers and egress IPs stay denied.
+
+   This identity can create IAM policies and roles, which is account-admin-equivalent. Protect `crossplane-system/aws-credentials` accordingly.
+
 2. **Container Registry Access** (if using private registries):
    ```bash
    oc create secret docker-registry quay-pull-secret \
@@ -270,7 +292,7 @@ hub-config/
 - **Installation**: Helm chart v2.2.0 (via declarative Kubernetes Job)
 - **Namespace**: `crossplane-system`
 - **Provider**: AWS IAM v1.7.0 for user/credential management
-- **Purpose**: Provisions infrastructure resources (IAM users, policies, etc.)
+- **Purpose**: Provisions per-cluster IAM resources (users, policies, access keys, and for scoped clusters node roles). See "Credentials Setup" for the required IAM actions.
 
 ## Verification
 
