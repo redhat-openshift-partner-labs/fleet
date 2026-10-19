@@ -2,6 +2,8 @@
 
 CLI: fleet-cleanup-hub-artifacts --cluster-name NAME
 Deletes certificate CRs, ClusterIssuer, Crossplane IAM resources, then namespace.
+IAM resources cover both legacy (installer user only) and scoped AWS clusters (per-operator
+users and BYO node roles); missing ones are ignored. Deletes and polls use one oc call each.
 Non-critical deletions are best-effort. Exits 1 if namespace deletion fails.
 """
 
@@ -11,82 +13,78 @@ import subprocess
 import sys
 import time
 
+from fleet.tasks._aws_components import COMPONENTS
 from fleet.tasks._log import configure, error, info, warn
-
-_IAM_RESOURCES = {
-    "userpolicyattachment.iam": "policy-attachment",
-    "policy.iam": "openshift4installerpolicy",
-    "accesskey.iam": "access-key",
-    "user.iam": "ocp-installer",
-}
 
 _POLL_INTERVAL = 2
 _POLL_TIMEOUT = 60
 
 
-def _delete_iam_no_wait(cluster: str) -> None:
-    for resource, suffix in _IAM_RESOURCES.items():
-        name = f"{cluster}-{suffix}"
-        info(f"Deleting {resource} {name} (no-wait)...")
+def iam_targets(cluster: str) -> list[str]:
+    """TYPE/NAME of every Crossplane IAM resource a cluster may own.
+
+    Legacy clusters have only the installer set; scoped clusters add one set per operator and
+    the BYO node roles. Attachments and access keys precede the policies and users they reference.
+    """
+    keys = [c.key for c in COMPONENTS]
+    return [
+        f"userpolicyattachment.iam/{cluster}-policy-attachment",
+        *(f"userpolicyattachment.iam/{cluster}-{k}-attachment" for k in keys),
+        f"accesskey.iam/{cluster}-access-key",
+        *(f"accesskey.iam/{cluster}-{k}-access-key" for k in keys),
+        f"policy.iam/{cluster}-openshift4installerpolicy",
+        *(f"policy.iam/{cluster}-{k}-policy" for k in keys),
+        f"user.iam/{cluster}-ocp-installer",
+        *(f"user.iam/{cluster}-{k}" for k in keys),
+        f"role.iam/{cluster}-master-role",
+        f"role.iam/{cluster}-worker-role",
+    ]
+
+
+def _delete_iam_no_wait(targets: list[str]) -> None:
+    info(f"Deleting {len(targets)} IAM resource name(s) (no-wait)...")
+    result = subprocess.run(
+        ["oc", "delete", *targets, "--wait=false", "--ignore-not-found=true"],
+        capture_output=True,
+        text=True,
+    )
+    info(f"  -> IAM delete exit code {result.returncode}")
+
+
+def _wait_iam_deleted(targets: list[str], timeout: int = _POLL_TIMEOUT) -> list[str]:
+    """Poll until all targets are gone; return the ones still present (or unknown) at timeout."""
+    max_attempts = timeout // _POLL_INTERVAL
+    remaining = targets
+    for attempt in range(max_attempts):
         result = subprocess.run(
-            [
-                "oc",
-                "delete",
-                resource,
-                name,
-                "--wait=false",
-                "--ignore-not-found=true",
-            ],
+            ["oc", "get", *targets, "--ignore-not-found", "-o", "name"],
             capture_output=True,
             text=True,
         )
-        info(f"  -> {resource}: exit code {result.returncode}")
-
-
-def _wait_iam_deleted(cluster: str, timeout: int = _POLL_TIMEOUT) -> bool:
-    max_attempts = timeout // _POLL_INTERVAL
-    for attempt in range(max_attempts):
-        all_gone = True
-        for resource, suffix in _IAM_RESOURCES.items():
-            name = f"{cluster}-{suffix}"
-            result = subprocess.run(
-                ["oc", "get", resource, name],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                continue
-            all_gone = False
-        if all_gone:
+        # A failed get proves nothing is gone; keep every target as remaining
+        remaining = result.stdout.split() if result.returncode == 0 else targets
+        if result.returncode == 0 and not remaining:
             info("  -> All IAM resources deleted")
-            return True
+            return []
         if attempt < max_attempts - 1:
             time.sleep(_POLL_INTERVAL)
-    warn(f"IAM resources still present after {timeout}s timeout")
-    return False
+    warn(f"{len(remaining)} IAM resource(s) still present after {timeout}s timeout")
+    return remaining
 
 
-def _force_remove_finalizers(cluster: str) -> None:
+def _force_remove_finalizers(remaining: list[str]) -> None:
     patch_payload = json.dumps({"metadata": {"finalizers": None}})
-    for resource, suffix in _IAM_RESOURCES.items():
-        name = f"{cluster}-{suffix}"
-        info(f"Removing finalizers from {resource} {name}...")
+    for name in remaining:
+        info(f"Removing finalizers from {name}...")
         result = subprocess.run(
-            [
-                "oc",
-                "patch",
-                resource,
-                name,
-                "--type=merge",
-                f"-p={patch_payload}",
-            ],
+            ["oc", "patch", name, "--type=merge", f"-p={patch_payload}"],
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            warn(f"  -> Failed to patch {resource}: {result.stderr}")
+            warn(f"  -> Failed to patch {name}: {result.stderr}")
         else:
-            info(f"  -> {resource} finalizers removed")
+            info(f"  -> {name} finalizers removed")
 
 
 def main() -> None:
@@ -150,12 +148,14 @@ def main() -> None:
     info(f"  -> Secret {cluster}-cert-manager-aws deleted")
 
     info("Deleting Crossplane IAM resources...")
-    _delete_iam_no_wait(cluster)
+    targets = iam_targets(cluster)
+    _delete_iam_no_wait(targets)
 
     info("Waiting for IAM resources to be fully deleted...")
-    if not _wait_iam_deleted(cluster):
+    remaining = _wait_iam_deleted(targets)
+    if remaining:
         warn("Some IAM resources still exist, removing Crossplane finalizers...")
-        _force_remove_finalizers(cluster)
+        _force_remove_finalizers(remaining)
 
     info(f"Deleting namespace {cluster}...")
     result = subprocess.run(
