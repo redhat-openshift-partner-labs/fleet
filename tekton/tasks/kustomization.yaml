@@ -9,6 +9,7 @@ resources:
   - apply-crossplane-credentials.yaml
   - wait-for-aws-credentials.yaml
   - transform-aws-credentials.yaml
+  - wait-for-aws-component-credentials.yaml
   - validate-cluster-inputs.yaml
   - apply-cluster-crs.yaml
   - wait-for-hive-ready.yaml
