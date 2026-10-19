@@ -49,7 +49,7 @@ rules:
     resources: ["klusterletaddonconfigs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["iam.aws.upbound.io"]
-    resources: ["users", "policies", "userpolicyattachments", "accesskeys"]
+    resources: ["users", "policies", "userpolicyattachments", "accesskeys", "roles"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["cert-manager.io"]
     resources: ["certificates"]
