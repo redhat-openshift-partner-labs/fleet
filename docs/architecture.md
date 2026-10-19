@@ -332,6 +332,10 @@ The pre-provision pipeline branches on `aws-credentials-mode` in the cluster's `
 
 `build-aws-credentials-manifests` turns the per-operator Crossplane secrets (`<name>-<operator>-credentials-raw`) into Secret `<name>-cloud-credentials-manifests`, which Hive installs through `ClusterDeployment.spec.provisioning.manifestsSecretRef`. Deprovision (`cleanup-hub-artifacts`) deletes the IAM resources of both modes by name.
 
+Scaffold-rendered policies contain `INFRA_ID_PLACEHOLDER` and `VPC_ID_PLACEHOLDER`, which match nothing until install. In the provision pipeline, `scope-aws-credentials` runs after `wait-for-hive-ready` and before `trigger-post-provision`. It substitutes the installed cluster's infra ID (from the ClusterDeployment) and its VPC (looked up with the hub installer key). After that:
+- resources tagged only `kubernetes.io/cluster/<infraID>=owned` also count as owned. The cloud-controller-manager, machine-api and EBS CSI always apply that tag, so partner `LoadBalancer` Services need no annotation.
+- egress-IP ENI changes are limited to the cluster VPC.
+
 Scoped clusters need a manual step on OCP minor upgrades:
 1. Diff the release's AWS CredentialsRequests against `fleet-cluster-scaffold` `aws_policies.py`.
 2. Re-apply the crossplane overlay.
