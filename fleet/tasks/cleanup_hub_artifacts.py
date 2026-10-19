@@ -13,32 +13,11 @@ import subprocess
 import sys
 import time
 
-from fleet.tasks._aws_components import COMPONENTS
+from fleet.tasks._aws_components import iam_targets
 from fleet.tasks._log import configure, error, info, warn
 
 _POLL_INTERVAL = 2
 _POLL_TIMEOUT = 60
-
-
-def iam_targets(cluster: str) -> list[str]:
-    """TYPE/NAME of every Crossplane IAM resource a cluster may own.
-
-    Legacy clusters have only the installer set; scoped clusters add one set per operator and
-    the BYO node roles. Attachments and access keys precede the policies and users they reference.
-    """
-    keys = [c.key for c in COMPONENTS]
-    return [
-        f"userpolicyattachment.iam/{cluster}-policy-attachment",
-        *(f"userpolicyattachment.iam/{cluster}-{k}-attachment" for k in keys),
-        f"accesskey.iam/{cluster}-access-key",
-        *(f"accesskey.iam/{cluster}-{k}-access-key" for k in keys),
-        f"policy.iam/{cluster}-openshift4installerpolicy",
-        *(f"policy.iam/{cluster}-{k}-policy" for k in keys),
-        f"user.iam/{cluster}-ocp-installer",
-        *(f"user.iam/{cluster}-{k}" for k in keys),
-        f"role.iam/{cluster}-master-role",
-        f"role.iam/{cluster}-worker-role",
-    ]
 
 
 def _delete_iam_no_wait(targets: list[str]) -> None:
