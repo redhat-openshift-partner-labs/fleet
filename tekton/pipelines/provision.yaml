@@ -105,6 +105,23 @@ spec:
           value: $(tasks.load-config.results.pipeline-image)
       timeout: "1h15m"
 
+    # Scoped AWS clusters: bind policies to the installed infra ID and VPC before handoff
+    - name: scope-aws-credentials
+      taskRef:
+        name: scope-aws-credentials
+      runAfter:
+        - wait-for-hive-ready
+        - read-cluster-metadata
+      when:
+        - input: $(tasks.read-cluster-metadata.results.aws-credentials-mode)
+          operator: in
+          values: ["scoped"]
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
     - name: wait-for-managed-cluster
       taskRef:
         name: wait-for-managed-cluster
@@ -173,6 +190,7 @@ spec:
         - label-for-post-provision
         - read-cluster-tier
         - read-cluster-metadata
+        - scope-aws-credentials
       params:
         - name: cluster-name
           value: $(params.cluster-name)
