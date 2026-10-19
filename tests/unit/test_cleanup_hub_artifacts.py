@@ -5,8 +5,8 @@ import subprocess
 
 import pytest
 
-from fleet.tasks._aws_components import COMPONENTS
-from fleet.tasks.cleanup_hub_artifacts import iam_targets, main
+from fleet.tasks._aws_components import COMPONENTS, iam_targets
+from fleet.tasks.cleanup_hub_artifacts import main
 
 TARGETS = iam_targets("test-cluster")
 PATCH_PAYLOAD = json.dumps({"metadata": {"finalizers": None}})
