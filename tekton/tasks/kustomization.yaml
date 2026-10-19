@@ -10,6 +10,7 @@ resources:
   - wait-for-aws-credentials.yaml
   - transform-aws-credentials.yaml
   - wait-for-aws-component-credentials.yaml
+  - build-aws-credentials-manifests.yaml
   - validate-cluster-inputs.yaml
   - apply-cluster-crs.yaml
   - wait-for-hive-ready.yaml
