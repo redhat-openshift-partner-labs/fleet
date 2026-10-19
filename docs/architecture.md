@@ -336,6 +336,8 @@ Scaffold-rendered policies contain `INFRA_ID_PLACEHOLDER` and `VPC_ID_PLACEHOLDE
 - resources tagged only `kubernetes.io/cluster/<infraID>=owned` also count as owned. The cloud-controller-manager, machine-api and EBS CSI always apply that tag, so partner `LoadBalancer` Services need no annotation.
 - egress-IP ENI changes are limited to the cluster VPC.
 
+Scoped clusters need extra IAM actions on the hub's Crossplane identity (node roles and policy versions); see `hub-config/README.md`, "Credentials Setup".
+
 Scoped clusters need a manual step on OCP minor upgrades:
 1. Diff the release's AWS CredentialsRequests against `fleet-cluster-scaffold` `aws_policies.py`.
 2. Re-apply the crossplane overlay.
