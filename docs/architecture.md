@@ -321,6 +321,24 @@ sequenceDiagram
 
 > Diagram source: [diagrams/provision-sequence.mermaid](./diagrams/provision-sequence.mermaid)
 
+#### 3.1.1 AWS credential modes
+
+The pre-provision pipeline branches on `aws-credentials-mode` in the cluster's `metadata.yaml`, which `fleet-cluster-scaffold` writes:
+
+| Mode | Spoke credentials | Pipeline tasks |
+|---|---|---|
+| `scoped` (default for new clusters) | `credentialsMode: Manual`; one IAM user per OpenShift operator plus BYO node roles, each limited to the cluster (instance profile, ownership tag `openshiftpartnerlabs.com/cluster`, bucket prefix, `*.apps.<name>` records). The installer key stays on the hub. | `wait-for-aws-credentials` → `transform-aws-credentials` → `wait-for-aws-component-credentials` → `build-aws-credentials-manifests` |
+| `legacy` (absent key; existing clusters) | CCO Mint mode; the account-admin installer key is stored on the spoke in `kube-system/aws-creds` | `wait-for-aws-credentials` → `transform-aws-credentials` |
+
+`build-aws-credentials-manifests` turns the per-operator Crossplane secrets (`<name>-<operator>-credentials-raw`) into Secret `<name>-cloud-credentials-manifests`, which Hive installs through `ClusterDeployment.spec.provisioning.manifestsSecretRef`. Deprovision (`cleanup-hub-artifacts`) deletes the IAM resources of both modes by name.
+
+Scoped clusters need a manual step on OCP minor upgrades:
+1. Diff the release's AWS CredentialsRequests against `fleet-cluster-scaffold` `aws_policies.py`.
+2. Re-apply the crossplane overlay.
+3. Set `cloudcredential.openshift.io/upgradeable-to` on the spoke.
+
+Existing (legacy) clusters are migrated or destroyed by a human. Nothing here changes them.
+
 ### 3.2 Post-provisioning pipeline
 
 Replaces: out-of-band `oc create secret` for IDP, manual SSL setup, no RBAC automation.
