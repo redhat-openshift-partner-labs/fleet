@@ -29,10 +29,7 @@ def test_metadata_task_exposes_platform_and_credentials_mode():
         task = yaml.safe_load(f)
     results = {r["name"] for r in task["spec"]["results"]}
     assert {"platform", "aws-credentials-mode"} <= results
-    script = task["spec"]["steps"][0]["script"]
-    # Clusters scaffolded before metadata keys existed keep the legacy path
-    assert '.["platform"] // "aws"' in script
-    assert '.["aws-credentials-mode"] // "legacy"' in script
+    # Default values are checked by running the script (test_read_cluster_metadata_task.py)
 
 
 def test_metadata_is_read_after_clone():
