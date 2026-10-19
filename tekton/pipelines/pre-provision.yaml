@@ -79,6 +79,20 @@ spec:
         - name: output
           workspace: shared-workspace
 
+    - name: read-cluster-metadata
+      taskRef:
+        name: read-cluster-metadata
+      runAfter:
+        - git-clone
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: create-cluster-namespace
       taskRef:
         name: create-cluster-namespace
@@ -149,11 +163,44 @@ spec:
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
 
+    # Scoped AWS clusters (credentialsMode Manual): per-operator credentials for Hive
+    - name: wait-for-aws-component-credentials
+      taskRef:
+        name: wait-for-aws-component-credentials
+      runAfter:
+        - transform-aws-credentials
+      when:
+        - input: $(tasks.read-cluster-metadata.results.aws-credentials-mode)
+          operator: in
+          values: ["scoped"]
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
+    - name: build-aws-credentials-manifests
+      taskRef:
+        name: build-aws-credentials-manifests
+      runAfter:
+        - wait-for-aws-component-credentials
+      when:
+        - input: $(tasks.read-cluster-metadata.results.aws-credentials-mode)
+          operator: in
+          values: ["scoped"]
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
+    # Skipped (legacy) tasks still satisfy runAfter
     - name: validate-cluster-inputs
       taskRef:
         name: validate-cluster-inputs
       runAfter:
         - transform-aws-credentials
+        - build-aws-credentials-manifests
       params:
         - name: cluster-name
           value: $(params.cluster-name)

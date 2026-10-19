@@ -15,6 +15,10 @@ spec:
       description: Name for the htpasswd identity provider
     - name: openshift-ai-version
       description: OpenShift AI version (v2 or v3)
+    - name: platform
+      description: Cloud platform (aws or azure)
+    - name: aws-credentials-mode
+      description: AWS credential workflow (scoped or legacy)
   steps:
     - name: read-metadata
       image: $(params.pipeline-image)
@@ -28,3 +32,7 @@ spec:
           | tee "$(results.htpasswd-provider-name.path)"
         echo "$META" | jq -r '.["openshift-ai-version"] // "v3"' \
           | tee "$(results.openshift-ai-version.path)"
+        echo "$META" | jq -r '.["platform"] // "aws"' \
+          | tee "$(results.platform.path)"
+        echo "$META" | jq -r '.["aws-credentials-mode"] // "legacy"' \
+          | tee "$(results.aws-credentials-mode.path)"
