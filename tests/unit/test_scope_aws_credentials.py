@@ -65,6 +65,37 @@ def _ok():
     return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
 
 
+def _observed(bound=True, synced_message=""):
+    """oc get <targets> -o json: what the provider last read back from AWS."""
+    tag = INFRA if bound else INFRA_ID_PLACEHOLDER
+    items = []
+    for target in TARGETS:
+        kind, name = target.split("/", 1)
+        doc = json.dumps({"tag": f"kubernetes.io/cluster/{tag}"})
+        at_provider = (
+            {"inlinePolicy": [{"name": "p", "policy": doc}]}
+            if kind == "role.iam"
+            else {"policy": doc}
+        )
+        items.append(
+            {
+                "kind": "Role" if kind == "role.iam" else "Policy",
+                "metadata": {"name": name},
+                "status": {
+                    "atProvider": at_provider,
+                    "conditions": [
+                        {
+                            "type": "Synced",
+                            "status": "False" if synced_message else "True",
+                            "message": synced_message,
+                        }
+                    ],
+                },
+            }
+        )
+    return _cp({"kind": "List", "items": items})
+
+
 def _ec2(vpcs):
     client = mock.Mock()
     client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": v} for v in vpcs]}
@@ -89,9 +120,17 @@ def test_substitutes_infra_id_and_vpc(mock_run, mock_boto3):
     gets_and_patches = []
     for _ in TARGETS:
         gets_and_patches += [_iam_resource(), _ok()]
-    mock_run.side_effect = [_cluster_deployment(), _creds_secret(), *gets_and_patches]
+    mock_run.side_effect = [
+        _cluster_deployment(),
+        _creds_secret(),
+        *gets_and_patches,
+        _observed(),
+    ]
     with _argv():
         main()
+    assert mock_run.call_args_list[-1] == mock.call(
+        ["oc", "get", *TARGETS, "-o", "json"], capture_output=True, text=True
+    )
 
     mock_boto3.client.assert_called_once_with(
         "ec2",
@@ -122,6 +161,7 @@ def test_idempotent_and_credentials_never_on_argv_or_logged(
         _cluster_deployment(),
         _creds_secret(),
         *[_iam_resource(with_placeholders=False) for _ in TARGETS],
+        _observed(),
     ]
     with _argv():
         main()
@@ -185,3 +225,64 @@ def test_patch_failure_exits(mock_run, mock_boto3):
     with _argv():
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+def _bound_run(*verify_results):
+    """Side effects: facts, creds, already-bound resources (no patches), then verify reads."""
+    return [
+        _cluster_deployment(),
+        _creds_secret(),
+        *[_iam_resource(with_placeholders=False) for _ in TARGETS],
+        *verify_results,
+    ]
+
+
+@mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
+@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
+def test_waits_until_aws_reflects_bound_policies(mock_run, mock_boto3, mock_sleep):
+    mock_boto3.client.return_value = _ec2([VPC])
+    mock_run.side_effect = _bound_run(_observed(bound=False), _observed())
+    with _argv():
+        main()
+    mock_sleep.assert_called_once_with(10)
+
+
+@mock.patch("fleet.tasks.scope_aws_credentials.error")
+@mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
+@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
+def test_timeout_reports_synced_message(mock_run, mock_boto3, mock_sleep, mock_error):
+    """Missing hub permissions (e.g. CreatePolicyVersion) fail here, not silently."""
+    denied = "AccessDenied: not authorized to perform: iam:CreatePolicyVersion"
+    mock_boto3.client.return_value = _ec2([VPC])
+    pending = _observed(bound=False, synced_message=denied)
+    mock_run.side_effect = _bound_run(pending, pending)
+    with mock.patch(
+        "sys.argv", ["prog", "--cluster-name", "c1", "--timeout-seconds", "10"]
+    ):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    messages = "\n".join(str(c.args[0]) for c in mock_error.call_args_list)
+    assert "policy.iam/c1-machine-api-policy" in messages
+    assert denied in messages
+
+
+@mock.patch("fleet.tasks.scope_aws_credentials.error")
+@mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
+@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
+def test_verification_query_failure_times_out(
+    mock_run, mock_boto3, mock_sleep, mock_error
+):
+    mock_boto3.client.return_value = _ec2([VPC])
+    failed = _cp({}, returncode=1)
+    mock_run.side_effect = _bound_run(failed, failed)
+    with mock.patch(
+        "sys.argv", ["prog", "--cluster-name", "c1", "--timeout-seconds", "10"]
+    ):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert "oc get failed" in " ".join(
+        str(c.args[0]) for c in mock_error.call_args_list
+    )
