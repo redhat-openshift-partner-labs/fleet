@@ -28,11 +28,13 @@ spec:
         set -euo pipefail
         DIR="$(workspaces.source.path)/provision/$(params.cluster-name)"
         META=$(fleet-read-cluster-metadata --cluster-dir "$DIR")
-        echo "$META" | jq -r '.["htpasswd-provider-name"] // "htpasswd"' \
-          | tee "$(results.htpasswd-provider-name.path)"
-        echo "$META" | jq -r '.["openshift-ai-version"] // "v3"' \
-          | tee "$(results.openshift-ai-version.path)"
-        echo "$META" | jq -r '.["platform"] // "aws"' \
-          | tee "$(results.platform.path)"
-        echo "$META" | jq -r '.["aws-credentials-mode"] // "legacy"' \
-          | tee "$(results.aws-credentials-mode.path)"
+        # Tekton keeps result files verbatim and `when` compares exactly:
+        # write values without jq's trailing newline.
+        result() {
+          printf '%s' "$(echo "$META" | jq -r "$2")" | tee "$1"
+          echo
+        }
+        result "$(results.htpasswd-provider-name.path)" '.["htpasswd-provider-name"] // "htpasswd"'
+        result "$(results.openshift-ai-version.path)" '.["openshift-ai-version"] // "v3"'
+        result "$(results.platform.path)" '.["platform"] // "aws"'
+        result "$(results.aws-credentials-mode.path)" '.["aws-credentials-mode"] // "legacy"'
