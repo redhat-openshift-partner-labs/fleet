@@ -7,6 +7,11 @@ in the cluster namespace; the pipeline turns them into Secrets in <namespace>/<s
 
 from typing import NamedTuple
 
+# Literal placeholders in scaffold-rendered policies (aws_policies.py); they match nothing until
+# scope-aws-credentials substitutes the installed cluster's infra ID and VPC ID.
+INFRA_ID_PLACEHOLDER = "INFRA_ID_PLACEHOLDER"
+VPC_ID_PLACEHOLDER = "VPC_ID_PLACEHOLDER"
+
 
 class Component(NamedTuple):
     key: str
