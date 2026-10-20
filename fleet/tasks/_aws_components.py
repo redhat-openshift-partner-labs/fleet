@@ -5,12 +5,25 @@ component's Crossplane AccessKey writes Secret <cluster>-<key>-credentials-raw (
 in the cluster namespace; the pipeline turns them into Secrets in <namespace>/<secret> on the spoke.
 """
 
+import subprocess
 from typing import NamedTuple
+
+from fleet.tasks._log import warn
 
 # Literal placeholders in scaffold-rendered policies (aws_policies.py); they match nothing until
 # scope-aws-credentials substitutes the installed cluster's infra ID and VPC ID.
 INFRA_ID_PLACEHOLDER = "INFRA_ID_PLACEHOLDER"
 VPC_ID_PLACEHOLDER = "VPC_ID_PLACEHOLDER"
+
+# Ownership label the scaffold puts on every overlay resource (value: cluster name)
+CLUSTER_LABEL = "openshiftpartnerlabs.com/cluster"
+
+# Deletion order: attachments and keys before the policies and users they reference
+_IAM_KINDS = ("userpolicyattachment", "accesskey", "policy", "user", "role")
+_IAM_RESOURCES = ",".join(
+    f"{r}.iam.aws.upbound.io"
+    for r in ("userpolicyattachments", "accesskeys", "policies", "users", "roles")
+)
 
 
 class Component(NamedTuple):
@@ -67,3 +80,29 @@ def iam_targets(cluster: str) -> list[str]:
         f"role.iam/{cluster}-master-role",
         f"role.iam/{cluster}-worker-role",
     ]
+
+
+def labelled_iam_targets(cluster: str) -> list[str]:
+    """TYPE/NAME (kind.iam/name) of every IAM resource carrying the cluster's ownership label.
+
+    Returns [] if oc fails; callers union this with iam_targets, so known names still apply.
+    """
+    result = subprocess.run(
+        ["oc", "get", _IAM_RESOURCES, "-l", f"{CLUSTER_LABEL}={cluster}", "-o", "name"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        warn(f"Label lookup failed, using known names only: {result.stderr.strip()}")
+        return []
+    # oc prints kind.iam.aws.upbound.io/name; iam_targets uses kind.iam/name
+    return [
+        f"{ref.split('.', 1)[0]}.iam/{ref.split('/', 1)[1]}"
+        for ref in result.stdout.split()
+    ]
+
+
+def all_iam_targets(cluster: str) -> list[str]:
+    """iam_targets plus any labelled extras, de-duplicated, in deletion order."""
+    targets = list(dict.fromkeys(iam_targets(cluster) + labelled_iam_targets(cluster)))
+    return sorted(targets, key=lambda t: _IAM_KINDS.index(t.split(".", 1)[0]))
