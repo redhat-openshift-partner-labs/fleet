@@ -113,7 +113,7 @@ def test_policy_targets_cover_operator_policies_and_node_roles():
     ]
 
 
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_substitutes_infra_id_and_vpc(mock_run, mock_boto3):
     mock_boto3.client.return_value = _ec2([VPC])
@@ -151,7 +151,7 @@ def test_substitutes_infra_id_and_vpc(mock_run, mock_boto3):
 
 
 @mock.patch("fleet.tasks.scope_aws_credentials.info")
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_idempotent_and_credentials_never_on_argv_or_logged(
     mock_run, mock_boto3, mock_info
@@ -189,7 +189,7 @@ def test_cluster_deployment_read_failure_exits(mock_run):
 
 
 @pytest.mark.parametrize("vpcs", [[], [VPC, "vpc-other"]])
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_requires_exactly_one_cluster_vpc(mock_run, mock_boto3, vpcs):
     mock_boto3.client.return_value = _ec2(vpcs)
@@ -199,7 +199,7 @@ def test_requires_exactly_one_cluster_vpc(mock_run, mock_boto3, vpcs):
             main()
 
 
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_aws_api_error_exits(mock_run, mock_boto3):
     mock_boto3.client.return_value.describe_vpcs.side_effect = ClientError(
@@ -212,7 +212,7 @@ def test_aws_api_error_exits(mock_run, mock_boto3):
             main()
 
 
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_patch_failure_exits(mock_run, mock_boto3):
     mock_boto3.client.return_value = _ec2([VPC])
@@ -238,7 +238,7 @@ def _bound_run(*verify_results):
 
 
 @mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_waits_until_aws_reflects_bound_policies(mock_run, mock_boto3, mock_sleep):
     mock_boto3.client.return_value = _ec2([VPC])
@@ -250,7 +250,7 @@ def test_waits_until_aws_reflects_bound_policies(mock_run, mock_boto3, mock_slee
 
 @mock.patch("fleet.tasks.scope_aws_credentials.error")
 @mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_timeout_reports_synced_message(mock_run, mock_boto3, mock_sleep, mock_error):
     """Missing hub permissions (e.g. CreatePolicyVersion) fail here, not silently."""
@@ -270,7 +270,7 @@ def test_timeout_reports_synced_message(mock_run, mock_boto3, mock_sleep, mock_e
 
 @mock.patch("fleet.tasks.scope_aws_credentials.error")
 @mock.patch("fleet.tasks.scope_aws_credentials.time.sleep")
-@mock.patch("fleet.tasks.scope_aws_credentials.boto3")
+@mock.patch("fleet.tasks._aws_binding.boto3")
 @mock.patch("fleet.tasks.scope_aws_credentials.subprocess.run")
 def test_verification_query_failure_times_out(
     mock_run, mock_boto3, mock_sleep, mock_error

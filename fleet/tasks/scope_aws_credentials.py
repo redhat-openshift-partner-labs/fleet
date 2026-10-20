@@ -13,16 +13,21 @@ leaving the cluster fail-closed. Idempotent. Exits 1 on any failure.
 """
 
 import argparse
-import base64
 import binascii
 import json
 import subprocess
 import sys
 import time
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+from fleet.tasks._aws_binding import (
+    aws_credentials,
+    bind,
+    cluster_facts,
+    cluster_vpc,
+    oc_json,
+)
 from fleet.tasks._aws_components import (
     COMPONENTS,
     INFRA_ID_PLACEHOLDER,
@@ -39,56 +44,11 @@ def policy_targets(cluster: str) -> list[str]:
     ]
 
 
-def _oc_json(*args: str) -> dict:
-    result = subprocess.run(
-        ["oc", "get", *args, "-o", "json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(result.stdout)
-
-
-def _cluster_facts(cluster: str) -> tuple[str, str, str]:
-    """(infraID, region, credentials secret name) from the ClusterDeployment."""
-    spec = _oc_json("clusterdeployment", cluster, "-n", cluster)["spec"]
-    infra_id = (spec.get("clusterMetadata") or {}).get("infraID", "")
-    if not infra_id:
-        raise ValueError(f"ClusterDeployment {cluster} has no infraID (not installed?)")
-    aws = spec["platform"]["aws"]
-    return infra_id, aws["region"], aws["credentialsSecretRef"]["name"]
-
-
-def _aws_credentials(cluster: str, secret: str) -> tuple[str, str]:
-    data = _oc_json("secret", secret, "-n", cluster)["data"]
-    return (
-        base64.b64decode(data["aws_access_key_id"]).decode(),
-        base64.b64decode(data["aws_secret_access_key"]).decode(),
-    )
-
-
-def _cluster_vpc(region: str, key_id: str, secret: str, infra_id: str) -> str:
-    ec2 = boto3.client(
-        "ec2",
-        region_name=region,
-        aws_access_key_id=key_id,
-        aws_secret_access_key=secret,
-    )
-    vpcs = ec2.describe_vpcs(
-        Filters=[{"Name": f"tag:kubernetes.io/cluster/{infra_id}", "Values": ["owned"]}]
-    )["Vpcs"]
-    if len(vpcs) != 1:
-        raise ValueError(f"Expected 1 VPC owned by {infra_id}, found {len(vpcs)}")
-    return vpcs[0]["VpcId"]
-
-
 def _substitute(target: str, infra_id: str, vpc_id: str) -> bool:
     """Replace placeholders in spec.forProvider; return True if the resource was patched."""
-    for_provider = _oc_json(target)["spec"]["forProvider"]
+    for_provider = oc_json(target)["spec"]["forProvider"]
     raw = json.dumps(for_provider)
-    bound = raw.replace(INFRA_ID_PLACEHOLDER, infra_id).replace(
-        VPC_ID_PLACEHOLDER, vpc_id
-    )
+    bound = bind(raw, infra_id, vpc_id)
     if bound == raw:
         return False
     patch = json.dumps({"spec": {"forProvider": json.loads(bound)}})
@@ -143,10 +103,10 @@ def main() -> None:
     info(f"  cluster-name={cluster}")
 
     try:
-        infra_id, region, creds_secret = _cluster_facts(cluster)
+        infra_id, region, creds_secret = cluster_facts(cluster)
         info(f"  infraID={infra_id} region={region}")
-        key_id, secret = _aws_credentials(cluster, creds_secret)
-        vpc_id = _cluster_vpc(region, key_id, secret, infra_id)
+        key_id, secret = aws_credentials(cluster, creds_secret)
+        vpc_id = cluster_vpc(region, key_id, secret, infra_id)
         info(f"  vpc={vpc_id}")
 
         patched = 0
