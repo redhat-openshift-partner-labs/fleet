@@ -1,10 +1,16 @@
 """Clean up hub-side artifacts after cluster deprovision.
 
-CLI: fleet-cleanup-hub-artifacts --cluster-name NAME
+CLI: fleet-cleanup-hub-artifacts --cluster-name NAME [--iam-timeout-seconds 600] [--orphan-stuck-iam]
 Deletes certificate CRs, ClusterIssuer, Crossplane IAM resources, then namespace.
 IAM resources cover both legacy (installer user only) and scoped AWS clusters (per-operator
 users and BYO node roles); missing ones are ignored. Deletes and polls use one oc call each.
-Non-critical deletions are best-effort. Exits 1 if namespace deletion fails.
+Non-critical deletions are best-effort.
+
+IAM resources still present at the timeout are reported with their AWS names and conditions,
+and the task exits 1 before deleting the namespace: removing their finalizers would leave live
+IAM users and access keys (some were on the spoke) in AWS. --orphan-stuck-iam removes the
+finalizers anyway, for when the provider can never reach AWS; the AWS names it logs must then
+be deleted by hand. Exits 1 if namespace deletion fails.
 """
 
 import argparse
@@ -16,8 +22,9 @@ import time
 from fleet.tasks._aws_components import iam_targets
 from fleet.tasks._log import configure, error, info, warn
 
-_POLL_INTERVAL = 2
-_POLL_TIMEOUT = 60
+_POLL_INTERVAL = 10
+_POLL_TIMEOUT = 600
+_EXTERNAL_NAME = "crossplane.io/external-name"
 
 
 def _delete_iam_no_wait(targets: list[str]) -> None:
@@ -51,6 +58,32 @@ def _wait_iam_deleted(targets: list[str], timeout: int = _POLL_TIMEOUT) -> list[
     return remaining
 
 
+def _describe_stuck(remaining: list[str]) -> None:
+    """Log each stuck resource's AWS name and conditions, for diagnosis or manual cleanup."""
+    result = subprocess.run(
+        ["oc", "get", *remaining, "-o", "json"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        warn(f"Could not read stuck resources: {result.stderr.strip()}")
+        for name in remaining:
+            warn(f"  {name}")
+        return
+    doc = json.loads(result.stdout)
+    for item in doc["items"] if doc.get("kind") == "List" else [doc]:
+        meta = item["metadata"]
+        external = meta.get("annotations", {}).get(_EXTERNAL_NAME, "unknown")
+        conditions = {
+            c["type"]: c.get("message") or c.get("reason", "")
+            for c in item.get("status", {}).get("conditions", [])
+        }
+        warn(
+            f"  {item['kind']}/{meta['name']} (AWS name: {external}): "
+            f"Synced={conditions.get('Synced', '')!r} Ready={conditions.get('Ready', '')!r}"
+        )
+
+
 def _force_remove_finalizers(remaining: list[str]) -> None:
     patch_payload = json.dumps({"metadata": {"finalizers": None}})
     for name in remaining:
@@ -69,6 +102,8 @@ def _force_remove_finalizers(remaining: list[str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
+    parser.add_argument("--iam-timeout-seconds", type=int, default=_POLL_TIMEOUT)
+    parser.add_argument("--orphan-stuck-iam", action="store_true")
     args = parser.parse_args()
 
     cluster = args.cluster_name
@@ -131,9 +166,21 @@ def main() -> None:
     _delete_iam_no_wait(targets)
 
     info("Waiting for IAM resources to be fully deleted...")
-    remaining = _wait_iam_deleted(targets)
+    remaining = _wait_iam_deleted(targets, args.iam_timeout_seconds)
     if remaining:
-        warn("Some IAM resources still exist, removing Crossplane finalizers...")
+        warn("Stuck IAM resources:")
+        _describe_stuck(remaining)
+        if not args.orphan_stuck_iam:
+            error(
+                f"{len(remaining)} IAM resource(s) not deleted; namespace {cluster} kept. "
+                "Fix the cause above (e.g. the hub Crossplane identity's AWS access) and re-run, "
+                "or re-run with orphan-stuck-iam=true and delete the AWS names above by hand."
+            )
+            sys.exit(1)
+        warn(
+            "orphan-stuck-iam set: removing Crossplane finalizers. "
+            "The AWS resources above are NOT deleted; delete them by hand."
+        )
         _force_remove_finalizers(remaining)
 
     info(f"Deleting namespace {cluster}...")
