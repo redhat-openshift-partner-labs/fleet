@@ -24,14 +24,48 @@ def oc_json(*args: str) -> dict:
     return json.loads(result.stdout)
 
 
+def _infra_id(spec: dict) -> str:
+    return (spec.get("clusterMetadata") or {}).get("infraID", "")
+
+
+def _facts(spec: dict) -> tuple[str, str, str]:
+    aws = spec["platform"]["aws"]
+    return _infra_id(spec), aws["region"], aws["credentialsSecretRef"]["name"]
+
+
 def cluster_facts(cluster: str) -> tuple[str, str, str]:
     """(infraID, region, credentials secret name) from the ClusterDeployment."""
     spec = oc_json("clusterdeployment", cluster, "-n", cluster)["spec"]
-    infra_id = (spec.get("clusterMetadata") or {}).get("infraID", "")
-    if not infra_id:
+    if not _infra_id(spec):
         raise ValueError(f"ClusterDeployment {cluster} has no infraID (not installed?)")
-    aws = spec["platform"]["aws"]
-    return infra_id, aws["region"], aws["credentialsSecretRef"]["name"]
+    return _facts(spec)
+
+
+def installed_cluster_facts(cluster: str) -> tuple[str, str, str] | None:
+    """cluster_facts, or None if the ClusterDeployment is absent or not installed yet.
+
+    Raises CalledProcessError if oc fails: an API error proves nothing about install state.
+    """
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "clusterdeployment",
+            cluster,
+            "-n",
+            cluster,
+            "--ignore-not-found",
+            "-o",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    if not result.stdout.strip():
+        return None
+    spec = json.loads(result.stdout)["spec"]
+    return _facts(spec) if _infra_id(spec) else None
 
 
 def aws_credentials(cluster: str, secret: str) -> tuple[str, str]:
