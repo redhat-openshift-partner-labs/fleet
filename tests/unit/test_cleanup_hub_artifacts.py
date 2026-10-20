@@ -31,6 +31,7 @@ def _make_side_effects(
     pre_delete_results=None,
     iam_delete_result=None,
     poll_rounds=None,
+    describe_result=None,
     finalizer_results=None,
     namespace_result=None,
 ):
@@ -41,6 +42,8 @@ def _make_side_effects(
         iam_delete_result: 1 result for the bulk IAM --wait=false delete.
         poll_rounds: one result per polling round (bulk ``oc get``); empty
             stdout = all gone.
+        describe_result: 1 result for ``oc get -o json`` of stuck resources
+            (only consumed on timeout).
         finalizer_results: one result per remaining resource patched.
         namespace_result: 1 result for namespace delete.
     """
@@ -48,6 +51,8 @@ def _make_side_effects(
     effects.extend(pre_delete_results or [_run([])] * 3)
     effects.append(iam_delete_result or _run([]))
     effects.extend(poll_rounds or [_run([])])
+    if describe_result is not None:
+        effects.append(describe_result)
     effects.extend(finalizer_results or [])
     effects.append(namespace_result or _run([]))
     return effects
@@ -278,30 +283,97 @@ def test_iam_resources_deleted_after_retry(mock_run, mock_sleep):
     )
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    mock_sleep.assert_called_once_with(2)
+    mock_sleep.assert_called_once_with(10)
     assert mock_run.call_count == 7
 
 
 # ---------------------------------------------------------------------------
-# Timeout triggers finalizer removal only for remaining resources
+# Timeout: fail visibly by default; orphan only when explicitly asked
 # ---------------------------------------------------------------------------
+
+STUCK = (
+    "user.iam.aws.upbound.io/test-cluster-ingress",
+    "accesskey.iam.aws.upbound.io/test-cluster-ingress-access-key",
+)
+SHORT = ["--iam-timeout-seconds", "20"]  # 2 poll rounds at the 10s interval
+
+
+def _argv(*extra):
+    return mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster", *extra])
+
+
+def _described(*names):
+    """oc get <stuck> -o json: external names and conditions for the operator."""
+    items = [
+        {
+            "kind": n.split(".", 1)[0].capitalize(),
+            "metadata": {
+                "name": n.split("/", 1)[1],
+                "annotations": {"crossplane.io/external-name": f"aws-{i}"},
+            },
+            "status": {
+                "conditions": [
+                    {"type": "Synced", "status": "False", "message": "AccessDenied"},
+                    {"type": "Ready", "status": "False", "reason": "Deleting"},
+                ]
+            },
+        }
+        for i, n in enumerate(names)
+    ]
+    return subprocess.CompletedProcess(
+        [], returncode=0, stdout=json.dumps({"kind": "List", "items": items}), stderr=""
+    )
+
+
+def _calls(mock_run, verb):
+    return [c for c in mock_run.call_args_list if c[0][0][1] == verb]
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_iam_timeout_patches_only_remaining(mock_run, mock_sleep):
-    remaining = (
-        "user.iam.aws.upbound.io/test-cluster-ingress",
-        "role.iam.aws.upbound.io/test-cluster-master-role",
-    )
+def test_default_timeout_is_ten_minutes(mock_run, mock_sleep):
     mock_run.side_effect = _make_side_effects(
-        poll_rounds=[_remaining(*remaining)] * 30,
+        poll_rounds=[_remaining(*STUCK)] * 60, describe_result=_described(*STUCK)
+    )
+    with _argv(), pytest.raises(SystemExit, match="1"):
+        main()
+    polls = [c for c in _calls(mock_run, "get") if "name" in c[0][0]]
+    assert len(polls) == 60
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.warn")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.error")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_timeout_fails_and_keeps_namespace(mock_run, mock_sleep, mock_error, mock_warn):
+    """Stuck IAM must not be orphaned silently: fail, keep the evidence."""
+    mock_run.side_effect = _make_side_effects(
+        poll_rounds=[_remaining(*STUCK)] * 2, describe_result=_described(*STUCK)
+    )
+    with _argv(*SHORT), pytest.raises(SystemExit, match="1"):
+        main()
+    assert not _calls(mock_run, "patch")
+    assert not any("namespace" in c[0][0] for c in mock_run.call_args_list)
+    mock_run.assert_any_call(
+        ["oc", "get", *STUCK, "-o", "json"], capture_output=True, text=True
+    )
+    warned = " ".join(str(c) for c in mock_warn.call_args_list)
+    assert "aws-0" in warned and "aws-1" in warned and "AccessDenied" in warned
+    assert "orphan-stuck-iam" in " ".join(str(c) for c in mock_error.call_args_list)
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_orphan_flag_patches_only_remaining(mock_run, mock_sleep):
+    mock_run.side_effect = _make_side_effects(
+        poll_rounds=[_remaining(*STUCK)] * 2,
+        describe_result=_described(*STUCK),
         finalizer_results=[_run([])] * 2,
     )
-    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+    with _argv(*SHORT, "--orphan-stuck-iam"):
         main()
-    assert mock_run.call_count == 3 + 1 + 30 + 2 + 1
-    for name in remaining:
+    assert mock_run.call_count == 3 + 1 + 2 + 1 + 2 + 1
+    for name in STUCK:
         mock_run.assert_any_call(
             ["oc", "patch", name, "--type=merge", f"-p={PATCH_PAYLOAD}"],
             capture_output=True,
@@ -309,18 +381,39 @@ def test_iam_timeout_patches_only_remaining(mock_run, mock_sleep):
         )
 
 
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.warn")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_iam_poll_errors_patch_all_targets(mock_run, mock_sleep):
+def test_orphan_flag_with_poll_errors_patches_all_targets(
+    mock_run, mock_sleep, mock_warn
+):
     """If oc get keeps failing, nothing is known to be gone: patch every target."""
     mock_run.side_effect = _make_side_effects(
-        poll_rounds=[_run_fail([])] * 30,
+        poll_rounds=[_run_fail([])] * 2,
+        describe_result=_run_fail([]),
         finalizer_results=[_run([])] * len(TARGETS),
     )
-    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+    with _argv(*SHORT, "--orphan-stuck-iam"):
         main()
-    patch_calls = [c for c in mock_run.call_args_list if c[0][0][1] == "patch"]
-    assert [c[0][0][2] for c in patch_calls] == TARGETS
+    assert [c[0][0][2] for c in _calls(mock_run, "patch")] == TARGETS
+    warned = " ".join(str(c) for c in mock_warn.call_args_list)
+    assert TARGETS[0] in warned
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_single_stuck_resource_description(mock_run, mock_sleep):
+    """oc get of one object returns the object itself, not a List."""
+    one = _described(STUCK[0])
+    one.stdout = json.dumps(json.loads(one.stdout)["items"][0])
+    mock_run.side_effect = _make_side_effects(
+        poll_rounds=[_remaining(STUCK[0])] * 2,
+        describe_result=one,
+        finalizer_results=[_run([])],
+    )
+    with _argv(*SHORT, "--orphan-stuck-iam"):
+        main()
+    assert len(_calls(mock_run, "patch")) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -332,13 +425,14 @@ def test_iam_poll_errors_patch_all_targets(mock_run, mock_sleep):
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
 def test_finalizer_patch_failure_non_fatal(mock_run, mock_sleep):
     mock_run.side_effect = _make_side_effects(
-        poll_rounds=[_remaining("user.iam.aws.upbound.io/test-cluster-cncc")] * 30,
+        poll_rounds=[_remaining(STUCK[0])] * 2,
+        describe_result=_described(STUCK[0]),
         finalizer_results=[_run_fail([])],
         namespace_result=_run([]),
     )
-    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+    with _argv(*SHORT, "--orphan-stuck-iam"):
         main()
-    assert mock_run.call_count == 3 + 1 + 30 + 1 + 1
+    assert mock_run.call_count == 3 + 1 + 2 + 1 + 1 + 1
 
 
 # ---------------------------------------------------------------------------

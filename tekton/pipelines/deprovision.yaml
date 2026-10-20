@@ -9,6 +9,9 @@ spec:
     - name: pipeline-image
       type: string
       default: quay.io/rhopl/fleet-pipeline:latest
+    - name: orphan-stuck-iam
+      type: string
+      default: "false"
 
   tasks:
     - name: load-config
@@ -51,6 +54,8 @@ spec:
           value: $(params.cluster-name)
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
+        - name: orphan-stuck-iam
+          value: $(params.orphan-stuck-iam)
 
     - name: verify-deprovision
       taskRef:

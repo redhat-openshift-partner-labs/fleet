@@ -9,6 +9,12 @@ spec:
       type: string
     - name: pipeline-image
       type: string
+    - name: orphan-stuck-iam
+      type: string
+      default: "false"
+      description: >-
+        "true" removes Crossplane finalizers from IAM resources still present after the
+        timeout, leaving them in AWS for manual deletion. Default fails the task instead.
   steps:
     - name: cleanup
       image: $(params.pipeline-image)
@@ -16,4 +22,8 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        fleet-cleanup-hub-artifacts --cluster-name "$(params.cluster-name)"
+        EXTRA_ARGS=()
+        if [[ "$(params.orphan-stuck-iam)" == "true" ]]; then
+          EXTRA_ARGS+=(--orphan-stuck-iam)
+        fi
+        fleet-cleanup-hub-artifacts --cluster-name "$(params.cluster-name)" "${EXTRA_ARGS[@]}"
