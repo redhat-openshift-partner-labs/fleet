@@ -535,6 +535,7 @@ sequenceDiagram
     rect rgb(230, 247, 237)
         Note over Pipe,K8s: Task 4: verify-deprovision
         Pipe->>K8s: oc get all,secrets -n NAME<br/>(expect: NotFound)
+        Pipe->>K8s: oc get cluster IAM resources, by name and label<br/>(expect: none)
     end
 
     rect rgb(200, 200, 200)

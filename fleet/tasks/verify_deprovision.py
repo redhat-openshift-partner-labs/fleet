@@ -1,14 +1,16 @@
 """Verify that deprovision completed cleanly.
 
 CLI: fleet-verify-deprovision --cluster-name NAME
-Checks that namespace, ManagedCluster, and ClusterDeployment are all gone.
-Exits 1 if any resources remain.
+Checks that namespace, ManagedCluster, ClusterDeployment, and the cluster's Crossplane IAM
+resources (known names plus anything with the ownership label) are all gone.
+Exits 1 if any resources remain or the IAM check cannot run.
 """
 
 import argparse
 import subprocess
 import sys
 
+from fleet.tasks._aws_components import all_iam_targets
 from fleet.tasks._log import configure, info, warn
 
 
@@ -31,6 +33,19 @@ def _check_gone(resource_type: str, name: str, namespace: str | None = None) -> 
         return False
     info(f"  {resource_type}/{name} in ns {namespace or 'cluster'}: gone")
     return True
+
+
+def _iam_remaining(cluster: str) -> list[str] | None:
+    """IAM resources still present, or None if oc failed (nothing proven gone)."""
+    result = subprocess.run(
+        ["oc", "get", *all_iam_targets(cluster), "--ignore-not-found", "-o", "name"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        warn(f"  Could not check IAM resources: {result.stderr.strip()}")
+        return None
+    return result.stdout.split()
 
 
 def main() -> None:
@@ -59,6 +74,17 @@ def main() -> None:
     info("ClusterDeployment:")
     if not _check_gone("clusterdeployment", cluster, cluster):
         errors += 1
+
+    info("Crossplane IAM resources:")
+    remaining = _iam_remaining(cluster)
+    if remaining is None:
+        errors += 1
+    elif remaining:
+        for name in remaining:
+            warn(f"  {name}: still exists")
+        errors += len(remaining)
+    else:
+        info("  all gone")
 
     if errors > 0:
         warn(f"{errors} resources still present. Manual cleanup may be needed.")
