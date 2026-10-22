@@ -31,3 +31,6 @@ docs/plans
 .mcp.json
 .lola
 THREAT_MODEL.md
+
+.codex/
+opencode.json
