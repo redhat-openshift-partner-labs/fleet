@@ -32,10 +32,21 @@ def test_metadata_task_exposes_platform_and_credentials_mode():
     # Default values are checked by running the script (test_read_cluster_metadata_task.py)
 
 
-def test_metadata_is_read_after_clone():
-    task = _load_tasks_by_name()["read-cluster-metadata"]
+def test_prefix_collision_gate_runs_after_clone():
+    task = _load_tasks_by_name()["check-prefix-collision"]
     assert task["runAfter"] == ["git-clone"]
     assert task["workspaces"] == [{"name": "source", "workspace": "shared-workspace"}]
+
+
+def test_metadata_is_read_after_gate():
+    task = _load_tasks_by_name()["read-cluster-metadata"]
+    assert task["runAfter"] == ["check-prefix-collision"]
+    assert task["workspaces"] == [{"name": "source", "workspace": "shared-workspace"}]
+
+
+def test_namespace_created_after_gate():
+    task = _load_tasks_by_name()["create-cluster-namespace"]
+    assert task["runAfter"] == ["check-prefix-collision"]
 
 
 def test_component_credentials_wait_only_for_scoped_clusters():

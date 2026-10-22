@@ -13,9 +13,11 @@ MODULE = "fleet.tasks.check_prefix_collision"
 
 # -- helpers ------------------------------------------------------------------
 
+
 def _oc_json(items):
     return subprocess.CompletedProcess(
-        [], returncode=0,
+        [],
+        returncode=0,
         stdout=json.dumps({"items": items}),
         stderr="",
     )
@@ -23,7 +25,8 @@ def _oc_json(items):
 
 def _oc_empty():
     return subprocess.CompletedProcess(
-        [], returncode=0,
+        [],
+        returncode=0,
         stdout=json.dumps({"items": []}),
         stderr="",
     )
@@ -31,7 +34,10 @@ def _oc_empty():
 
 def _oc_fail():
     return subprocess.CompletedProcess(
-        [], returncode=1, stdout="", stderr="error",
+        [],
+        returncode=1,
+        stdout="",
+        stderr="error",
     )
 
 
@@ -51,21 +57,36 @@ def _make_dirs(tmp_path, provision=(), deprovision=()):
 
 
 def _run_gate(cluster, workspace, mock_run):
-    with mock.patch("sys.argv", [
-        "prog", "--cluster-name", cluster, "--workspace-dir", str(workspace),
-    ]):
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            cluster,
+            "--workspace-dir",
+            str(workspace),
+        ],
+    ):
         main()
 
 
 def _run_gate_fail(cluster, workspace, mock_run):
-    with mock.patch("sys.argv", [
-        "prog", "--cluster-name", cluster, "--workspace-dir", str(workspace),
-    ]):
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            cluster,
+            "--workspace-dir",
+            str(workspace),
+        ],
+    ):
         with pytest.raises(SystemExit, match="1"):
             main()
 
 
 # -- tests --------------------------------------------------------------------
+
 
 @mock.patch(f"{MODULE}.subprocess.run")
 def test_no_collision_passes(mock_run, tmp_path):
