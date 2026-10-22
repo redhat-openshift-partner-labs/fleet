@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: check-prefix-collision
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: check
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-check-prefix-collision \
+          --cluster-name "$(params.cluster-name)" \
+          --workspace-dir "$(workspaces.source.path)"

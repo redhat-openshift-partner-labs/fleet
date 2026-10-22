@@ -79,11 +79,25 @@ spec:
         - name: output
           workspace: shared-workspace
 
+    - name: check-prefix-collision
+      taskRef:
+        name: check-prefix-collision
+      runAfter:
+        - git-clone
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
     - name: read-cluster-metadata
       taskRef:
         name: read-cluster-metadata
       runAfter:
-        - git-clone
+        - check-prefix-collision
       params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -97,7 +111,7 @@ spec:
       taskRef:
         name: create-cluster-namespace
       runAfter:
-        - git-clone
+        - check-prefix-collision
       params:
         - name: cluster-name
           value: $(params.cluster-name)

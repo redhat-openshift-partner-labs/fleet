@@ -40,10 +40,15 @@ def _hub_cluster_names() -> dict[str, str]:
     names: dict[str, str] = {}
     result = subprocess.run(
         [
-            "oc", "get", "clusterdeployments.hive.openshift.io",
-            "--all-namespaces", "-o", "json",
+            "oc",
+            "get",
+            "clusterdeployments.hive.openshift.io",
+            "--all-namespaces",
+            "-o",
+            "json",
         ],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode == 0 and result.stdout.strip():
         for item in json.loads(result.stdout).get("items", []):
@@ -52,10 +57,14 @@ def _hub_cluster_names() -> dict[str, str]:
 
     result = subprocess.run(
         [
-            "oc", "get", "managedclusters.cluster.open-cluster-management.io",
-            "-o", "json",
+            "oc",
+            "get",
+            "managedclusters.cluster.open-cluster-management.io",
+            "-o",
+            "json",
         ],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode == 0 and result.stdout.strip():
         for item in json.loads(result.stdout).get("items", []):
@@ -68,7 +77,8 @@ def _hub_cluster_names() -> dict[str, str]:
 def _crossplane_cluster_names() -> dict[str, str]:
     result = subprocess.run(
         ["oc", "get", _IAM_RESOURCES, "-l", CLUSTER_LABEL, "-o", "json"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0 or not result.stdout.strip():
         return {}
@@ -126,7 +136,9 @@ def main() -> None:
         error(f"  Collisions:")
         for name, source in collisions:
             error(f"    - {name} (source: {source})")
-        error("A cluster with a colliding prefix could access this cluster's AWS resources.")
+        error(
+            "A cluster with a colliding prefix could access this cluster's AWS resources."
+        )
         error("Choose a name that produces a unique 21-character infra prefix.")
         sys.exit(1)
 
