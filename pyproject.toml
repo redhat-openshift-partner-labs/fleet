@@ -22,6 +22,7 @@ pylint = "^4.0"
 bandit = "^1.9"
 
 [tool.poetry.scripts]
+fleet-check-prefix-collision = "fleet.tasks.check_prefix_collision:main"
 fleet-create-namespace = "fleet.tasks.create_namespace:main"
 fleet-create-pull-secret = "fleet.tasks.create_pull_secret:main"
 fleet-create-ssh-key = "fleet.tasks.create_ssh_key:main"
