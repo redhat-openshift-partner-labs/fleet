@@ -33,6 +33,17 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | `openshift-ai-version` | `v3` | `apply-ai-workloads` | OpenShift AI version (`v2` or `v3`); controls prerequisite operator stack |
 | `ai-accelerator` | `nvidia-gpu` | `apply-ai-workloads`, `add-ai-workers` | Hardware profile for `tier=ai` (`none` or `nvidia-gpu`) |
 
+### AI accelerator
+
+`ai-accelerator` selects the hardware profile for `tier=ai`:
+
+| Value | Effect |
+|---|---|
+| `none` | Installs CPU-only OpenShift AI and skips NFD, the NVIDIA GPU Operator, the GPU ClusterPolicy, and the AI worker MachinePool |
+| `nvidia-gpu` | Installs the current GPU-backed OpenShift AI stack and creates the AI worker MachinePool |
+
+The key is ignored for `base` and `virt`.
+
 ## How values flow through the pipeline
 
 Metadata follows the same threading pattern as `tier` — read during provision, forwarded through `trigger-post-provision`, and consumed in post-provision:
@@ -44,10 +55,10 @@ provision pipeline
   │
   ├─ read-cluster-metadata
   │    reads: provision/<cluster-name>/metadata.yaml
-  │    returns: htpasswd-provider-name (result)
+   │    returns: per-cluster metadata values as Tekton results
   │
   └─ trigger-post-provision
-       receives: htpasswd-provider-name from read-cluster-metadata result
+       receives: metadata results from read-cluster-metadata
        embeds it in the PipelineRun YAML for post-provision
             │
             ▼
