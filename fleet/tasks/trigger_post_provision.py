@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--tier", required=True)
     parser.add_argument("--htpasswd-provider-name", default="htpasswd")
     parser.add_argument("--openshift-ai-version", default="v3")
+    parser.add_argument("--ai-accelerator", default="nvidia-gpu")
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -77,6 +78,8 @@ def main() -> None:
               value: {args.htpasswd_provider_name}
             - name: openshift-ai-version
               value: {args.openshift_ai_version}
+            - name: ai-accelerator
+              value: {args.ai_accelerator}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

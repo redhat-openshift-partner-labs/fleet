@@ -202,3 +202,5 @@ spec:
           value: $(tasks.read-cluster-metadata.results.htpasswd-provider-name)
         - name: openshift-ai-version
           value: $(tasks.read-cluster-metadata.results.openshift-ai-version)
+        - name: ai-accelerator
+          value: $(tasks.read-cluster-metadata.results.ai-accelerator)

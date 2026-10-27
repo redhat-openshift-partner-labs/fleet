@@ -16,6 +16,9 @@ spec:
     - name: openshift-ai-version
       type: string
       default: "v3"
+    - name: ai-accelerator
+      type: string
+      default: "nvidia-gpu"
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -27,4 +30,5 @@ spec:
           --cluster-name "$(params.cluster-name)" \
           --tier "$(params.tier)" \
           --htpasswd-provider-name "$(params.htpasswd-provider-name)" \
-          --openshift-ai-version "$(params.openshift-ai-version)"
+          --openshift-ai-version "$(params.openshift-ai-version)" \
+          --ai-accelerator "$(params.ai-accelerator)"
