@@ -91,10 +91,17 @@ The `tier` label on the ManagedCluster determines what software is deployed post
 | Tier | Description |
 |------|-------------|
 | `base` | Core configuration only — OAuth, SSL, RBAC, base workloads |
-| `virt` | Base + OpenShift Virtualization (planned) |
-| `ai` | Base + AI/ML operators and GPU configuration (planned) |
+| `virt` | Base + OpenShift Virtualization |
+| `ai` | Base + OpenShift AI |
 
-Currently only the `base` tier post-provision pipeline is implemented.
+For `tier=ai`, set `ai-accelerator` in `metadata.yaml`:
+
+| `ai-accelerator` | Result |
+|---|---|
+| `none` | CPU-only OpenShift AI; no NFD, NVIDIA GPU Operator, GPU ClusterPolicy, or AI worker MachinePool |
+| `nvidia-gpu` | GPU-backed OpenShift AI; installs NFD, NVIDIA GPU Operator, GPU ClusterPolicy, and an AI worker MachinePool |
+
+`ai-accelerator` defaults to `nvidia-gpu` and is ignored for `base` and `virt`.
 
 ## Post-Provision
 
