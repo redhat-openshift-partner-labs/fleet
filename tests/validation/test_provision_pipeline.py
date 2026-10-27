@@ -8,6 +8,7 @@ PIPELINE_PATH = (
     Path(__file__).resolve().parents[2] / "tekton" / "pipelines" / "provision.yaml"
 )
 MODE_INPUT = "$(tasks.read-cluster-metadata.results.aws-credentials-mode)"
+AI_ACCELERATOR_INPUT = "$(tasks.read-cluster-metadata.results.ai-accelerator)"
 
 
 def _load_tasks_by_name():
@@ -28,6 +29,12 @@ def test_scope_runs_only_for_scoped_clusters_after_install():
 def test_partner_handoff_waits_for_scoping():
     task = _load_tasks_by_name()["trigger-post-provision"]
     assert "scope-aws-credentials" in task["runAfter"]
+
+
+def test_post_provision_receives_ai_accelerator():
+    task = _load_tasks_by_name()["trigger-post-provision"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["ai-accelerator"] == AI_ACCELERATOR_INPUT
 
 
 def test_every_task_param_is_a_name_value_mapping():
