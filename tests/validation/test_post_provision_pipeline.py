@@ -29,6 +29,16 @@ def _accelerator_when_values(task):
     return []
 
 
+def _task_runs_for(task, params):
+    for condition in task.get("when", []):
+        param_name = condition["input"].removeprefix("$(params.").removesuffix(")")
+        if param_name not in params:
+            return False
+        if params[param_name] not in condition["values"]:
+            return False
+    return True
+
+
 def test_apply_base_workloads_runs_for_base_and_virt():
     tasks = _load_tasks_by_name()
     values = _tier_when_values(tasks["apply-base-workloads"])
@@ -71,6 +81,20 @@ def test_add_ai_workers_runs_only_for_ai_with_nvidia_gpu():
     assert _tier_when_values(task) == ["ai"]
     assert _accelerator_when_values(task) == ["nvidia-gpu"]
     assert task.get("runAfter") == ["apply-ai-workloads"]
+
+
+def test_cpu_only_ai_does_not_select_add_ai_workers():
+    tasks = _load_tasks_by_name()
+    params = {"tier": "ai", "ai-accelerator": "none"}
+    assert _task_runs_for(tasks["apply-ai-workloads"], params)
+    assert not _task_runs_for(tasks["add-ai-workers"], params)
+
+
+def test_nvidia_gpu_ai_selects_add_ai_workers():
+    tasks = _load_tasks_by_name()
+    params = {"tier": "ai", "ai-accelerator": "nvidia-gpu"}
+    assert _task_runs_for(tasks["apply-ai-workloads"], params)
+    assert _task_runs_for(tasks["add-ai-workers"], params)
 
 
 def _openshift_when_values(task):
