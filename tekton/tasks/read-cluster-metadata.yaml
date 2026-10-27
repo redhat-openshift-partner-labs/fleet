@@ -15,6 +15,8 @@ spec:
       description: Name for the htpasswd identity provider
     - name: openshift-ai-version
       description: OpenShift AI version (v2 or v3)
+    - name: ai-accelerator
+      description: AI accelerator profile (none or nvidia-gpu)
     - name: platform
       description: Cloud platform (aws or azure)
     - name: aws-credentials-mode
@@ -36,5 +38,6 @@ spec:
         }
         result "$(results.htpasswd-provider-name.path)" '.["htpasswd-provider-name"] // "htpasswd"'
         result "$(results.openshift-ai-version.path)" '.["openshift-ai-version"] // "v3"'
+        result "$(results.ai-accelerator.path)" '.["ai-accelerator"] // "nvidia-gpu"'
         result "$(results.platform.path)" '.["platform"] // "aws"'
         result "$(results.aws-credentials-mode.path)" '.["aws-credentials-mode"] // "legacy"'
