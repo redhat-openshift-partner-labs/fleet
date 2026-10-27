@@ -53,6 +53,7 @@ def test_results_have_no_trailing_newline(tmp_path):
         {
             "htpasswd-provider-name": "Acme Corp",
             "openshift-ai-version": "v2",
+            "ai-accelerator": "none",
             "platform": "aws",
             "aws-credentials-mode": "scoped",
         },
@@ -60,6 +61,7 @@ def test_results_have_no_trailing_newline(tmp_path):
     assert values == {
         "htpasswd-provider-name": b"Acme Corp",
         "openshift-ai-version": b"v2",
+        "ai-accelerator": b"none",
         "platform": b"aws",
         "aws-credentials-mode": b"scoped",
     }
@@ -70,6 +72,7 @@ def test_defaults_when_keys_absent(tmp_path):
     assert values == {
         "htpasswd-provider-name": b"htpasswd",
         "openshift-ai-version": b"v3",
+        "ai-accelerator": b"nvidia-gpu",
         "platform": b"aws",
         "aws-credentials-mode": b"legacy",
     }
