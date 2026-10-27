@@ -2,8 +2,9 @@
 
 CLI: fleet-apply-ai-workloads --cluster-name NAME --source-dir DIR
        --spoke-kubeconfig PATH --openshift-ai-version v2|v3
-Applies common operators (NFD, GPU, Serverless, Authorino) then version-specific
-prerequisites and OpenShift AI. Exits 1 on failure.
+       --ai-accelerator none|nvidia-gpu
+Applies common operators, version-specific prerequisites, and OpenShift AI.
+GPU operators are installed only for nvidia-gpu. Exits 1 on failure.
 """
 
 import argparse
@@ -165,42 +166,49 @@ def wait_for_condition(  # pylint: disable=too-many-arguments,too-many-positiona
     return False
 
 
-def _install_common_operators(source_dir: str, kubeconfig: str) -> bool:
-    info("Phase 1: Installing Node Feature Discovery operator")
-    if not apply_manifest(f"{source_dir}/nfd-subscription.yaml", kubeconfig):
-        return False
-    if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
-        return False
+def _install_common_operators(
+    source_dir: str, kubeconfig: str, accelerator: str
+) -> bool:
+    if accelerator == "nvidia-gpu":
+        info("Phase 1: Installing Node Feature Discovery operator")
+        if not apply_manifest(f"{source_dir}/nfd-subscription.yaml", kubeconfig):
+            return False
+        if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
+            return False
 
-    info("Phase 2: Creating NFD operand")
-    if not apply_manifest(f"{source_dir}/nfd-operand.yaml", kubeconfig):
-        return False
-    if not wait_for_condition(
-        "NodeFeatureDiscovery",
-        "nfd-instance",
-        "openshift-nfd",
-        "Available",
-        kubeconfig,
-    ):
-        return False
+        info("Phase 2: Creating NFD operand")
+        if not apply_manifest(f"{source_dir}/nfd-operand.yaml", kubeconfig):
+            return False
+        if not wait_for_condition(
+            "NodeFeatureDiscovery",
+            "nfd-instance",
+            "openshift-nfd",
+            "Available",
+            kubeconfig,
+        ):
+            return False
 
-    info("Phase 3: Installing NVIDIA GPU operator")
-    if not apply_manifest(f"{source_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
-        return False
-    if not wait_for_csv("nvidia-gpu-operator", "gpu-operator", kubeconfig, timeout=600):
-        return False
+        info("Phase 3: Installing NVIDIA GPU operator")
+        if not apply_manifest(f"{source_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
+            return False
+        if not wait_for_csv(
+            "nvidia-gpu-operator", "gpu-operator", kubeconfig, timeout=600
+        ):
+            return False
 
-    info("Phase 4: Creating GPU ClusterPolicy")
-    if not apply_manifest(f"{source_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
-        return False
-    if not wait_for_condition(
-        "ClusterPolicy",
-        "gpu-cluster-policy",
-        "nvidia-gpu-operator",
-        "Ready",
-        kubeconfig,
-    ):
-        return False
+        info("Phase 4: Creating GPU ClusterPolicy")
+        if not apply_manifest(f"{source_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
+            return False
+        if not wait_for_condition(
+            "ClusterPolicy",
+            "gpu-cluster-policy",
+            "nvidia-gpu-operator",
+            "Ready",
+            kubeconfig,
+        ):
+            return False
+    else:
+        info("Skipping NFD and NVIDIA GPU operators for CPU-only OpenShift AI")
 
     info("Phase 5: Installing OpenShift Serverless operator")
     if not apply_manifest(f"{source_dir}/serverless-subscription.yaml", kubeconfig):
@@ -280,10 +288,14 @@ def main() -> None:
     parser.add_argument("--source-dir", required=True)
     parser.add_argument("--spoke-kubeconfig", required=True)
     parser.add_argument("--openshift-ai-version", default="v3", choices=["v2", "v3"])
+    parser.add_argument(
+        "--ai-accelerator", default="nvidia-gpu", choices=["none", "nvidia-gpu"]
+    )
     args = parser.parse_args()
 
     cluster = args.cluster_name
     version = args.openshift_ai_version
+    accelerator = args.ai_accelerator
     configure("apply-ai-workloads")
 
     info("=== Applying AI workloads to spoke cluster ===")
@@ -292,11 +304,12 @@ def main() -> None:
     info(f"  source-dir={args.source_dir}")
     info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
     info(f"  openshift-ai-version={version}")
+    info(f"  ai-accelerator={accelerator}")
 
     source_dir = args.source_dir
     kubeconfig = args.spoke_kubeconfig
 
-    if not _install_common_operators(source_dir, kubeconfig):
+    if not _install_common_operators(source_dir, kubeconfig, accelerator):
         sys.exit(1)
 
     version_dir = f"{source_dir}/{version}"

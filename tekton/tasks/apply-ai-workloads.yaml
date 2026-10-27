@@ -29,4 +29,5 @@ spec:
           --cluster-name "$(params.cluster-name)" \
           --source-dir "$(workspaces.source.path)/workloads/ai" \
           --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig" \
-          --openshift-ai-version "$(params.openshift-ai-version)"
+          --openshift-ai-version "$(params.openshift-ai-version)" \
+          --ai-accelerator "$(params.ai-accelerator)"
