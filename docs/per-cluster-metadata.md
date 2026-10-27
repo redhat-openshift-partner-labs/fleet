@@ -31,6 +31,7 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 |-----|---------|---------|-------------|
 | `htpasswd-provider-name` | `htpasswd` | `configure-spoke-oauth` | Display name for the htpasswd identity provider in the spoke's OAuth configuration |
 | `openshift-ai-version` | `v3` | `apply-ai-workloads` | OpenShift AI version (`v2` or `v3`); controls prerequisite operator stack |
+| `ai-accelerator` | `nvidia-gpu` | `apply-ai-workloads`, `add-ai-workers` | Hardware profile for `tier=ai` (`none` or `nvidia-gpu`) |
 
 ## How values flow through the pipeline
 

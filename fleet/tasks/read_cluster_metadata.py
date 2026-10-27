@@ -15,6 +15,9 @@ import yaml
 from fleet.tasks._log import configure, error, info
 
 
+SUPPORTED_AI_ACCELERATORS = {"none", "nvidia-gpu"}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-dir", required=True)
@@ -37,6 +40,14 @@ def main() -> None:
 
     with open(metadata_path, encoding="utf-8") as f:
         metadata = yaml.safe_load(f) or {}
+
+    accelerator = metadata.get("ai-accelerator")
+    if accelerator is not None and accelerator not in SUPPORTED_AI_ACCELERATORS:
+        error(
+            "Invalid ai-accelerator value: "
+            f"{accelerator}; expected one of {sorted(SUPPORTED_AI_ACCELERATORS)}"
+        )
+        sys.exit(1)
 
     info(f"  -> loaded {len(metadata)} key(s)")
     print(json.dumps(metadata))
