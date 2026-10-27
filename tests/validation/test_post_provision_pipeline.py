@@ -22,11 +22,19 @@ def _tier_when_values(task):
     return []
 
 
+def _accelerator_when_values(task):
+    for condition in task.get("when", []):
+        if condition["input"] == "$(params.ai-accelerator)":
+            return condition["values"]
+    return []
+
+
 def test_apply_base_workloads_runs_for_base_and_virt():
     tasks = _load_tasks_by_name()
     values = _tier_when_values(tasks["apply-base-workloads"])
     assert "base" in values
     assert "virt" in values
+    assert "ai" in values
 
 
 def test_apply_virt_workloads_runs_only_for_virt_after_base():
@@ -41,6 +49,28 @@ def test_add_baremetal_workers_runs_only_for_virt_after_virt_workloads():
     task = tasks["add-baremetal-workers"]
     assert _tier_when_values(task) == ["virt"]
     assert task.get("runAfter") == ["apply-virt-workloads"]
+
+
+def test_apply_ai_workloads_runs_only_for_ai_after_base():
+    tasks = _load_tasks_by_name()
+    task = tasks["apply-ai-workloads"]
+    assert _tier_when_values(task) == ["ai"]
+    assert task.get("runAfter") == ["apply-base-workloads"]
+
+
+def test_apply_ai_workloads_receives_accelerator():
+    tasks = _load_tasks_by_name()
+    task = tasks["apply-ai-workloads"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["ai-accelerator"] == "$(params.ai-accelerator)"
+
+
+def test_add_ai_workers_runs_only_for_ai_with_nvidia_gpu():
+    tasks = _load_tasks_by_name()
+    task = tasks["add-ai-workers"]
+    assert _tier_when_values(task) == ["ai"]
+    assert _accelerator_when_values(task) == ["nvidia-gpu"]
+    assert task.get("runAfter") == ["apply-ai-workloads"]
 
 
 def _openshift_when_values(task):

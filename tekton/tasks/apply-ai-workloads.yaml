@@ -13,6 +13,9 @@ spec:
     - name: openshift-ai-version
       type: string
       default: "v3"
+    - name: ai-accelerator
+      type: string
+      default: "nvidia-gpu"
   workspaces:
     - name: source
   steps:
