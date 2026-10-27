@@ -305,6 +305,72 @@ def test_main_explicit_v3_success(mock_wait_condition, mock_wait_csv, mock_apply
     assert "/tmp/test/v3/openshift-ai-subscription.yaml" in apply_calls
 
 
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_nvidia_gpu_success_uses_exact_manifest_order(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    mock_apply.return_value = True
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+
+    argv = [*_BASE_ARGV, "--ai-accelerator", "nvidia-gpu"]
+    with mock.patch("sys.argv", argv):
+        main()
+
+    apply_calls = [call.args[0] for call in mock_apply.call_args_list]
+    assert apply_calls == [
+        "/tmp/test/nfd-subscription.yaml",
+        "/tmp/test/nfd-operand.yaml",
+        "/tmp/test/nvidia-gpu-subscription.yaml",
+        "/tmp/test/nvidia-gpu-cluster-policy.yaml",
+        "/tmp/test/serverless-subscription.yaml",
+        "/tmp/test/authorino-subscription.yaml",
+        "/tmp/test/v3/cert-manager-subscription.yaml",
+        "/tmp/test/v3/jobset-subscription.yaml",
+        "/tmp/test/v3/jobset-operand.yaml",
+        "/tmp/test/v3/servicemesh-subscription.yaml",
+        "/tmp/test/v3/openshift-ai-subscription.yaml",
+        "/tmp/test/v3/openshift-ai-operand.yaml",
+    ]
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_cpu_only_success_uses_exact_manifest_order(
+    mock_wait_condition, mock_wait_csv, mock_apply
+):
+    mock_apply.return_value = True
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+
+    argv = [*_BASE_ARGV, "--ai-accelerator", "none"]
+    with mock.patch("sys.argv", argv):
+        main()
+
+    apply_calls = [call.args[0] for call in mock_apply.call_args_list]
+    assert apply_calls == [
+        "/tmp/test/serverless-subscription.yaml",
+        "/tmp/test/authorino-subscription.yaml",
+        "/tmp/test/v3/cert-manager-subscription.yaml",
+        "/tmp/test/v3/jobset-subscription.yaml",
+        "/tmp/test/v3/jobset-operand.yaml",
+        "/tmp/test/v3/servicemesh-subscription.yaml",
+        "/tmp/test/v3/openshift-ai-subscription.yaml",
+        "/tmp/test/v3/openshift-ai-operand.yaml",
+    ]
+
+
+def test_main_invalid_accelerator_exits_nonzero():
+    argv = [*_BASE_ARGV, "--ai-accelerator", "tpu"]
+    with mock.patch("sys.argv", argv):
+        with pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code != 0
+
+
 # --- Failure path tests ---
 
 
