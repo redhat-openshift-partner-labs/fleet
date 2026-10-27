@@ -14,7 +14,6 @@ import yaml
 
 from fleet.tasks._log import configure, error, info
 
-
 SUPPORTED_AI_ACCELERATORS = {"none", "nvidia-gpu"}
 
 

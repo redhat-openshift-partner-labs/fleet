@@ -166,46 +166,50 @@ def wait_for_condition(  # pylint: disable=too-many-arguments,too-many-positiona
     return False
 
 
+def _install_nvidia_gpu_operators(gpu_dir: str, kubeconfig: str) -> bool:
+    info("Phase 1: Installing Node Feature Discovery operator")
+    if not apply_manifest(f"{gpu_dir}/nfd-subscription.yaml", kubeconfig):
+        return False
+    if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
+        return False
+
+    info("Phase 2: Creating NFD operand")
+    if not apply_manifest(f"{gpu_dir}/nfd-operand.yaml", kubeconfig):
+        return False
+    if not wait_for_condition(
+        "NodeFeatureDiscovery",
+        "nfd-instance",
+        "openshift-nfd",
+        "Available",
+        kubeconfig,
+    ):
+        return False
+
+    info("Phase 3: Installing NVIDIA GPU operator")
+    if not apply_manifest(f"{gpu_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
+        return False
+    if not wait_for_csv("nvidia-gpu-operator", "gpu-operator", kubeconfig, timeout=600):
+        return False
+
+    info("Phase 4: Creating GPU ClusterPolicy")
+    if not apply_manifest(f"{gpu_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
+        return False
+    if not wait_for_condition(
+        "ClusterPolicy",
+        "gpu-cluster-policy",
+        "nvidia-gpu-operator",
+        "Ready",
+        kubeconfig,
+    ):
+        return False
+    return True
+
+
 def _install_common_operators(
     common_dir: str, gpu_dir: str, kubeconfig: str, accelerator: str
 ) -> bool:
     if accelerator == "nvidia-gpu":
-        info("Phase 1: Installing Node Feature Discovery operator")
-        if not apply_manifest(f"{gpu_dir}/nfd-subscription.yaml", kubeconfig):
-            return False
-        if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
-            return False
-
-        info("Phase 2: Creating NFD operand")
-        if not apply_manifest(f"{gpu_dir}/nfd-operand.yaml", kubeconfig):
-            return False
-        if not wait_for_condition(
-            "NodeFeatureDiscovery",
-            "nfd-instance",
-            "openshift-nfd",
-            "Available",
-            kubeconfig,
-        ):
-            return False
-
-        info("Phase 3: Installing NVIDIA GPU operator")
-        if not apply_manifest(f"{gpu_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
-            return False
-        if not wait_for_csv(
-            "nvidia-gpu-operator", "gpu-operator", kubeconfig, timeout=600
-        ):
-            return False
-
-        info("Phase 4: Creating GPU ClusterPolicy")
-        if not apply_manifest(f"{gpu_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
-            return False
-        if not wait_for_condition(
-            "ClusterPolicy",
-            "gpu-cluster-policy",
-            "nvidia-gpu-operator",
-            "Ready",
-            kubeconfig,
-        ):
+        if not _install_nvidia_gpu_operators(gpu_dir, kubeconfig):
             return False
     else:
         info("Skipping NFD and NVIDIA GPU operators for CPU-only OpenShift AI")
