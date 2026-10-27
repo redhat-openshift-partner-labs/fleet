@@ -230,25 +230,25 @@ def test_main_v3_default_success(mock_wait_condition, mock_wait_csv, mock_apply)
     apply_calls = [c.args[0] for c in mock_apply.call_args_list]
 
     # Common operators
-    assert "/tmp/test/nfd-subscription.yaml" in apply_calls
-    assert "/tmp/test/nfd-operand.yaml" in apply_calls
-    assert "/tmp/test/nvidia-gpu-subscription.yaml" in apply_calls
-    assert "/tmp/test/nvidia-gpu-cluster-policy.yaml" in apply_calls
-    assert "/tmp/test/serverless-subscription.yaml" in apply_calls
-    assert "/tmp/test/authorino-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nfd-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nfd-operand.yaml" in apply_calls
+    assert "/tmp/test/gpu/nvidia-gpu-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nvidia-gpu-cluster-policy.yaml" in apply_calls
+    assert "/tmp/test/common/serverless-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/authorino-subscription.yaml" in apply_calls
 
     # v3-specific operators
-    assert "/tmp/test/v3/cert-manager-subscription.yaml" in apply_calls
-    assert "/tmp/test/v3/jobset-subscription.yaml" in apply_calls
-    assert "/tmp/test/v3/jobset-operand.yaml" in apply_calls
-    assert "/tmp/test/v3/servicemesh-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v3/cert-manager-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v3/jobset-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v3/jobset-operand.yaml" in apply_calls
+    assert "/tmp/test/common/v3/servicemesh-subscription.yaml" in apply_calls
 
     # v3 OpenShift AI subscription
-    assert "/tmp/test/v3/openshift-ai-subscription.yaml" in apply_calls
-    assert "/tmp/test/v3/openshift-ai-operand.yaml" in apply_calls
+    assert "/tmp/test/common/v3/openshift-ai-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v3/openshift-ai-operand.yaml" in apply_calls
     assert apply_calls.index(
-        "/tmp/test/v3/openshift-ai-subscription.yaml"
-    ) < apply_calls.index("/tmp/test/v3/openshift-ai-operand.yaml")
+        "/tmp/test/common/v3/openshift-ai-subscription.yaml"
+    ) < apply_calls.index("/tmp/test/common/v3/openshift-ai-operand.yaml")
 
     # v2 files should NOT be present
     v2_calls = [c for c in apply_calls if "/v2/" in c]
@@ -272,18 +272,18 @@ def test_main_v2_success(mock_wait_condition, mock_wait_csv, mock_apply):
     apply_calls = [c.args[0] for c in mock_apply.call_args_list]
 
     # Common operators
-    assert "/tmp/test/nfd-subscription.yaml" in apply_calls
-    assert "/tmp/test/nfd-operand.yaml" in apply_calls
-    assert "/tmp/test/nvidia-gpu-subscription.yaml" in apply_calls
-    assert "/tmp/test/nvidia-gpu-cluster-policy.yaml" in apply_calls
-    assert "/tmp/test/serverless-subscription.yaml" in apply_calls
-    assert "/tmp/test/authorino-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nfd-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nfd-operand.yaml" in apply_calls
+    assert "/tmp/test/gpu/nvidia-gpu-subscription.yaml" in apply_calls
+    assert "/tmp/test/gpu/nvidia-gpu-cluster-policy.yaml" in apply_calls
+    assert "/tmp/test/common/serverless-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/authorino-subscription.yaml" in apply_calls
 
     # v2-specific operators
-    assert "/tmp/test/v2/servicemesh-v2-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v2/servicemesh-v2-subscription.yaml" in apply_calls
 
     # v2 OpenShift AI subscription
-    assert "/tmp/test/v2/openshift-ai-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v2/openshift-ai-subscription.yaml" in apply_calls
 
     # v3 files should NOT be present
     v3_calls = [c for c in apply_calls if "/v3/" in c]
@@ -302,7 +302,7 @@ def test_main_explicit_v3_success(mock_wait_condition, mock_wait_csv, mock_apply
         main()
 
     apply_calls = [c.args[0] for c in mock_apply.call_args_list]
-    assert "/tmp/test/v3/openshift-ai-subscription.yaml" in apply_calls
+    assert "/tmp/test/common/v3/openshift-ai-subscription.yaml" in apply_calls
 
 
 @mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
@@ -321,18 +321,18 @@ def test_main_v3_nvidia_gpu_success_uses_exact_manifest_order(
 
     apply_calls = [call.args[0] for call in mock_apply.call_args_list]
     assert apply_calls == [
-        "/tmp/test/nfd-subscription.yaml",
-        "/tmp/test/nfd-operand.yaml",
-        "/tmp/test/nvidia-gpu-subscription.yaml",
-        "/tmp/test/nvidia-gpu-cluster-policy.yaml",
-        "/tmp/test/serverless-subscription.yaml",
-        "/tmp/test/authorino-subscription.yaml",
-        "/tmp/test/v3/cert-manager-subscription.yaml",
-        "/tmp/test/v3/jobset-subscription.yaml",
-        "/tmp/test/v3/jobset-operand.yaml",
-        "/tmp/test/v3/servicemesh-subscription.yaml",
-        "/tmp/test/v3/openshift-ai-subscription.yaml",
-        "/tmp/test/v3/openshift-ai-operand.yaml",
+        "/tmp/test/gpu/nfd-subscription.yaml",
+        "/tmp/test/gpu/nfd-operand.yaml",
+        "/tmp/test/gpu/nvidia-gpu-subscription.yaml",
+        "/tmp/test/gpu/nvidia-gpu-cluster-policy.yaml",
+        "/tmp/test/common/serverless-subscription.yaml",
+        "/tmp/test/common/authorino-subscription.yaml",
+        "/tmp/test/common/v3/cert-manager-subscription.yaml",
+        "/tmp/test/common/v3/jobset-subscription.yaml",
+        "/tmp/test/common/v3/jobset-operand.yaml",
+        "/tmp/test/common/v3/servicemesh-subscription.yaml",
+        "/tmp/test/common/v3/openshift-ai-subscription.yaml",
+        "/tmp/test/common/v3/openshift-ai-operand.yaml",
     ]
 
 
@@ -352,14 +352,14 @@ def test_main_v3_cpu_only_success_uses_exact_manifest_order(
 
     apply_calls = [call.args[0] for call in mock_apply.call_args_list]
     assert apply_calls == [
-        "/tmp/test/serverless-subscription.yaml",
-        "/tmp/test/authorino-subscription.yaml",
-        "/tmp/test/v3/cert-manager-subscription.yaml",
-        "/tmp/test/v3/jobset-subscription.yaml",
-        "/tmp/test/v3/jobset-operand.yaml",
-        "/tmp/test/v3/servicemesh-subscription.yaml",
-        "/tmp/test/v3/openshift-ai-subscription.yaml",
-        "/tmp/test/v3/openshift-ai-operand.yaml",
+        "/tmp/test/common/serverless-subscription.yaml",
+        "/tmp/test/common/authorino-subscription.yaml",
+        "/tmp/test/common/v3/cert-manager-subscription.yaml",
+        "/tmp/test/common/v3/jobset-subscription.yaml",
+        "/tmp/test/common/v3/jobset-operand.yaml",
+        "/tmp/test/common/v3/servicemesh-subscription.yaml",
+        "/tmp/test/common/v3/openshift-ai-subscription.yaml",
+        "/tmp/test/common/v3/openshift-ai-operand.yaml",
     ]
 
 

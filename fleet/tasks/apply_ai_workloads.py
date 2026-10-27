@@ -167,17 +167,17 @@ def wait_for_condition(  # pylint: disable=too-many-arguments,too-many-positiona
 
 
 def _install_common_operators(
-    source_dir: str, kubeconfig: str, accelerator: str
+    common_dir: str, gpu_dir: str, kubeconfig: str, accelerator: str
 ) -> bool:
     if accelerator == "nvidia-gpu":
         info("Phase 1: Installing Node Feature Discovery operator")
-        if not apply_manifest(f"{source_dir}/nfd-subscription.yaml", kubeconfig):
+        if not apply_manifest(f"{gpu_dir}/nfd-subscription.yaml", kubeconfig):
             return False
         if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
             return False
 
         info("Phase 2: Creating NFD operand")
-        if not apply_manifest(f"{source_dir}/nfd-operand.yaml", kubeconfig):
+        if not apply_manifest(f"{gpu_dir}/nfd-operand.yaml", kubeconfig):
             return False
         if not wait_for_condition(
             "NodeFeatureDiscovery",
@@ -189,7 +189,7 @@ def _install_common_operators(
             return False
 
         info("Phase 3: Installing NVIDIA GPU operator")
-        if not apply_manifest(f"{source_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
+        if not apply_manifest(f"{gpu_dir}/nvidia-gpu-subscription.yaml", kubeconfig):
             return False
         if not wait_for_csv(
             "nvidia-gpu-operator", "gpu-operator", kubeconfig, timeout=600
@@ -197,7 +197,7 @@ def _install_common_operators(
             return False
 
         info("Phase 4: Creating GPU ClusterPolicy")
-        if not apply_manifest(f"{source_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
+        if not apply_manifest(f"{gpu_dir}/nvidia-gpu-cluster-policy.yaml", kubeconfig):
             return False
         if not wait_for_condition(
             "ClusterPolicy",
@@ -211,7 +211,7 @@ def _install_common_operators(
         info("Skipping NFD and NVIDIA GPU operators for CPU-only OpenShift AI")
 
     info("Phase 5: Installing OpenShift Serverless operator")
-    if not apply_manifest(f"{source_dir}/serverless-subscription.yaml", kubeconfig):
+    if not apply_manifest(f"{common_dir}/serverless-subscription.yaml", kubeconfig):
         return False
     if not wait_for_csv(
         "openshift-serverless", "serverless-operator", kubeconfig, timeout=600
@@ -219,7 +219,7 @@ def _install_common_operators(
         return False
 
     info("Phase 6: Installing Authorino operator")
-    if not apply_manifest(f"{source_dir}/authorino-subscription.yaml", kubeconfig):
+    if not apply_manifest(f"{common_dir}/authorino-subscription.yaml", kubeconfig):
         return False
     if not wait_for_csv(
         "openshift-operators", "authorino-operator", kubeconfig, timeout=600
@@ -307,12 +307,14 @@ def main() -> None:
     info(f"  ai-accelerator={accelerator}")
 
     source_dir = args.source_dir
+    common_dir = f"{source_dir}/common"
+    gpu_dir = f"{source_dir}/gpu"
     kubeconfig = args.spoke_kubeconfig
 
-    if not _install_common_operators(source_dir, kubeconfig, accelerator):
+    if not _install_common_operators(common_dir, gpu_dir, kubeconfig, accelerator):
         sys.exit(1)
 
-    version_dir = f"{source_dir}/{version}"
+    version_dir = f"{common_dir}/{version}"
 
     if version == "v2":
         if not _install_v2_operators(version_dir, kubeconfig):
