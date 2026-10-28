@@ -1,5 +1,6 @@
 import json
 import subprocess
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -226,7 +227,7 @@ _BASE_ARGV = [
 ]
 
 
-def _expected_ai_catalog_calls(version: str) -> list[mock.Call]:
+def _expected_ai_catalog_calls(version: str) -> list[Any]:
     calls = [
         mock.call("nfd", "stable", "redhat-operators", "kubeconfig"),
         mock.call(
