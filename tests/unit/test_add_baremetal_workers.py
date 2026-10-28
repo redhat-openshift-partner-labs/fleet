@@ -1,4 +1,5 @@
 import json
+import base64
 import subprocess
 from unittest import mock
 
@@ -24,6 +25,13 @@ def _fail(**overrides):
     return subprocess.CompletedProcess(**defaults)
 
 
+def _install_config_secret(install_config: dict) -> dict:
+    encoded = base64.b64encode(json.dumps(install_config).encode("utf-8")).decode(
+        "utf-8"
+    )
+    return {"data": {"install-config.yaml": encoded}}
+
+
 @mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
 def test_get_cluster_region_and_zones_success(mock_retry):
     cluster_deployment_response = {
@@ -31,7 +39,12 @@ def test_get_cluster_region_and_zones_success(mock_retry):
     }
     machinepool_response = {
         "spec": {
-            "platform": {"aws": {"zones": ["us-east-2a", "us-east-2b", "us-east-2c"]}}
+            "platform": {
+                "aws": {
+                    "type": "m5.metal",
+                    "zones": ["us-east-2a", "us-east-2b", "us-east-2c"],
+                }
+            }
         }
     }
 
@@ -44,6 +57,7 @@ def test_get_cluster_region_and_zones_success(mock_retry):
 
     assert result == {
         "region": "us-east-2",
+        "worker_type": "m5.metal",
         "zones": ["us-east-2a", "us-east-2b", "us-east-2c"],
     }
 
@@ -80,18 +94,38 @@ def test_get_cluster_region_and_zones_missing_keys(mock_retry):
 @mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
 def test_get_cluster_region_and_zones_machinepool_fallback(mock_retry):
     cluster_deployment_response = {
-        "spec": {"platform": {"aws": {"region": "us-west-1"}}}
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
     }
 
     mock_retry.side_effect = [
         _ok(stdout=json.dumps(cluster_deployment_response)),
         _fail(),  # MachinePool get fails
+        _ok(
+            stdout=json.dumps(
+                _install_config_secret(
+                    {
+                        "compute": [
+                            {
+                                "name": "worker",
+                                "platform": {"aws": {"type": "m5.metal"}},
+                            }
+                        ]
+                    }
+                )
+            )
+        ),
     ]
 
     result = get_cluster_region_and_zones("test-cluster")
 
     assert result == {
         "region": "us-west-1",
+        "worker_type": "m5.metal",
         "zones": ["us-west-1a", "us-west-1b", "us-west-1c"],  # Default fallback
     }
 
@@ -99,20 +133,171 @@ def test_get_cluster_region_and_zones_machinepool_fallback(mock_retry):
 @mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
 def test_get_cluster_region_and_zones_machinepool_invalid_json(mock_retry):
     cluster_deployment_response = {
-        "spec": {"platform": {"aws": {"region": "us-west-1"}}}
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
     }
 
     mock_retry.side_effect = [
         _ok(stdout=json.dumps(cluster_deployment_response)),
         _ok(stdout="invalid machinepool json"),
+        _ok(
+            stdout=json.dumps(
+                _install_config_secret(
+                    {
+                        "compute": [
+                            {
+                                "name": "worker",
+                                "platform": {"aws": {"type": "m5.metal"}},
+                            }
+                        ]
+                    }
+                )
+            )
+        ),
     ]
 
     result = get_cluster_region_and_zones("test-cluster")
 
     assert result == {
         "region": "us-west-1",
+        "worker_type": "m5.metal",
         "zones": ["us-west-1a", "us-west-1b", "us-west-1c"],  # Default fallback
     }
+
+
+@mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
+def test_get_cluster_region_and_zones_sno_uses_install_config(mock_retry):
+    cluster_deployment_response = {
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
+    }
+
+    mock_retry.side_effect = [
+        _ok(stdout=json.dumps(cluster_deployment_response)),
+        _ok(stdout=""),  # SNO clusters have no worker MachinePool
+        _ok(
+            stdout=json.dumps(
+                _install_config_secret(
+                    {
+                        "compute": [
+                            {
+                                "name": "worker",
+                                "platform": {"aws": {"type": "m5.metal"}},
+                            }
+                        ]
+                    }
+                )
+            )
+        ),
+    ]
+
+    result = get_cluster_region_and_zones("test-cluster")
+
+    assert result == {
+        "region": "us-west-1",
+        "worker_type": "m5.metal",
+        "zones": ["us-west-1a", "us-west-1b", "us-west-1c"],
+    }
+    assert mock_retry.call_args_list[2].args[0][2:6] == [
+        "secret",
+        "test-cluster-install-config",
+        "-n",
+        "test-cluster",
+    ]
+
+
+@mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
+def test_get_cluster_region_and_zones_install_config_secret_fails(mock_retry):
+    cluster_deployment_response = {
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
+    }
+
+    mock_retry.side_effect = [
+        _ok(stdout=json.dumps(cluster_deployment_response)),
+        _ok(stdout=""),
+        _fail(stderr="Secret not found"),
+    ]
+
+    result = get_cluster_region_and_zones("test-cluster")
+
+    assert result is None
+
+
+@mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
+def test_get_cluster_region_and_zones_missing_worker_type_fails(mock_retry):
+    cluster_deployment_response = {
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
+    }
+
+    mock_retry.side_effect = [
+        _ok(stdout=json.dumps(cluster_deployment_response)),
+        _ok(stdout=""),
+        _ok(
+            stdout=json.dumps(
+                _install_config_secret(
+                    {"compute": [{"name": "worker", "platform": {"aws": {"type": ""}}}]}
+                )
+            )
+        ),
+    ]
+
+    result = get_cluster_region_and_zones("test-cluster")
+
+    assert result is None
+
+
+@mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
+def test_get_cluster_region_and_zones_invalid_install_config_fails(mock_retry):
+    cluster_deployment_response = {
+        "spec": {
+            "platform": {"aws": {"region": "us-west-1"}},
+            "provisioning": {
+                "installConfigSecretRef": {"name": "test-cluster-install-config"}
+            },
+        }
+    }
+
+    mock_retry.side_effect = [
+        _ok(stdout=json.dumps(cluster_deployment_response)),
+        _ok(stdout=""),
+        _ok(
+            stdout=json.dumps(
+                _install_config_secret(
+                    {"compute": [{"name": "worker", "platform": {"aws": {}}}]}
+                )
+            )
+        ),
+    ]
+
+    result = get_cluster_region_and_zones("test-cluster")
+
+    assert result is None
+
+
+def test_create_baremetal_machinepool_missing_worker_type_fails():
+    result = create_baremetal_machinepool(
+        "test-cluster", {"region": "us-east-2", "zones": ["us-east-2a"]}
+    )
+
+    assert result is False
 
 
 @mock.patch("fleet.tasks.add_baremetal_workers.run_with_retry")
@@ -121,7 +306,11 @@ def test_create_baremetal_machinepool_success(mock_retry):
         stdout="machinepool.hive.openshift.io/test-cluster-baremetal created"
     )
 
-    region_info = {"region": "us-east-2", "zones": ["us-east-2a", "us-east-2b"]}
+    region_info = {
+        "region": "us-east-2",
+        "worker_type": "m5.metal",
+        "zones": ["us-east-2a", "us-east-2b"],
+    }
     result = create_baremetal_machinepool("test-cluster", region_info)
 
     assert result is True
@@ -141,6 +330,7 @@ def test_create_baremetal_machinepool_success(mock_retry):
         "us-east-2a",
         "us-east-2b",
     ]
+    assert json_input["spec"]["platform"]["aws"]["type"] == "m5.metal"
 
 
 @mock.patch("fleet.tasks.add_baremetal_workers.json.dumps")
@@ -149,7 +339,11 @@ def test_create_baremetal_machinepool_json_serialization_fails(mock_json_dumps):
         "Object of type set is not JSON serializable"
     )
 
-    region_info = {"region": "us-east-2", "zones": ["us-east-2a"]}
+    region_info = {
+        "region": "us-east-2",
+        "worker_type": "m5.metal",
+        "zones": ["us-east-2a"],
+    }
     result = create_baremetal_machinepool("test-cluster", region_info)
 
     assert result is False
@@ -159,7 +353,11 @@ def test_create_baremetal_machinepool_json_serialization_fails(mock_json_dumps):
 def test_create_baremetal_machinepool_apply_fails(mock_retry):
     mock_retry.return_value = _fail(stderr="Failed to create MachinePool")
 
-    region_info = {"region": "us-east-2", "zones": ["us-east-2a"]}
+    region_info = {
+        "region": "us-east-2",
+        "worker_type": "m5.metal",
+        "zones": ["us-east-2a"],
+    }
     result = create_baremetal_machinepool("test-cluster", region_info)
 
     assert result is False

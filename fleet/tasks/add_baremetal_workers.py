@@ -2,23 +2,28 @@
 
 CLI: fleet-add-baremetal-workers --cluster-name NAME
 Creates additional baremetal worker MachinePool for virtualization workloads.
+The MachinePool uses the requested AWS worker type from the existing worker
+MachinePool or the cluster install-config Secret.
 Exits 1 on failure.
 """
 
 import argparse
+import base64
 import json
 import sys
 import time
 
 from typing import Any
 
+import yaml
+
 from fleet._retry import run_with_retry
 from fleet.tasks._log import configure, error, info
 
 
 def get_cluster_region_and_zones(cluster_name: str) -> dict[str, Any] | None:
-    """Get the AWS region and availability zones from existing ClusterDeployment."""
-    info(f"Getting region and zones for cluster {cluster_name}")
+    """Get AWS region, zones, and worker type from existing Hive resources."""
+    info(f"Getting region, zones, and worker type for cluster {cluster_name}")
 
     result = run_with_retry(
         [
@@ -62,10 +67,13 @@ def get_cluster_region_and_zones(cluster_name: str) -> dict[str, Any] | None:
         )
 
         zones = ["a", "b", "c"]  # Default fallback
+        worker_type = None
         if mp_result.returncode == 0:
             try:
                 mp_data = json.loads(mp_result.stdout)
-                aws_zones = mp_data["spec"]["platform"]["aws"].get("zones", [])
+                aws_machinepool = mp_data["spec"]["platform"]["aws"]
+                aws_zones = aws_machinepool.get("zones", [])
+                worker_type = aws_machinepool.get("type")
                 if aws_zones:
                     # Extract zone suffixes from full zone names (e.g., "us-east-2a" -> "a")
                     zones = [zone[-1] for zone in aws_zones]
@@ -73,13 +81,64 @@ def get_cluster_region_and_zones(cluster_name: str) -> dict[str, Any] | None:
             except (json.JSONDecodeError, KeyError):
                 info("  -> Could not parse existing MachinePool zones, using defaults")
 
+        if not worker_type:
+            secret_name = cd_data["spec"]["provisioning"]["installConfigSecretRef"][
+                "name"
+            ]
+            secret_result = run_with_retry(
+                [
+                    "oc",
+                    "get",
+                    "secret",
+                    secret_name,
+                    "-n",
+                    cluster_name,
+                    "-o",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            if secret_result.returncode != 0:
+                error(f"Failed to get install-config Secret: {secret_result.stderr}")
+                return None
+
+            try:
+                secret_data = json.loads(secret_result.stdout)
+                encoded_install_config = secret_data["data"]["install-config.yaml"]
+                install_config = yaml.safe_load(
+                    base64.b64decode(encoded_install_config).decode("utf-8")
+                )
+                worker_pool = next(
+                    pool
+                    for pool in install_config["compute"]
+                    if pool.get("name") == "worker"
+                )
+                worker_type = worker_pool["platform"]["aws"]["type"]
+            except (
+                json.JSONDecodeError,
+                KeyError,
+                StopIteration,
+                TypeError,
+                ValueError,
+                yaml.YAMLError,
+            ) as parse_error:
+                error(f"Failed to parse worker type from install-config: {parse_error}")
+                return None
+
+            if not worker_type:
+                error("Install-config does not define an AWS worker type")
+                return None
+
         # Construct full zone names
         full_zones = [f"{region}{suffix}" for suffix in zones]
 
         info(f"  -> Region: {region}")
         info(f"  -> Zones: {full_zones}")
+        info(f"  -> Worker type: {worker_type}")
 
-        return {"region": region, "zones": full_zones}
+        return {"region": region, "worker_type": worker_type, "zones": full_zones}
 
     except (json.JSONDecodeError, KeyError) as e:
         error(f"Failed to parse ClusterDeployment JSON: {e}")
@@ -92,6 +151,11 @@ def create_baremetal_machinepool(
     """Create a new MachinePool for baremetal workers."""
     mp_name = f"{cluster_name}-baremetal"
     info(f"Creating baremetal MachinePool: {mp_name}")
+    worker_type = region_info.get("worker_type")
+
+    if not worker_type:
+        error("Cluster worker type is required to create the baremetal MachinePool")
+        return False
 
     machinepool_spec = {
         "apiVersion": "hive.openshift.io/v1",
@@ -111,7 +175,7 @@ def create_baremetal_machinepool(
                         "size": 256,  # Larger disk for virtualization workloads
                         "type": "gp3",
                     },
-                    "type": "c5d.metal",  # Baremetal instance for hardware virtualization
+                    "type": worker_type,
                     "zones": region_info["zones"],
                 }
             },
