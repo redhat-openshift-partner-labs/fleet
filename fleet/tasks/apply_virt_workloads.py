@@ -11,6 +11,7 @@ import sys
 import time
 
 from fleet._retry import run_with_retry
+from fleet.tasks._operator_catalog import check_operator_catalog
 from fleet.tasks._log import configure, error, info
 
 
@@ -166,6 +167,22 @@ def wait_for_condition(  # pylint: disable=too-many-arguments,too-many-positiona
     return False
 
 
+def install_nfd(source_dir: str, kubeconfig: str) -> bool:
+    """Install the optional Node Feature Discovery operator and operand."""
+    info("Installing optional Node Feature Discovery operator")
+    if not apply_manifest(f"{source_dir}/nfd-subscription.yaml", kubeconfig):
+        return False
+    if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
+        return False
+
+    info("Creating optional Node Feature Discovery operand")
+    if not apply_manifest(f"{source_dir}/nfd-operand.yaml", kubeconfig):
+        return False
+    return wait_for_condition(
+        "NodeFeatureDiscovery", "nfd-instance", "openshift-nfd", "Available", kubeconfig
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -185,28 +202,23 @@ def main() -> None:
     source_dir = args.source_dir
     kubeconfig = args.spoke_kubeconfig
 
-    # Phase 1: Apply NFD subscription and wait for operator
-    info("Phase 1: Installing Node Feature Discovery operator")
-
-    if not apply_manifest(f"{source_dir}/nfd-subscription.yaml", kubeconfig):
+    cnv_available, cnv_reason = check_operator_catalog(
+        "kubevirt-hyperconverged", "stable", "redhat-operators", kubeconfig
+    )
+    if not cnv_available:
+        error(
+            f"Required OpenShift Virtualization operator is unavailable: {cnv_reason}"
+        )
         sys.exit(1)
 
-    if not wait_for_csv("openshift-nfd", "nfd", kubeconfig, timeout=600):
-        sys.exit(1)
+    nfd_available, nfd_reason = check_operator_catalog(
+        "nfd", "stable", "redhat-operators", kubeconfig
+    )
+    if not nfd_available:
+        info(f"Skipping optional Node Feature Discovery operator: {nfd_reason}")
 
-    # Phase 2: Apply NFD operand and wait for readiness
-    info("Phase 2: Creating NFD operand")
-
-    if not apply_manifest(f"{source_dir}/nfd-operand.yaml", kubeconfig):
-        sys.exit(1)
-
-    if not wait_for_condition(
-        "NodeFeatureDiscovery", "nfd-instance", "openshift-nfd", "Available", kubeconfig
-    ):
-        sys.exit(1)
-
-    # Phase 3: Apply CNV subscription and wait for operator
-    info("Phase 3: Installing OpenShift Virtualization operator")
+    # Phase 1: Apply CNV subscription and wait for operator
+    info("Phase 1: Installing OpenShift Virtualization operator")
 
     if not apply_manifest(f"{source_dir}/cnv-subscription.yaml", kubeconfig):
         sys.exit(1)
@@ -216,8 +228,8 @@ def main() -> None:
     ):
         sys.exit(1)
 
-    # Phase 4: Apply HyperConverged CR and wait for readiness
-    info("Phase 4: Creating HyperConverged operand")
+    # Phase 2: Apply HyperConverged CR and wait for readiness
+    info("Phase 2: Creating HyperConverged operand")
 
     if not apply_manifest(f"{source_dir}/hyperconverged.yaml", kubeconfig):
         sys.exit(1)
@@ -230,5 +242,9 @@ def main() -> None:
         kubeconfig,
     ):
         sys.exit(1)
+
+    if nfd_available:
+        if not install_nfd(source_dir, kubeconfig):
+            info("Continuing without optional Node Feature Discovery operator")
 
     info("Virtualization workloads successfully applied and ready")

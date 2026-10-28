@@ -11,6 +11,21 @@ from fleet.tasks.apply_virt_workloads import (
     wait_for_csv,
 )
 
+_ARGV = [
+    "apply-virt-workloads",
+    "--cluster-name",
+    "test-cluster",
+    "--source-dir",
+    "/tmp/test",
+    "--spoke-kubeconfig",
+    "kubeconfig",
+]
+
+
+def _run_main() -> None:
+    with mock.patch("sys.argv", _ARGV):
+        main()
+
 
 def _ok(**overrides):
     defaults = {"args": [], "returncode": 0, "stdout": "success", "stderr": ""}
@@ -219,58 +234,37 @@ def test_wait_for_condition_timeout(mock_retry, mock_time, mock_sleep):
 @mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_success(mock_wait_condition, mock_wait_csv, mock_apply):
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_success_with_nfd(
+    mock_check_catalog, mock_wait_condition, mock_wait_csv, mock_apply
+):
     mock_apply.return_value = True
     mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
+    mock_check_catalog.return_value = (True, "available")
 
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        main()
+    _run_main()
 
-    # Verify NFD operator installation
-    assert mock_apply.call_args_list[0] == mock.call(
-        "/tmp/test/nfd-subscription.yaml", "kubeconfig"
-    )
-    assert mock_wait_csv.call_args_list[0] == mock.call(
-        "openshift-nfd", "nfd", "kubeconfig", timeout=600
-    )
-
-    # Verify NFD operand creation
-    assert mock_apply.call_args_list[1] == mock.call(
-        "/tmp/test/nfd-operand.yaml", "kubeconfig"
-    )
-    assert mock_wait_condition.call_args_list[0] == mock.call(
-        "NodeFeatureDiscovery",
-        "nfd-instance",
-        "openshift-nfd",
-        "Available",
-        "kubeconfig",
-    )
+    assert mock_check_catalog.call_args_list == [
+        mock.call(
+            "kubevirt-hyperconverged", "stable", "redhat-operators", "kubeconfig"
+        ),
+        mock.call("nfd", "stable", "redhat-operators", "kubeconfig"),
+    ]
 
     # Verify CNV operator installation
-    assert mock_apply.call_args_list[2] == mock.call(
+    assert mock_apply.call_args_list[0] == mock.call(
         "/tmp/test/cnv-subscription.yaml", "kubeconfig"
     )
-    assert mock_wait_csv.call_args_list[1] == mock.call(
+    assert mock_wait_csv.call_args_list[0] == mock.call(
         "openshift-cnv", "kubevirt-hyperconverged", "kubeconfig", timeout=900
     )
 
     # Verify CNV operand creation
-    assert mock_apply.call_args_list[3] == mock.call(
+    assert mock_apply.call_args_list[1] == mock.call(
         "/tmp/test/hyperconverged.yaml", "kubeconfig"
     )
-    assert mock_wait_condition.call_args_list[1] == mock.call(
+    assert mock_wait_condition.call_args_list[0] == mock.call(
         "HyperConverged",
         "kubevirt-hyperconverged",
         "openshift-cnv",
@@ -278,212 +272,151 @@ def test_main_success(mock_wait_condition, mock_wait_csv, mock_apply):
         "kubeconfig",
     )
 
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-def test_main_nfd_subscription_fails(mock_apply):
-    mock_apply.return_value = False
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
-
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
-def test_main_nfd_csv_wait_fails(mock_wait_csv, mock_apply):
-    mock_apply.return_value = True
-    mock_wait_csv.return_value = False
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
+    # Verify optional NFD installation after CNV is healthy
+    assert mock_apply.call_args_list[2] == mock.call(
+        "/tmp/test/nfd-subscription.yaml", "kubeconfig"
+    )
+    assert mock_wait_csv.call_args_list[1] == mock.call(
+        "openshift-nfd", "nfd", "kubeconfig", timeout=600
+    )
+    assert mock_apply.call_args_list[3] == mock.call(
+        "/tmp/test/nfd-operand.yaml", "kubeconfig"
+    )
+    assert mock_wait_condition.call_args_list[1] == mock.call(
+        "NodeFeatureDiscovery",
+        "nfd-instance",
+        "openshift-nfd",
+        "Available",
+        "kubeconfig",
+    )
 
 
 @mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_cnv_condition_wait_fails(mock_wait_condition, mock_wait_csv, mock_apply):
-    mock_apply.return_value = True
-    mock_wait_csv.return_value = True
-    mock_wait_condition.side_effect = [True, False]  # NFD succeeds, CNV fails
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
-
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
-def test_main_nfd_operand_apply_fails(mock_wait_csv, mock_apply):
-    mock_apply.side_effect = [True, False]  # NFD subscription succeeds, operand fails
-    mock_wait_csv.return_value = True
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
-
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_nfd_condition_wait_fails(mock_wait_condition, mock_wait_csv, mock_apply):
-    mock_apply.return_value = True
-    mock_wait_csv.return_value = True
-    mock_wait_condition.return_value = False  # NFD condition fails
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
-
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_cnv_subscription_apply_fails(
-    mock_wait_condition, mock_wait_csv, mock_apply
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_success_without_nfd(
+    mock_check_catalog, mock_wait_condition, mock_wait_csv, mock_apply
 ):
-    mock_apply.side_effect = [True, True, False]  # NFD works, CNV subscription fails
-    mock_wait_csv.return_value = True
-    mock_wait_condition.return_value = True
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-    assert exc.value.code == 1
-
-
-@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
-@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_cnv_csv_wait_fails(mock_wait_condition, mock_wait_csv, mock_apply):
     mock_apply.return_value = True
-    mock_wait_csv.side_effect = [True, False]  # NFD CSV succeeds, CNV CSV fails
+    mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
+    mock_check_catalog.side_effect = [
+        (True, "CNV available"),
+        (False, "nfd unavailable"),
+    ]
 
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
+    _run_main()
+
+    assert mock_apply.call_args_list == [
+        mock.call("/tmp/test/cnv-subscription.yaml", "kubeconfig"),
+        mock.call("/tmp/test/hyperconverged.yaml", "kubeconfig"),
+    ]
+    assert mock_wait_csv.call_args_list == [
+        mock.call("openshift-cnv", "kubevirt-hyperconverged", "kubeconfig", timeout=900)
+    ]
+    assert mock_wait_condition.call_args_list == [
+        mock.call(
+            "HyperConverged",
+            "kubevirt-hyperconverged",
+            "openshift-cnv",
+            "Available",
             "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
+        )
+    ]
+
+
+@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_cnv_unavailable_fails_before_apply(mock_check_catalog, mock_apply):
+    mock_check_catalog.return_value = (False, "CNV unavailable")
+
+    with pytest.raises(SystemExit) as exc:
+        _run_main()
 
     assert exc.value.code == 1
+    mock_apply.assert_not_called()
 
 
 @mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
 @mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
-def test_main_hyperconverged_apply_fails(
-    mock_wait_condition, mock_wait_csv, mock_apply
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_nfd_subscription_failure_does_not_block_cnv(
+    mock_check_catalog, mock_wait_condition, mock_wait_csv, mock_apply
 ):
-    mock_apply.side_effect = [
-        True,
-        True,
-        True,
-        False,
-    ]  # Everything works except final step
+    mock_apply.side_effect = [True, True, False]
     mock_wait_csv.return_value = True
     mock_wait_condition.return_value = True
+    mock_check_catalog.return_value = (True, "available")
 
-    with mock.patch(
-        "sys.argv",
-        [
-            "apply-virt-workloads",
-            "--cluster-name",
-            "test-cluster",
-            "--source-dir",
-            "/tmp/test",
-            "--spoke-kubeconfig",
-            "kubeconfig",
-        ],
-    ):
-        with pytest.raises(SystemExit) as exc:
-            main()
+    _run_main()
+
+    assert mock_apply.call_args_list[-1] == mock.call(
+        "/tmp/test/nfd-subscription.yaml", "kubeconfig"
+    )
+
+
+@pytest.mark.parametrize(
+    ("apply_values", "wait_csv_values"),
+    [
+        ([True, True, True], [True, False]),
+        ([True, True, True, False], [True, True]),
+    ],
+    ids=["csv", "operand"],
+)
+@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_nfd_installation_failure_does_not_block_cnv(
+    mock_check_catalog,
+    mock_wait_condition,
+    mock_wait_csv,
+    mock_apply,
+    apply_values,
+    wait_csv_values,
+):
+    mock_apply.side_effect = apply_values
+    mock_wait_csv.side_effect = wait_csv_values
+    mock_wait_condition.return_value = True
+    mock_check_catalog.return_value = (True, "available")
+
+    _run_main()
+
+
+@pytest.mark.parametrize(
+    "failure_case",
+    [
+        ([True, True], True, False),
+        ([False], True, True),
+        ([True], False, True),
+        ([True, False], True, True),
+    ],
+    ids=["condition", "subscription", "csv", "operand"],
+)
+@mock.patch("fleet.tasks.apply_virt_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_virt_workloads.wait_for_condition")
+@mock.patch("fleet.tasks.apply_virt_workloads.check_operator_catalog")
+def test_main_cnv_failure_exits(
+    mock_check_catalog,
+    mock_wait_condition,
+    mock_wait_csv,
+    mock_apply,
+    failure_case,
+):
+    apply_values, wait_csv_value, wait_condition_value = failure_case
+    mock_apply.side_effect = apply_values
+    mock_wait_csv.return_value = wait_csv_value
+    mock_wait_condition.return_value = wait_condition_value
+    mock_check_catalog.side_effect = [
+        (True, "CNV available"),
+        (False, "nfd unavailable"),
+    ]
+
+    with pytest.raises(SystemExit) as exc:
+        _run_main()
 
     assert exc.value.code == 1
 
