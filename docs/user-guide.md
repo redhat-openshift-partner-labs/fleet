@@ -91,8 +91,8 @@ The `tier` label on the ManagedCluster determines what software is deployed post
 | Tier | Description |
 |------|-------------|
 | `base` | Core configuration only — OAuth, SSL, RBAC, base workloads |
-| `virt` | Base + OpenShift Virtualization |
-| `ai` | Base + OpenShift AI |
+| `virt` | Base + OpenShift Virtualization; optional NFD when its catalog package is available |
+| `ai` | Base + OpenShift AI; required operators are preflighted for the selected version and accelerator |
 
 For `tier=ai`, set `ai-accelerator` in `metadata.yaml`:
 
@@ -102,6 +102,8 @@ For `tier=ai`, set `ai-accelerator` in `metadata.yaml`:
 | `nvidia-gpu` | GPU-backed OpenShift AI; installs NFD, NVIDIA GPU Operator, GPU ClusterPolicy, and an AI worker MachinePool |
 
 `ai-accelerator` defaults to `nvidia-gpu` and is ignored for `base` and `virt`.
+
+Before applying AI operator subscriptions, the pipeline checks the spoke's `PackageManifest` resources for the exact v2/v3 and CPU/GPU stack. A missing required operator fails the task before partial installation. For `tier=virt`, OpenShift Virtualization is required and NFD is optional; if NFD is unavailable or fails to install, the virtualization task continues.
 
 ## Post-Provision
 

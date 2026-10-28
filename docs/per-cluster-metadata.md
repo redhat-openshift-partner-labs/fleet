@@ -40,9 +40,11 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | Value | Effect |
 |---|---|
 | `none` | Installs CPU-only OpenShift AI and skips NFD, the NVIDIA GPU Operator, the GPU ClusterPolicy, and the AI worker MachinePool |
-| `nvidia-gpu` | Installs the current GPU-backed OpenShift AI stack and creates the AI worker MachinePool |
+| `nvidia-gpu` | Requires NFD and the NVIDIA GPU Operator in the spoke catalog, installs the GPU-backed OpenShift AI stack, and creates the AI worker MachinePool |
 
 The key is ignored for `base` and `virt`.
+
+`apply-ai-workloads` preflights every required operator for the selected `openshift-ai-version` and `ai-accelerator` before applying subscriptions. CPU-only clusters do not preflight or install NFD or the NVIDIA GPU Operator.
 
 ## How values flow through the pipeline
 
