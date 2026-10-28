@@ -13,7 +13,10 @@ import sys
 import time
 
 from fleet._retry import run_with_retry
+from fleet.tasks._operator_catalog import check_operator_catalog
 from fleet.tasks._log import configure, error, info
+
+OperatorRequirement = tuple[str, str, str]
 
 
 def apply_manifest(manifest_path: str, spoke_kubeconfig: str) -> bool:
@@ -166,6 +169,59 @@ def wait_for_condition(  # pylint: disable=too-many-arguments,too-many-positiona
     return False
 
 
+def _required_operators(version: str, accelerator: str) -> list[OperatorRequirement]:
+    requirements: list[OperatorRequirement] = []
+
+    if accelerator == "nvidia-gpu":
+        requirements.extend(
+            [
+                ("nfd", "stable", "redhat-operators"),
+                ("gpu-operator-certified", "stable", "certified-operators"),
+            ]
+        )
+
+    requirements.extend(
+        [
+            ("serverless-operator", "stable", "redhat-operators"),
+            ("authorino-operator", "stable", "redhat-operators"),
+        ]
+    )
+
+    if version == "v2":
+        requirements.extend(
+            [
+                ("servicemeshoperator", "stable", "redhat-operators"),
+                ("rhods-operator", "stable", "redhat-operators"),
+            ]
+        )
+    else:
+        requirements.extend(
+            [
+                ("openshift-cert-manager-operator", "stable-v1", "redhat-operators"),
+                ("job-set", "stable-v1.0", "redhat-operators"),
+                ("servicemeshoperator3", "stable", "redhat-operators"),
+                ("rhods-operator", "stable-3.x", "redhat-operators"),
+            ]
+        )
+
+    return requirements
+
+
+def _preflight_operators(
+    requirements: list[OperatorRequirement], kubeconfig: str
+) -> bool:
+    info("Preflighting required AI operators")
+    for package_name, channel, source in requirements:
+        available, reason = check_operator_catalog(
+            package_name, channel, source, kubeconfig
+        )
+        if not available:
+            error(f"Required operator is unavailable: {reason}")
+            return False
+        info(f"  -> {reason}")
+    return True
+
+
 def _install_nvidia_gpu_operators(gpu_dir: str, kubeconfig: str) -> bool:
     info("Phase 1: Installing Node Feature Discovery operator")
     if not apply_manifest(f"{gpu_dir}/nfd-subscription.yaml", kubeconfig):
@@ -314,6 +370,10 @@ def main() -> None:
     common_dir = f"{source_dir}/common"
     gpu_dir = f"{source_dir}/gpu"
     kubeconfig = args.spoke_kubeconfig
+
+    requirements = _required_operators(version, accelerator)
+    if not _preflight_operators(requirements, kubeconfig):
+        sys.exit(1)
 
     if not _install_common_operators(common_dir, gpu_dir, kubeconfig, accelerator):
         sys.exit(1)

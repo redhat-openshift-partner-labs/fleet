@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 
 from fleet.tasks.apply_ai_workloads import (
+    _preflight_operators,
     apply_manifest,
     main,
     wait_for_condition,
@@ -22,6 +23,15 @@ def _fail(**overrides):
     defaults = {"args": [], "returncode": 1, "stdout": "", "stderr": "error"}
     defaults.update(overrides)
     return subprocess.CompletedProcess(**defaults)
+
+
+@pytest.fixture(autouse=True)
+def mock_check_operator_catalog():
+    with mock.patch(
+        "fleet.tasks.apply_ai_workloads.check_operator_catalog",
+        return_value=(True, "available"),
+    ) as mock_check:
+        yield mock_check
 
 
 # --- Helper tests (same helpers as virt, but must be covered) ---
@@ -216,6 +226,45 @@ _BASE_ARGV = [
 ]
 
 
+def _expected_ai_catalog_calls(version: str) -> list[mock.Call]:
+    calls = [
+        mock.call("nfd", "stable", "redhat-operators", "kubeconfig"),
+        mock.call(
+            "gpu-operator-certified", "stable", "certified-operators", "kubeconfig"
+        ),
+        mock.call("serverless-operator", "stable", "redhat-operators", "kubeconfig"),
+        mock.call("authorino-operator", "stable", "redhat-operators", "kubeconfig"),
+    ]
+    if version == "v2":
+        calls.extend(
+            [
+                mock.call(
+                    "servicemeshoperator", "stable", "redhat-operators", "kubeconfig"
+                ),
+                mock.call("rhods-operator", "stable", "redhat-operators", "kubeconfig"),
+            ]
+        )
+    else:
+        calls.extend(
+            [
+                mock.call(
+                    "openshift-cert-manager-operator",
+                    "stable-v1",
+                    "redhat-operators",
+                    "kubeconfig",
+                ),
+                mock.call("job-set", "stable-v1.0", "redhat-operators", "kubeconfig"),
+                mock.call(
+                    "servicemeshoperator3", "stable", "redhat-operators", "kubeconfig"
+                ),
+                mock.call(
+                    "rhods-operator", "stable-3.x", "redhat-operators", "kubeconfig"
+                ),
+            ]
+        )
+    return calls
+
+
 @mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
 @mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
 @mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
@@ -361,6 +410,79 @@ def test_main_v3_cpu_only_success_uses_exact_manifest_order(
         "/tmp/test/common/v3/openshift-ai-subscription.yaml",
         "/tmp/test/common/v3/openshift-ai-operand.yaml",
     ]
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+@pytest.mark.parametrize(
+    "case",
+    [("v2", True), ("v3", True), ("v3", False)],
+    ids=["v2", "v3", "v3-unavailable"],
+)
+def test_main_preflights_selected_stack(
+    mock_wait_condition,
+    mock_wait_csv,
+    mock_apply,
+    mock_check_operator_catalog,
+    case,
+):
+    version, preflight_available = case
+    mock_apply.return_value = False
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+    mock_check_operator_catalog.return_value = (
+        preflight_available,
+        "available" if preflight_available else "nfd unavailable",
+    )
+
+    argv = [*_BASE_ARGV, "--openshift-ai-version", version]
+    with mock.patch("sys.argv", argv):
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+    assert exc.value.code == 1
+    if preflight_available:
+        assert mock_check_operator_catalog.call_args_list == _expected_ai_catalog_calls(
+            version
+        )
+    else:
+        assert mock_check_operator_catalog.call_count == 1
+        mock_apply.assert_not_called()
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.apply_manifest")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_csv")
+@mock.patch("fleet.tasks.apply_ai_workloads.wait_for_condition")
+def test_main_v3_cpu_only_skips_gpu_catalog_checks(
+    mock_wait_condition, mock_wait_csv, mock_apply, mock_check_operator_catalog
+):
+    mock_apply.return_value = False
+    mock_wait_csv.return_value = True
+    mock_wait_condition.return_value = True
+
+    argv = [*_BASE_ARGV, "--ai-accelerator", "none"]
+    with mock.patch("sys.argv", argv):
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+    assert exc.value.code == 1
+    checked_packages = [
+        call.args[0] for call in mock_check_operator_catalog.call_args_list
+    ]
+    assert "nfd" not in checked_packages
+    assert "gpu-operator-certified" not in checked_packages
+
+
+@mock.patch("fleet.tasks.apply_ai_workloads.check_operator_catalog")
+def test_preflight_operators_reports_unavailable_requirement(
+    mock_check_operator_catalog,
+):
+    mock_check_operator_catalog.return_value = (False, "nfd unavailable")
+
+    result = _preflight_operators([("nfd", "stable", "redhat-operators")], "kubeconfig")
+
+    assert result is False
 
 
 def test_main_invalid_accelerator_exits_nonzero():
