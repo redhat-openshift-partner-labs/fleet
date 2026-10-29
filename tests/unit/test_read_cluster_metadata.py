@@ -84,3 +84,43 @@ def test_ai_accelerator_invalid_exits_1(tmp_path):
     with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+def test_timezone_and_schedule_are_output(tmp_path, capsys):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text(
+        'timezone: America/Chicago\nschedule: "00 08 * * 1-5"\n'
+    )
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
+        main()
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["timezone"] == "America/Chicago"
+    assert out["schedule"] == "00 08 * * 1-5"
+
+
+def test_invalid_timezone_exits_1(tmp_path):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text("timezone: Not/AZone\n")
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
+def test_schedule_with_wrong_field_count_exits_1(tmp_path):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text('schedule: "00 08 * *"\n')
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
+def test_schedule_with_out_of_range_value_exits_1(tmp_path):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text('schedule: "60 08 * * 1-5"\n')
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
