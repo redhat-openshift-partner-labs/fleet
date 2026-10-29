@@ -30,3 +30,8 @@ def test_pipeline_manages_scoped_aws_iam_kinds():
         "accesskeys",
         "roles",
     } <= resources
+
+
+def test_pipeline_manages_hub_cluster_cronjobs():
+    resources = _resources_for_group("batch")
+    assert "cronjobs" in resources

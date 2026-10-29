@@ -23,7 +23,7 @@ def _out(stdout):
 
 # Label lookup (nothing extra labelled) + IAM existence check (nothing left)
 IAM_GONE = [_run([]), _run([])]
-CORE_GONE = [_run_fail([])] * 3
+CORE_GONE = [_run_fail([])] * 4
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
@@ -31,12 +31,17 @@ def test_all_resources_gone(mock_run):
     mock_run.side_effect = CORE_GONE + IAM_GONE
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 5
+    assert mock_run.call_count == 6
 
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
 def test_namespace_still_exists(mock_run):
-    mock_run.side_effect = [_run([]), _run_fail([]), _run_fail([])] + IAM_GONE
+    mock_run.side_effect = [
+        _run([]),
+        _run_fail([]),
+        _run_fail([]),
+        _run_fail([]),
+    ] + IAM_GONE
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
@@ -44,7 +49,12 @@ def test_namespace_still_exists(mock_run):
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
 def test_managedcluster_still_exists(mock_run):
-    mock_run.side_effect = [_run_fail([]), _run([]), _run_fail([])] + IAM_GONE
+    mock_run.side_effect = [
+        _run_fail([]),
+        _run([]),
+        _run_fail([]),
+        _run_fail([]),
+    ] + IAM_GONE
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
@@ -52,7 +62,25 @@ def test_managedcluster_still_exists(mock_run):
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
 def test_clusterdeployment_still_exists(mock_run):
-    mock_run.side_effect = [_run_fail([]), _run_fail([]), _run([])] + IAM_GONE
+    mock_run.side_effect = [
+        _run_fail([]),
+        _run_fail([]),
+        _run([]),
+        _run_fail([]),
+    ] + IAM_GONE
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
+@mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
+def test_hub_cronjob_still_exists(mock_run):
+    mock_run.side_effect = [
+        _run_fail([]),
+        _run_fail([]),
+        _run_fail([]),
+        _run([]),
+    ] + IAM_GONE
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
@@ -60,7 +88,7 @@ def test_clusterdeployment_still_exists(mock_run):
 
 @mock.patch("fleet.tasks.verify_deprovision.subprocess.run")
 def test_two_resources_remain(mock_run):
-    mock_run.side_effect = [_run([]), _run([]), _run_fail([])] + IAM_GONE
+    mock_run.side_effect = [_run([]), _run([]), _run_fail([]), _run_fail([])] + IAM_GONE
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()

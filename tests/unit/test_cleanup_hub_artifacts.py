@@ -34,6 +34,7 @@ def _make_side_effects(
     poll_rounds=None,
     describe_result=None,
     finalizer_results=None,
+    cronjob_result=None,
     namespace_result=None,
 ):
     """Build a side_effect list for the full cleanup flow.
@@ -48,6 +49,7 @@ def _make_side_effects(
         describe_result: 1 result for ``oc get -o json`` of stuck resources
             (only consumed on timeout).
         finalizer_results: one result per remaining resource patched.
+        cronjob_result: 1 result for the default-namespace CronJob delete.
         namespace_result: 1 result for namespace delete.
     """
     effects = []
@@ -58,6 +60,7 @@ def _make_side_effects(
     if describe_result is not None:
         effects.append(describe_result)
     effects.extend(finalizer_results or [])
+    effects.append(cronjob_result or _run([]))
     effects.append(namespace_result or _run([]))
     return effects
 
@@ -112,7 +115,28 @@ def test_all_deletions_succeed(mock_run, mock_sleep):
     mock_run.side_effect = _make_side_effects()
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_default_namespace_cronjob_deleted(mock_run, mock_sleep):
+    mock_run.side_effect = _make_side_effects()
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        main()
+    mock_run.assert_any_call(
+        [
+            "oc",
+            "delete",
+            "cronjob",
+            "test-cluster",
+            "-n",
+            "default",
+            "--ignore-not-found=true",
+        ],
+        capture_output=True,
+        text=True,
+    )
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -123,7 +147,7 @@ def test_certificate_deletion_non_fatal(mock_run, mock_sleep):
     )
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -134,7 +158,7 @@ def test_clusterissuer_deletion_non_fatal(mock_run, mock_sleep):
     )
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -145,7 +169,7 @@ def test_crossplane_deletion_non_fatal(mock_run, mock_sleep):
     )
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
@@ -273,7 +297,7 @@ def test_iam_resources_deleted_on_first_poll(mock_run, mock_sleep):
     mock_run.side_effect = _make_side_effects()
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
-    assert mock_run.call_count == 7
+    assert mock_run.call_count == 8
     mock_sleep.assert_not_called()
     for call in mock_run.call_args_list:
         assert "patch" not in call[0][0], "No oc patch calls expected"
@@ -304,7 +328,7 @@ def test_iam_resources_deleted_after_retry(mock_run, mock_sleep):
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
     mock_sleep.assert_called_once_with(10)
-    assert mock_run.call_count == 8
+    assert mock_run.call_count == 9
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +416,7 @@ def test_orphan_flag_patches_only_remaining(mock_run, mock_sleep):
     )
     with _argv(*SHORT, "--orphan-stuck-iam"):
         main()
-    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 2 + 1
+    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 2 + 1 + 1
     for name in STUCK:
         mock_run.assert_any_call(
             ["oc", "patch", name, "--type=merge", f"-p={PATCH_PAYLOAD}"],
@@ -452,7 +476,7 @@ def test_finalizer_patch_failure_non_fatal(mock_run, mock_sleep):
     )
     with _argv(*SHORT, "--orphan-stuck-iam"):
         main()
-    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 1 + 1
+    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 1 + 1 + 1
 
 
 # ---------------------------------------------------------------------------

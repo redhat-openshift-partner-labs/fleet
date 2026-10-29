@@ -184,6 +184,25 @@ def main() -> None:
         )
         _force_remove_finalizers(remaining)
 
+    info(f"Deleting CronJob {cluster} from default namespace...")
+    cronjob_result = subprocess.run(
+        [
+            "oc",
+            "delete",
+            "cronjob",
+            cluster,
+            "-n",
+            "default",
+            "--ignore-not-found=true",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    info(f"  -> CronJob delete exit code: {cronjob_result.returncode}")
+    if cronjob_result.returncode != 0:
+        error(f"Failed to delete CronJob {cluster}: {cronjob_result.stderr}")
+        sys.exit(1)
+
     info(f"Deleting namespace {cluster}...")
     result = subprocess.run(
         ["oc", "delete", "namespace", cluster, "--ignore-not-found=true"],

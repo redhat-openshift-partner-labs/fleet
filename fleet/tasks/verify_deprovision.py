@@ -1,8 +1,8 @@
 """Verify that deprovision completed cleanly.
 
 CLI: fleet-verify-deprovision --cluster-name NAME
-Checks that namespace, ManagedCluster, ClusterDeployment, and the cluster's Crossplane IAM
-resources (known names plus anything with the ownership label) are all gone.
+Checks that namespace, ManagedCluster, ClusterDeployment, the hub-side CronJob, and the
+cluster's Crossplane IAM resources are all gone.
 Exits 1 if any resources remain or the IAM check cannot run.
 """
 
@@ -73,6 +73,10 @@ def main() -> None:
 
     info("ClusterDeployment:")
     if not _check_gone("clusterdeployment", cluster, cluster):
+        errors += 1
+
+    info("Hub-side CronJob:")
+    if not _check_gone("cronjob", cluster, "default"):
         errors += 1
 
     info("Crossplane IAM resources:")
