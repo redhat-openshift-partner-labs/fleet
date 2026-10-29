@@ -34,6 +34,15 @@ def test_metadata_file_missing_outputs_empty_json(tmp_path, capsys):
     assert out == {}
 
 
+def test_metadata_non_object_exits_1(tmp_path):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text("- item\n")
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+
+
 def test_metadata_file_empty_outputs_empty_json(tmp_path, capsys):
     cluster_dir = tmp_path / "provision" / "c1"
     cluster_dir.mkdir(parents=True)

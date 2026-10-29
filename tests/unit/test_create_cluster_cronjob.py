@@ -5,6 +5,7 @@ import subprocess
 import yaml
 
 from fleet.tasks.create_cluster_cronjob import _cronjob, main
+from fleet.tasks._schedule import schedule_error, timezone_error
 
 BASE_ARGV = [
     "prog",
@@ -87,3 +88,19 @@ def test_invalid_schedule_exits_1():
     with mock.patch("sys.argv", argv):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+def test_timezone_error_accepts_non_string():
+    assert "expected an IANA timezone name" in timezone_error(42)
+
+
+def test_schedule_error_accepts_non_string():
+    assert "expected a five-field cron expression" in schedule_error(42)
+
+
+def test_schedule_error_rejects_invalid_field_syntax():
+    assert "invalid cron field" in schedule_error("00 08 * * Monday")
+
+
+def test_schedule_error_rejects_zero_step():
+    assert "zero step" in schedule_error("00/0 08 * * 1-5")
