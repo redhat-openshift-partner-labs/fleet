@@ -66,6 +66,7 @@ fleet-add-baremetal-workers = "fleet.tasks.add_baremetal_workers:main"
 fleet-finalize-spoke = "fleet.tasks.finalize_spoke:main"
 fleet-apply-ai-workloads = "fleet.tasks.apply_ai_workloads:main"
 fleet-add-ai-workers = "fleet.tasks.add_ai_workers:main"
+fleet-create-access-paste = "fleet.tasks.create_access_paste:main"
 
 [tool.pylint.messages_control]
 disable = [
