@@ -129,3 +129,13 @@ def test_create_access_paste_receives_privatebin_settings():
     params = {param["name"]: param["value"] for param in task["params"]}
     assert params["privatebin-url"] == "$(tasks.load-config.results.privatebin-url)"
     assert params["expire"] == "$(tasks.load-config.results.privatebin-expire)"
+
+
+def test_cluster_cronjob_runs_for_every_cluster_after_kubeconfig_save():
+    tasks = _load_tasks_by_name()
+    task = tasks["create-cluster-cronjob"]
+    assert "when" not in task
+    assert task.get("runAfter") == ["save-spoke-kubeconfig"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["timezone"] == "$(params.timezone)"
+    assert params["schedule"] == "$(params.schedule)"

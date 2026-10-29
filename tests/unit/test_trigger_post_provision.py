@@ -136,6 +136,8 @@ def test_trigger_only_passes_per_run_params(mock_run):
         "htpasswd-provider-name",
         "openshift-ai-version",
         "ai-accelerator",
+        "timezone",
+        "schedule",
     }
 
 
@@ -188,3 +190,28 @@ def test_trigger_forwards_ai_accelerator(mock_run):
     doc = _run_and_capture_yaml(mock_run, argv)
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
     assert params["ai-accelerator"] == "none"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_cronjob_settings_default(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["timezone"] == "America/Chicago"
+    assert params["schedule"] == "00 08 * * 1-5"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_forwards_cronjob_settings(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    argv = [
+        *BASE_ARGV,
+        "--timezone",
+        "Europe/Berlin",
+        "--schedule",
+        "30 07 * * 1",
+    ]
+    doc = _run_and_capture_yaml(mock_run, argv)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["timezone"] == "Europe/Berlin"
+    assert params["schedule"] == "30 07 * * 1"

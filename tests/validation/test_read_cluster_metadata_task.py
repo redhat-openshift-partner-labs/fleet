@@ -56,6 +56,8 @@ def test_results_have_no_trailing_newline(tmp_path):
             "ai-accelerator": "none",
             "platform": "aws",
             "aws-credentials-mode": "scoped",
+            "timezone": "America/Chicago",
+            "schedule": "00 08 * * 1-5",
         },
     )
     assert values == {
@@ -64,6 +66,8 @@ def test_results_have_no_trailing_newline(tmp_path):
         "ai-accelerator": b"none",
         "platform": b"aws",
         "aws-credentials-mode": b"scoped",
+        "timezone": b"America/Chicago",
+        "schedule": b"00 08 * * 1-5",
     }
 
 
@@ -75,4 +79,6 @@ def test_defaults_when_keys_absent(tmp_path):
         "ai-accelerator": b"nvidia-gpu",
         "platform": b"aws",
         "aws-credentials-mode": b"legacy",
+        "timezone": b"America/Chicago",
+        "schedule": b"00 08 * * 1-5",
     }

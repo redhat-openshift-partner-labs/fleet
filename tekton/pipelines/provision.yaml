@@ -204,3 +204,7 @@ spec:
           value: $(tasks.read-cluster-metadata.results.openshift-ai-version)
         - name: ai-accelerator
           value: $(tasks.read-cluster-metadata.results.ai-accelerator)
+        - name: timezone
+          value: $(tasks.read-cluster-metadata.results.timezone)
+        - name: schedule
+          value: $(tasks.read-cluster-metadata.results.schedule)

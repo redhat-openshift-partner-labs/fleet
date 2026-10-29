@@ -20,6 +20,8 @@ def main() -> None:
     parser.add_argument("--htpasswd-provider-name", default="htpasswd")
     parser.add_argument("--openshift-ai-version", default="v3")
     parser.add_argument("--ai-accelerator", default="nvidia-gpu")
+    parser.add_argument("--timezone", default="America/Chicago")
+    parser.add_argument("--schedule", default="00 08 * * 1-5")
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -80,6 +82,10 @@ def main() -> None:
               value: {args.openshift_ai_version}
             - name: ai-accelerator
               value: {args.ai_accelerator}
+            - name: timezone
+              value: {args.timezone}
+            - name: schedule
+              value: "{args.schedule}"
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:
