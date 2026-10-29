@@ -54,6 +54,11 @@ The key is ignored for `base` and `virt`.
 
 `timezone` must be an IANA timezone name. `schedule` must be a five-field cron expression. Missing keys fall back to `America/Chicago` and `00 08 * * 1-5`, so existing cluster definitions continue to work.
 
+```yaml
+timezone: America/Chicago
+schedule: "00 08 * * 1-5"
+```
+
 Deprovision deletes the CronJob from the `default` namespace before deleting the cluster namespace. Namespace deletion alone cannot remove the CronJob because the object is outside the cluster namespace.
 
 ## How values flow through the pipeline
