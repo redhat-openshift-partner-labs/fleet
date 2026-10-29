@@ -19,6 +19,12 @@ spec:
     - name: ai-accelerator
       type: string
       default: "nvidia-gpu"
+    - name: timezone
+      type: string
+      default: "America/Chicago"
+    - name: schedule
+      type: string
+      default: "00 08 * * 1-5"
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -31,4 +37,6 @@ spec:
           --tier "$(params.tier)" \
           --htpasswd-provider-name "$(params.htpasswd-provider-name)" \
           --openshift-ai-version "$(params.openshift-ai-version)" \
-          --ai-accelerator "$(params.ai-accelerator)"
+          --ai-accelerator "$(params.ai-accelerator)" \
+          --timezone "$(params.timezone)" \
+          --schedule "$(params.schedule)"

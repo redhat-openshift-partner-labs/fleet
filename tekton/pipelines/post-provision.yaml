@@ -64,6 +64,12 @@ spec:
     - name: ai-accelerator
       type: string
       default: "nvidia-gpu"
+    - name: timezone
+      type: string
+      default: "America/Chicago"
+    - name: schedule
+      type: string
+      default: "00 08 * * 1-5"
   workspaces:
     - name: shared-workspace
 
@@ -144,6 +150,21 @@ spec:
       workspaces:
         - name: shared
           workspace: shared-workspace
+
+    - name: create-cluster-cronjob
+      taskRef:
+        name: create-cluster-cronjob
+      runAfter:
+        - save-spoke-kubeconfig
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: timezone
+          value: $(params.timezone)
+        - name: schedule
+          value: $(params.schedule)
 
     - name: register-keycloak-client
       when:

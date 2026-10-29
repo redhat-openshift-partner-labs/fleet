@@ -1,0 +1,27 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-cluster-cronjob
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: timezone
+      type: string
+      default: America/Chicago
+    - name: schedule
+      type: string
+      default: 00 08 * * 1-5
+  steps:
+    - name: create
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-create-cluster-cronjob \
+          --cluster-name "$(params.cluster-name)" \
+          --timezone "$(params.timezone)" \
+          --schedule "$(params.schedule)"

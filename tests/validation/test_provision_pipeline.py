@@ -37,6 +37,13 @@ def test_post_provision_receives_ai_accelerator():
     assert params["ai-accelerator"] == AI_ACCELERATOR_INPUT
 
 
+def test_post_provision_receives_cronjob_settings():
+    task = _load_tasks_by_name()["trigger-post-provision"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["timezone"] == ("$(tasks.read-cluster-metadata.results.timezone)")
+    assert params["schedule"] == ("$(tasks.read-cluster-metadata.results.schedule)")
+
+
 def test_every_task_param_is_a_name_value_mapping():
     for name, task in _load_tasks_by_name().items():
         for param in task.get("params", []):

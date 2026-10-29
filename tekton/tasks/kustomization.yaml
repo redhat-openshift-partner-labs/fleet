@@ -23,6 +23,7 @@ resources:
   - trigger-provision.yaml
   - trigger-post-provision.yaml
   - save-spoke-kubeconfig.yaml
+  - create-cluster-cronjob.yaml
   - register-keycloak-client.yaml
   - configure-spoke-oauth.yaml
   - create-cluster-issuer.yaml

@@ -21,6 +21,10 @@ spec:
       description: Cloud platform (aws or azure)
     - name: aws-credentials-mode
       description: AWS credential workflow (scoped or legacy)
+    - name: timezone
+      description: IANA timezone for the hub-side cluster CronJob
+    - name: schedule
+      description: Five-field cron schedule for the hub-side cluster CronJob
   steps:
     - name: read-metadata
       image: $(params.pipeline-image)
@@ -41,3 +45,5 @@ spec:
         result "$(results.ai-accelerator.path)" '.["ai-accelerator"] // "nvidia-gpu"'
         result "$(results.platform.path)" '.["platform"] // "aws"'
         result "$(results.aws-credentials-mode.path)" '.["aws-credentials-mode"] // "legacy"'
+        result "$(results.timezone.path)" '.["timezone"] // "America/Chicago"'
+        result "$(results.schedule.path)" '.["schedule"] // "00 08 * * 1-5"'
