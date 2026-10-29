@@ -578,6 +578,7 @@ sequenceDiagram
 - **`cert-manager`** on the hub with a `ClusterIssuer` pointing at internal PKI.
 - **A git webhook** on the fleet-clusters repo pointing at the Tekton `EventListener`. Pipeline selection is by changed path (`provision/**` vs `deprovision/**`).
 - **Tier labels** on `ManagedCluster` (`tier=virt|ai|base`) read by the post-provision pipeline and by `ApplicationSet` placement.
+- **A hub-side CronJob per cluster** in `default`, using the pre-provisioned `ecoeng` service account and per-cluster `timezone` and `schedule` values.
 
 ---
 
