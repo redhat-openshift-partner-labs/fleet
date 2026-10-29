@@ -24,7 +24,7 @@ RUN curl -fsSL "https://github.com/gearnode/privatebin/releases/download/${PRIVA
 
 FROM registry.access.redhat.com/ubi9-minimal:latest
 
-RUN microdnf install -y openssh-clients openssl-libs jq httpd-tools && microdnf clean all
+RUN microdnf install -y openssh-clients openssl-libs ca-certificates jq httpd-tools && microdnf clean all
 
 COPY --from=build /opt/app-root /opt/app-root
 COPY --from=build /usr/bin/python3.11 /usr/bin/python3.11

@@ -2,7 +2,12 @@ from unittest import mock
 
 import pytest
 
-from fleet.tasks.create_access_paste import generate_password, main, render_markdown
+from fleet.tasks.create_access_paste import (
+    _create_privatebin_paste,
+    generate_password,
+    main,
+    render_markdown,
+)
 
 
 def test_generate_password_matches_pwgen_constraints():
@@ -97,33 +102,23 @@ def test_main_fails_when_admin_password_secret_ref_is_missing(mock_run, tmp_path
             main()
 
 
-@mock.patch("fleet.tasks.create_access_paste.subprocess.run")
-def test_main_fails_when_privatebin_create_fails(mock_run, tmp_path):
-    kubeconfig = tmp_path / "kubeconfig"
-    kubeconfig.write_text("apiVersion: v1\n")
+@mock.patch("fleet.tasks.create_access_paste._run")
+def test_privatebin_failure_includes_client_error(mock_run, capsys):
+    mock_run.return_value = mock.Mock(
+        returncode=1,
+        stdout="",
+        stderr="x509: certificate signed by unknown authority\n",
+    )
 
-    mock_run.side_effect = [
-        mock.Mock(returncode=0, stdout="admin-password-secret"),
-        mock.Mock(returncode=0, stdout="Y2x1c3Rlci1wYXNzd29yZA=="),
-        mock.Mock(returncode=1, stdout="", stderr="create failed"),
-    ]
-
-    with mock.patch(
-        "sys.argv",
-        [
-            "prog",
-            "--cluster-name",
-            "example",
-            "--base-domain",
-            "example.com",
-            "--kubeconfig-file",
-            str(kubeconfig),
-            "--privatebin-url",
-            "https://pastes.example.com",
-        ],
-    ):
-        with pytest.raises(SystemExit, match="1"):
-            main()
+    with pytest.raises(SystemExit, match="1"):
+        _create_privatebin_paste(
+            content="access details",
+            paste_password="paste-password",
+            privatebin_url="https://pastes.example.com",
+            expire="1week",
+        )
+    captured = capsys.readouterr()
+    assert "x509: certificate signed by unknown authority" in captured.err
 
 
 @mock.patch("fleet.tasks.create_access_paste.subprocess.run")

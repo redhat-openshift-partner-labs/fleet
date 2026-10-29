@@ -144,7 +144,7 @@ def _create_privatebin_paste(
         )
 
     if result.returncode != 0:
-        error("Failed to create PrivateBin paste")
+        error(f"Failed to create PrivateBin paste: {result.stderr.strip()}")
         sys.exit(1)
 
     try:
