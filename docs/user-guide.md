@@ -52,13 +52,6 @@ Edit `provision/<cluster-name>/patches/install-config.yaml` to override:
 
 Create `provision/<cluster-name>/metadata.yaml` for per-cluster configuration. See [per-cluster-metadata.md](per-cluster-metadata.md) for details.
 
-```yaml
-timezone: America/Chicago
-schedule: "00 08 * * 1-5"
-```
-
-Both keys are optional. The pipeline uses the values shown above when they are omitted.
-
 ### 5. Commit and push
 
 ```bash
