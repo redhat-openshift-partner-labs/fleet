@@ -1,4 +1,4 @@
-%% Post-provision pipeline: 10 implemented tasks + 1 aspirational
+%% Post-provision pipeline: 11 implemented tasks + 1 aspirational
 %% Aspirational tasks shown in grey (not yet implemented)
 sequenceDiagram
     autonumber
@@ -9,6 +9,7 @@ sequenceDiagram
     participant CertMgr as cert-manager (hub)
     participant KC as Keycloak (hub)
     participant Spoke as Spoke K8s API
+    participant PB as PrivateBin
     participant ACM as ACM / Placement
 
     Note over Prov,ACM: Triggered by provision pipeline's final task (trigger-post-provision)
@@ -78,8 +79,15 @@ sequenceDiagram
         Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
     end
 
+    rect rgb(230, 247, 237)
+        Note over Pipe,PB: Task 11: create-access-paste<br/>(password-protected cluster handoff)
+        Pipe->>K8s: Read kubeadmin password<br/>from Hive Secret
+        Pipe->>PB: Create encrypted Markdown paste
+        PB-->>K8s: Store paste URL + password<br/>in Hub Secret
+    end
+
     rect rgb(200, 200, 200)
-        Note over Pipe,ACM: Task 11 (not yet implemented): mark-bootstrapped
+        Note over Pipe,ACM: Task 12 (not yet implemented): mark-bootstrapped
         Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
         ACM-->>ACM: Placement re-evaluates
         Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin

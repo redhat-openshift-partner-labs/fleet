@@ -119,7 +119,21 @@ The post-provision pipeline runs automatically after a successful provision. It 
 8. **extract-cert-material** — extracts the signed cert and key
 9. **apply-base-workloads** — applies tier-specific day-2 workloads to the spoke
 10. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
-11. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
+11. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
+12. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
+
+The access paste URL and password are stored in the `openshift-pipelines`
+namespace as `<cluster-name>-access-paste`:
+
+```bash
+oc get secret <cluster-name>-access-paste -n openshift-pipelines \
+  -o jsonpath='{.data.url}' | base64 -d
+oc get secret <cluster-name>-access-paste -n openshift-pipelines \
+  -o jsonpath='{.data.password}' | base64 -d
+```
+
+The paste expires after one week by default. Set `privatebin-expire` in
+`fleet-pipeline-config` to change the retention period.
 
 ## Monitoring Pipeline Runs
 

@@ -42,3 +42,4 @@ resources:
   - seed-test-vcluster.yaml
   - delete-test-vcluster.yaml
   - run-post-provision.yaml
+  - create-access-paste.yaml
