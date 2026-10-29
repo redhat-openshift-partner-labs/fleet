@@ -200,7 +200,7 @@ The pipeline image is a multi-stage build (`Dockerfile`):
 
 - **Build stage** — UBI9 + Python 3.11, installs `fleet` package via Poetry
 - **Runtime stage** — UBI9-minimal with `oc`, `kubectl`, `kustomize`,
-  `vcluster`, and all `fleet-*` entry points
+  `vcluster`, `privatebin`, and all `fleet-*` entry points
 
 All Tekton tasks share this single image, referenced via the `pipeline-image`
 param.

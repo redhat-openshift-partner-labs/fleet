@@ -22,3 +22,5 @@ data:
   github-app-id: ""
   github-app-installation-id: ""
   github-app-key-secret: "fleet-github-app-key"
+  privatebin-url: "https://pastes.openshiftpartnerlabs.com"
+  privatebin-expire: "1week"

@@ -113,4 +113,19 @@ def test_finalize_spoke_runs_only_for_openshift():
 def test_finalize_spoke_runs_after_rbac():
     tasks = _load_tasks_by_name()
     task = tasks["finalize-spoke"]
+    assert task.get("runAfter") == ["create-access-paste"]
+
+
+def test_create_access_paste_runs_only_for_openshift_after_rbac():
+    tasks = _load_tasks_by_name()
+    task = tasks["create-access-paste"]
+    assert _openshift_when_values(task) == ["true"]
     assert task.get("runAfter") == ["configure-spoke-rbac"]
+
+
+def test_create_access_paste_receives_privatebin_settings():
+    tasks = _load_tasks_by_name()
+    task = tasks["create-access-paste"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["privatebin-url"] == "$(tasks.load-config.results.privatebin-url)"
+    assert params["expire"] == "$(tasks.load-config.results.privatebin-expire)"

@@ -416,6 +416,31 @@ spec:
         - name: shared
           workspace: shared-workspace
 
+    - name: create-access-paste
+      when:
+        - input: $(params.openshift-cluster)
+          operator: in
+          values:
+            - "true"
+      taskRef:
+        name: create-access-paste
+      runAfter:
+        - configure-spoke-rbac
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: base-domain
+          value: $(tasks.load-config.results.base-domain)
+        - name: privatebin-url
+          value: $(tasks.load-config.results.privatebin-url)
+        - name: expire
+          value: $(tasks.load-config.results.privatebin-expire)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: shared
+          workspace: shared-workspace
+
     - name: finalize-spoke
       when:
         - input: $(params.openshift-cluster)
@@ -425,7 +450,7 @@ spec:
       taskRef:
         name: finalize-spoke
       runAfter:
-        - configure-spoke-rbac
+        - create-access-paste
       params:
         - name: cluster-name
           value: $(params.cluster-name)

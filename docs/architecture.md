@@ -349,14 +349,15 @@ Existing (legacy) clusters are migrated or destroyed by a human. Nothing here ch
 
 Replaces: out-of-band `oc create secret` for IDP, manual SSL setup, no RBAC automation.
 
-The post-provision pipeline is an **11-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
+The post-provision pipeline is a **12-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
 
 1. **Workspace setup** — git-clone of fleet repo, extraction and saving of spoke kubeconfig from hub Secret
 2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI entry point, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
 3. **SSL certificate** — request via cert-manager on hub, wait for signing, derive leaf-only material, push to spoke ingress
 4. **Workloads** — apply tier-specific baseline workloads via kustomize
 5. **RBAC** — create a local `cluster-admins` group on spoke, add per-cluster users, bind to `cluster-admin`
-6. **Finalization** — delete leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
+6. **Access handoff** — create a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
+7. **Finalization** — delete leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
 
 Tier-specific workload delivery (CNV, GPU operators) is a separate decision — see section 7.
 
@@ -462,6 +463,7 @@ sequenceDiagram
 ```
 
 > Diagram source: [diagrams/post-provision-sequence.mermaid](./diagrams/post-provision-sequence.mermaid)
+> Rendered diagram: [diagrams/post-provision-sequence.svg](./diagrams/post-provision-sequence.svg)
 
 ### 3.3 Deprovisioning pipeline
 

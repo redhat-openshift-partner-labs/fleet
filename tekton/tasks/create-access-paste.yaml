@@ -1,0 +1,36 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-access-paste
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: base-domain
+      type: string
+    - name: privatebin-url
+      type: string
+    - name: expire
+      type: string
+      default: "1week"
+    - name: namespace
+      type: string
+      default: "openshift-pipelines"
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: shared
+  steps:
+    - name: create
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-create-access-paste \
+          --cluster-name "$(params.cluster-name)" \
+          --base-domain "$(params.base-domain)" \
+          --kubeconfig-file "$(workspaces.shared.path)/kubeconfig" \
+          --privatebin-url "$(params.privatebin-url)" \
+          --expire "$(params.expire)" \
+          --namespace "$(params.namespace)"

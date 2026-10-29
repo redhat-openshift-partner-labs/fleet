@@ -1,5 +1,8 @@
 FROM registry.access.redhat.com/ubi9/python-311:latest AS build
 
+ARG PRIVATEBIN_VERSION=v2.2.1
+ARG PRIVATEBIN_SHA256=ad83bd5319317aee7c0682e1839da13d0ab7a2494323914103a842899c0ef1ad
+
 COPY pyproject.toml /src/
 COPY fleet /src/fleet
 RUN pip install --no-cache-dir /src && \
@@ -14,6 +17,11 @@ RUN pip install --no-cache-dir /src && \
     curl -sL "https://github.com/loft-sh/vcluster/releases/download/v${VCLUSTER_VERSION}/vcluster-linux-amd64" \
         -o /tmp/vcluster && chmod +x /tmp/vcluster
 
+RUN curl -fsSL "https://github.com/gearnode/privatebin/releases/download/${PRIVATEBIN_VERSION}/privatebin_Linux_x86_64.tar.gz" \
+      -o /tmp/privatebin.tar.gz && \
+    echo "${PRIVATEBIN_SHA256}  /tmp/privatebin.tar.gz" | sha256sum -c - && \
+    tar -xzf /tmp/privatebin.tar.gz -C /tmp privatebin
+
 FROM registry.access.redhat.com/ubi9-minimal:latest
 
 RUN microdnf install -y openssh-clients openssl-libs jq httpd-tools && microdnf clean all
@@ -27,6 +35,7 @@ COPY --from=build /tmp/oc /usr/local/bin/oc
 COPY --from=build /tmp/kubectl /usr/local/bin/kubectl
 COPY --from=build /tmp/kustomize /usr/local/bin/kustomize
 COPY --from=build /tmp/vcluster /usr/local/bin/vcluster
+COPY --from=build /tmp/privatebin /usr/local/bin/privatebin
 
 RUN ln -s python3.11 /usr/bin/python3 && ln -s python3 /usr/bin/python
 
