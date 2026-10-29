@@ -141,6 +141,16 @@ def test_default_namespace_cronjob_deleted(mock_run, mock_sleep):
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_cronjob_deletion_failure_keeps_namespace(mock_run, mock_sleep):
+    mock_run.side_effect = _make_side_effects(cronjob_result=_run_fail([]))
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert not any("namespace" in call.args[0] for call in mock_run.call_args_list)
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
 def test_certificate_deletion_non_fatal(mock_run, mock_sleep):
     mock_run.side_effect = _make_side_effects(
         pre_delete_results=[_run_fail([]), _run([]), _run([])],
