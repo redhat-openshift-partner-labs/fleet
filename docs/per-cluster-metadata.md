@@ -32,6 +32,8 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | `htpasswd-provider-name` | `htpasswd` | `configure-spoke-oauth` | Display name for the htpasswd identity provider in the spoke's OAuth configuration |
 | `openshift-ai-version` | `v3` | `apply-ai-workloads` | OpenShift AI version (`v2` or `v3`); controls prerequisite operator stack |
 | `ai-accelerator` | `nvidia-gpu` | `apply-ai-workloads`, `add-ai-workers` | Hardware profile for `tier=ai` (`none` or `nvidia-gpu`) |
+| `timezone` | `America/Chicago` | `create-cluster-cronjob` | IANA timezone for the hub-side recurring cluster job |
+| `schedule` | `00 08 * * 1-5` | `create-cluster-cronjob` | Five-field cron schedule for the hub-side recurring cluster job |
 
 ### AI accelerator
 
@@ -45,6 +47,14 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 The key is ignored for `base` and `virt`.
 
 `apply-ai-workloads` preflights every required operator for the selected `openshift-ai-version` and `ai-accelerator` before applying subscriptions. CPU-only clusters do not preflight or install NFD or the NVIDIA GPU Operator.
+
+### Hub-side recurring cluster job
+
+`timezone` and `schedule` control the hub CronJob named after the cluster. The CronJob is created in the `default` namespace and uses the pre-provisioned `ecoeng` service account. The handler image is `quay.io/rhopl/osplc:v0.0.2`.
+
+`timezone` must be an IANA timezone name. `schedule` must be a five-field cron expression. Missing keys fall back to `America/Chicago` and `00 08 * * 1-5`, so existing cluster definitions continue to work.
+
+Deprovision deletes the CronJob from the `default` namespace before deleting the cluster namespace. Namespace deletion alone cannot remove the CronJob because the object is outside the cluster namespace.
 
 ## How values flow through the pipeline
 
@@ -65,6 +75,10 @@ provision pipeline
             │
             ▼
 post-provision pipeline
+  │
+  ├─ create-cluster-cronjob
+  │    receives: timezone and schedule as pipeline params
+  │    creates: CronJob/<cluster-name> in the hub default namespace
   │
   └─ configure-spoke-oauth
        receives: htpasswd-provider-name as pipeline param

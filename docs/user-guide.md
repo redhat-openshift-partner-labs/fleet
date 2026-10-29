@@ -52,6 +52,13 @@ Edit `provision/<cluster-name>/patches/install-config.yaml` to override:
 
 Create `provision/<cluster-name>/metadata.yaml` for per-cluster configuration. See [per-cluster-metadata.md](per-cluster-metadata.md) for details.
 
+```yaml
+timezone: America/Chicago
+schedule: "00 08 * * 1-5"
+```
+
+Both keys are optional. The pipeline uses the values shown above when they are omitted.
+
 ### 5. Commit and push
 
 ```bash
@@ -112,15 +119,16 @@ The post-provision pipeline runs automatically after a successful provision. It 
 1. **git-clone** — checks out the repo
 2. **extract-spoke-kubeconfig** — retrieves spoke credentials from the hub
 3. **save-spoke-kubeconfig** — persists kubeconfig to the workspace
-4. **register-keycloak-client** — registers an OIDC client in Keycloak for the spoke
-5. **configure-spoke-oauth** — configures OpenShift OAuth on the spoke to use Keycloak
-6. **request-ssl-cert** — requests a TLS certificate via cert-manager on the hub
-7. **wait-for-ssl-ready** — waits for the certificate to be issued
-8. **extract-cert-material** — extracts the signed cert and key
-9. **apply-base-workloads** — applies tier-specific day-2 workloads to the spoke
-10. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
-11. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
-12. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
+4. **create-cluster-cronjob** — creates the recurring cluster job in the hub `default` namespace
+5. **register-keycloak-client** — registers an OIDC client in Keycloak for the spoke
+6. **configure-spoke-oauth** — configures OpenShift OAuth on the spoke to use Keycloak
+7. **request-ssl-cert** — requests a TLS certificate via cert-manager on the hub
+8. **wait-for-ssl-ready** — waits for the certificate to be issued
+9. **extract-cert-material** — extracts the signed cert and key
+10. **apply-base-workloads** — applies tier-specific day-2 workloads to the spoke
+11. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
+12. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
+13. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
 
 The access paste URL and password are stored in the `openshift-pipelines`
 namespace as `<cluster-name>-access-paste`:
@@ -176,7 +184,7 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 
 1. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
 2. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure
-3. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, and leftover resources from the hub
+3. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
 4. **verify-deprovision** — confirms all resources have been cleaned up
 
 ## Troubleshooting
