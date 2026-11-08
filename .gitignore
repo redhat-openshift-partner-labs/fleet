@@ -26,6 +26,7 @@ tmp/
 kustomize
 .coverage
 docs/plans
+.taskmaster/
 .claude/
 .serena/
 .mcp.json
