@@ -5,11 +5,12 @@ import subprocess
 
 import pytest
 
-from fleet.tasks._aws_components import COMPONENTS, iam_targets, raw_secret_name
+from fleet.tasks._aws_components import DiscoveryError
 from fleet.tasks.wait_for_aws_component_creds import main
+from tests.unit._aws_fixtures import OPERATORS, iam_targets_for
 
-RAW_SECRETS = [raw_secret_name("test-cluster", c.key) for c in COMPONENTS]
-TARGETS = iam_targets("test-cluster")
+RAW_SECRETS = [c.raw_secret for c in OPERATORS]
+TARGETS = iam_targets_for("test-cluster")
 
 
 def _ok(stdout=""):
@@ -60,15 +61,24 @@ def _argv(timeout=None):
     return mock.patch("sys.argv", argv)
 
 
-def test_raw_secret_names():
-    assert RAW_SECRETS == [
-        "test-cluster-machine-api-credentials-raw",
-        "test-cluster-cco-iam-ro-credentials-raw",
-        "test-cluster-image-registry-credentials-raw",
-        "test-cluster-ingress-credentials-raw",
-        "test-cluster-cncc-credentials-raw",
-        "test-cluster-ebs-csi-credentials-raw",
-    ]
+@pytest.fixture(autouse=True)
+def discovery():
+    """Every main() test sees OPERATORS and their IAM resources from discovery.
+
+    The task imports both functions by name, so the patch goes on the task module. The oc
+    sequences below therefore hold only the Secret and resource polls, as before.
+    """
+    with (
+        mock.patch(
+            "fleet.tasks.wait_for_aws_component_creds.discover_components",
+            return_value=OPERATORS,
+        ) as discover,
+        mock.patch(
+            "fleet.tasks.wait_for_aws_component_creds.all_iam_targets",
+            return_value=TARGETS,
+        ),
+    ):
+        yield discover
 
 
 @mock.patch("fleet.tasks.wait_for_aws_component_creds.time.sleep")
@@ -165,3 +175,34 @@ def test_resource_query_failure_is_not_ready(mock_run, mock_sleep, mock_error):
             main()
     messages = "\n".join(str(c.args[0]) for c in mock_error.call_args_list)
     assert "forbidden" in messages
+
+
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.info")
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.time.sleep")
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.subprocess.run")
+def test_discovery_runs_once_and_reports_counts(
+    mock_run, mock_sleep, mock_info, discovery
+):
+    mock_run.side_effect = [_ok(), _all_ready()]
+    with _argv():
+        main()
+    discovery.assert_called_once_with("test-cluster")
+    logged = [str(c.args[0]) for c in mock_info.call_args_list]
+    assert f"  secrets={len(RAW_SECRETS)} iam-resources={len(TARGETS)}" in logged
+
+
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.error")
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.time.sleep")
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.subprocess.run")
+def test_discovery_failure_exits_before_polling(
+    mock_run, mock_sleep, mock_error, discovery
+):
+    """An overlay without annotations fails at once; re-running the pipeline is the recovery."""
+    message = "AccessKey lookup failed for test-cluster: denied"
+    discovery.side_effect = DiscoveryError(message)
+    with _argv():
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    mock_sleep.assert_not_called()
+    mock_run.assert_not_called()
+    assert [str(c.args[0]) for c in mock_error.call_args_list] == [message]
