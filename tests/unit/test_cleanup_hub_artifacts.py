@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from fleet.tasks._aws_components import COMPONENTS, iam_targets
+from fleet.tasks._aws_components import iam_targets
 from fleet.tasks.cleanup_hub_artifacts import main
 
 TARGETS = iam_targets("test-cluster")
@@ -80,18 +80,11 @@ def test_targets_cover_legacy_installer_resources():
         assert target in TARGETS
 
 
-def test_targets_cover_scoped_operator_users_and_node_roles():
-    for comp in COMPONENTS:
-        for target in (
-            f"userpolicyattachment.iam/test-cluster-{comp.key}-attachment",
-            f"policy.iam/test-cluster-{comp.key}-policy",
-            f"accesskey.iam/test-cluster-{comp.key}-access-key",
-            f"user.iam/test-cluster-{comp.key}",
-        ):
-            assert target in TARGETS
+def test_targets_cover_node_roles():
+    """Known names are the installer set and the BYO node roles; operators come by label."""
     assert "role.iam/test-cluster-master-role" in TARGETS
     assert "role.iam/test-cluster-worker-role" in TARGETS
-    assert len(TARGETS) == 4 + 4 * len(COMPONENTS) + 2
+    assert len(TARGETS) == 6
 
 
 def test_attachments_and_keys_deleted_before_users_and_policies():
@@ -514,3 +507,27 @@ def test_polling_completes_before_namespace_delete(mock_run, mock_sleep):
         i for i, c in enumerate(call_order) if c[0] == "run" and "namespace" in c[1]
     )
     assert get_indices and all(gi < ns_idx for gi in get_indices)
+
+
+# ---------------------------------------------------------------------------
+# Label lookup failure: operator resources are known only by label, so stop
+# ---------------------------------------------------------------------------
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.error")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_label_lookup_failure_keeps_namespace(mock_run, mock_sleep, mock_error):
+    """Deleting only the known names would strand the operator users and keys in AWS."""
+    mock_run.side_effect = _make_side_effects(label_result=_run_fail([]))
+    with _argv(), pytest.raises(SystemExit, match="1"):
+        main()
+    # Pre-delete steps and the lookup ran; no IAM delete, poll, CronJob or namespace delete
+    assert mock_run.call_count == 4
+    assert not any("--wait=false" in c[0][0] for c in mock_run.call_args_list)
+    assert not any("namespace" in c[0][0] for c in mock_run.call_args_list)
+    mock_sleep.assert_not_called()
+    assert [str(c.args[0]) for c in mock_error.call_args_list] == [
+        "IAM label lookup failed for test-cluster: error; namespace test-cluster kept. "
+        "Re-run deprovision when the hub API answers."
+    ]

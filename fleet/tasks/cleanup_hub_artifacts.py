@@ -2,9 +2,10 @@
 
 CLI: fleet-cleanup-hub-artifacts --cluster-name NAME [--iam-timeout-seconds 600] [--orphan-stuck-iam]
 Deletes certificate CRs, ClusterIssuer, Crossplane IAM resources, then namespace.
-IAM resources cover both legacy (installer user only) and scoped AWS clusters (per-operator
-users and BYO node roles), plus anything carrying the cluster's ownership label; missing ones
-are ignored. Deletes and polls use one oc call each.
+IAM resources are the installer set and the BYO node roles by name, plus everything carrying
+the cluster's ownership label (the per-operator users, keys, policies and attachments of scoped
+clusters); missing ones are ignored. A failed label lookup fails the task before any IAM delete
+and keeps the namespace. Deletes and polls use one oc call each.
 Non-critical deletions are best-effort.
 
 IAM resources still present at the timeout are reported with their AWS names and conditions,
@@ -20,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from fleet.tasks._aws_components import all_iam_targets
+from fleet.tasks._aws_components import DiscoveryError, all_iam_targets
 from fleet.tasks._log import configure, error, info, warn
 
 _POLL_INTERVAL = 10
@@ -163,7 +164,15 @@ def main() -> None:
     info(f"  -> Secret {cluster}-cert-manager-aws deleted")
 
     info("Deleting Crossplane IAM resources...")
-    targets = all_iam_targets(cluster)
+    try:
+        targets = all_iam_targets(cluster)
+    except DiscoveryError as exc:
+        # Operator resources are known only by label: deleting the known names alone would
+        # strand their users and keys in AWS
+        error(
+            f"{exc}; namespace {cluster} kept. Re-run deprovision when the hub API answers."
+        )
+        sys.exit(1)
     _delete_iam_no_wait(targets)
 
     info("Waiting for IAM resources to be fully deleted...")

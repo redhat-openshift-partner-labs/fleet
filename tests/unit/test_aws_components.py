@@ -7,18 +7,15 @@ import pytest
 from fleet.tasks._aws_components import (
     ANNOTATION_TARGET_SECRET,
     CLUSTER_LABEL,
-    COMPONENTS,
     REGENERATE,
     TARGET_ANNOTATIONS,
     DiscoveryError,
-    access_key_name,
     all_iam_targets,
     discover_components,
     iam_targets,
     installer_access_key_name,
     labelled_iam_targets,
     manifests_secret_name,
-    raw_secret_name,
 )
 from tests.unit._aws_fixtures import (
     OPERATORS,
@@ -29,25 +26,19 @@ from tests.unit._aws_fixtures import (
 
 
 def test_resource_names():
-    assert raw_secret_name("c1", "ingress") == "c1-ingress-credentials-raw"
-    assert access_key_name("c1", "ingress") == "c1-ingress-access-key"
     assert manifests_secret_name("c1") == "c1-cloud-credentials-manifests"
 
 
-def test_components_match_scaffold_credentials_requests():
-    # Must stay in sync with fleet-cluster-scaffold aws_policies.COMPONENTS
-    assert {(c.key, c.namespace, c.secret) for c in COMPONENTS} == {
-        ("machine-api", "openshift-machine-api", "aws-cloud-credentials"),
-        (
-            "cco-iam-ro",
-            "openshift-cloud-credential-operator",
-            "cloud-credential-operator-iam-ro-creds",
-        ),
-        ("image-registry", "openshift-image-registry", "installer-cloud-credentials"),
-        ("ingress", "openshift-ingress-operator", "cloud-credentials"),
-        ("cncc", "openshift-cloud-network-config-controller", "cloud-credentials"),
-        ("ebs-csi", "openshift-cluster-csi-drivers", "ebs-cloud-credentials"),
-    }
+def test_iam_targets_are_the_fixed_names_only():
+    """Operator resources are found by label; only these six keep fixed names."""
+    assert iam_targets("c1") == [
+        "userpolicyattachment.iam/c1-policy-attachment",
+        "accesskey.iam/c1-access-key",
+        "policy.iam/c1-openshift4installerpolicy",
+        "user.iam/c1-ocp-installer",
+        "role.iam/c1-master-role",
+        "role.iam/c1-worker-role",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +69,19 @@ def test_labelled_targets_query_and_normalize(mock_run):
 
 
 @mock.patch("fleet.tasks._aws_components.subprocess.run")
-def test_labelled_targets_empty_on_oc_failure(mock_run):
+def test_labelled_targets_raise_on_oc_failure(mock_run):
+    """A failed lookup is not an empty cluster: nothing may be deleted on it."""
     mock_run.return_value = _get("", returncode=1)
-    assert labelled_iam_targets("c1") == []
+    with pytest.raises(DiscoveryError) as exc:
+        labelled_iam_targets("c1")
+    assert str(exc.value) == "IAM label lookup failed for c1: denied"
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_all_targets_propagate_lookup_failure(mock_run):
+    mock_run.return_value = _get("", returncode=1)
+    with pytest.raises(DiscoveryError):
+        all_iam_targets("c1")
 
 
 @mock.patch("fleet.tasks._aws_components.subprocess.run")
