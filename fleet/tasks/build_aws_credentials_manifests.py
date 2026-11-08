@@ -1,11 +1,13 @@
 """Build the Hive install-manifests Secret carrying per-operator AWS credentials (scoped clusters).
 
 CLI: fleet-build-aws-credentials-manifests --cluster-name NAME
-Reads each <cluster>-<operator>-credentials-raw Secret (Crossplane AccessKey: username/password)
-and writes Secret <cluster>-cloud-credentials-manifests in namespace {cluster}. Each key is a
-Secret manifest for the operator's target namespace/name, which Hive adds to the install
-manifests via ClusterDeployment.spec.provisioning.manifestsSecretRef (credentialsMode Manual).
-Secret values go through stdin only and are never logged. Exits 1 on any failure.
+Discovers the operators from the cluster's annotated AccessKeys (discover_components), reads
+each one's raw credential Secret (Crossplane AccessKey: username/password) and writes Secret
+<cluster>-cloud-credentials-manifests in namespace {cluster}. Each key is a Secret manifest for
+the operator's target namespace/name, which Hive adds to the install manifests via
+ClusterDeployment.spec.provisioning.manifestsSecretRef (credentialsMode Manual). Secret values
+go through stdin only and are never logged. Exits 1 on any failure, including an overlay whose
+AccessKeys carry no target annotations.
 """
 
 import argparse
@@ -18,16 +20,16 @@ import sys
 import yaml
 
 from fleet.tasks._aws_components import (
-    COMPONENTS,
-    Component,
+    DiscoveryError,
+    OperatorCredential,
+    discover_components,
     manifests_secret_name,
-    raw_secret_name,
 )
 from fleet.tasks._log import configure, error, info
 
 
-def _read_credentials(cluster: str, comp: Component) -> tuple[str, str]:
-    name = raw_secret_name(cluster, comp.key)
+def _read_credentials(cluster: str, comp: OperatorCredential) -> tuple[str, str]:
+    name = comp.raw_secret
     result = subprocess.run(
         ["oc", "get", "secret", name, "-n", cluster, "-o", "json"],
         capture_output=True,
@@ -42,7 +44,7 @@ def _read_credentials(cluster: str, comp: Component) -> tuple[str, str]:
     return key_id, secret
 
 
-def _operator_manifest(comp: Component, key_id: str, secret: str) -> str:
+def _operator_manifest(comp: OperatorCredential, key_id: str, secret: str) -> str:
     return yaml.safe_dump(
         {
             "apiVersion": "v1",
@@ -74,13 +76,15 @@ def main() -> None:
 
     manifests: dict[str, str] = {}
     try:
-        for comp in COMPONENTS:
-            info(f"Reading {raw_secret_name(cluster, comp.key)}...")
+        components = discover_components(cluster)
+        for comp in components:
+            info(f"Reading {comp.raw_secret} ({comp.credentials_request})...")
             key_id, secret = _read_credentials(cluster, comp)
             filename = f"cco-secret-{comp.namespace}-{comp.secret}.yaml"
             manifests[filename] = _operator_manifest(comp, key_id, secret)
             info(f"  -> {comp.namespace}/{comp.secret}")
     except (
+        DiscoveryError,
         subprocess.CalledProcessError,
         binascii.Error,
         KeyError,

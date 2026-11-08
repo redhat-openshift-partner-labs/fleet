@@ -7,8 +7,9 @@ import subprocess
 import pytest
 import yaml
 
-from fleet.tasks._aws_components import COMPONENTS
+from fleet.tasks._aws_components import DiscoveryError
 from fleet.tasks.build_aws_credentials_manifests import main
+from tests.unit._aws_fixtures import OPERATORS
 
 KEY_ID, SECRET = "AKIAEXAMPLEKEYID", "s3cr3t/value+with=chars"
 
@@ -31,20 +32,31 @@ def _argv():
     return mock.patch("sys.argv", ["prog", "--cluster-name", "c1"])
 
 
+@pytest.fixture(autouse=True)
+def discovery():
+    """Every test sees OPERATORS from discovery; oc sequences hold only Secret reads and the apply."""
+    with mock.patch(
+        "fleet.tasks.build_aws_credentials_manifests.discover_components",
+        return_value=OPERATORS,
+    ) as discover:
+        yield discover
+
+
 @mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
 def test_builds_manifest_secret_for_hive(mock_run):
-    mock_run.side_effect = [_raw_secret() for _ in COMPONENTS] + [_ok()]
+    mock_run.side_effect = [_raw_secret() for _ in OPERATORS] + [_ok()]
     with _argv():
         main()
 
-    # One read per operator, then a single apply over stdin
-    reads = mock_run.call_args_list[: len(COMPONENTS)]
-    for call, comp in zip(reads, COMPONENTS):
+    # One read per discovered operator (raw Secret name taken as discovered), then a
+    # single apply over stdin
+    reads = mock_run.call_args_list[: len(OPERATORS)]
+    for call, comp in zip(reads, OPERATORS):
         assert call.args[0] == [
             "oc",
             "get",
             "secret",
-            f"c1-{comp.key}-credentials-raw",
+            comp.raw_secret,
             "-n",
             "c1",
             "-o",
@@ -59,8 +71,8 @@ def test_builds_manifest_secret_for_hive(mock_run):
         "name": "c1-cloud-credentials-manifests",
         "namespace": "c1",
     }
-    assert len(outer["stringData"]) == len(COMPONENTS)
-    for comp in COMPONENTS:
+    assert len(outer["stringData"]) == len(OPERATORS)
+    for comp in OPERATORS:
         manifest = yaml.safe_load(
             outer["stringData"][f"cco-secret-{comp.namespace}-{comp.secret}.yaml"]
         )
@@ -77,7 +89,7 @@ def test_builds_manifest_secret_for_hive(mock_run):
 @mock.patch("fleet.tasks.build_aws_credentials_manifests.info")
 @mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
 def test_secrets_never_on_argv_or_logged(mock_run, mock_info):
-    mock_run.side_effect = [_raw_secret() for _ in COMPONENTS] + [_ok()]
+    mock_run.side_effect = [_raw_secret() for _ in OPERATORS] + [_ok()]
     with _argv():
         main()
     for call in mock_run.call_args_list:
@@ -115,9 +127,35 @@ def test_malformed_secret_exits(mock_run):
 
 @mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
 def test_apply_failure_exits(mock_run):
-    mock_run.side_effect = [_raw_secret() for _ in COMPONENTS] + [
+    mock_run.side_effect = [_raw_secret() for _ in OPERATORS] + [
         subprocess.CalledProcessError(1, "oc", stderr="denied")
     ]
     with _argv():
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.info")
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
+def test_logs_raw_secret_and_credentials_request(mock_run, mock_info, discovery):
+    mock_run.side_effect = [_raw_secret() for _ in OPERATORS] + [_ok()]
+    with _argv():
+        main()
+    discovery.assert_called_once_with("c1")
+    logged = [str(c.args[0]) for c in mock_info.call_args_list]
+    for comp in OPERATORS:
+        assert f"Reading {comp.raw_secret} ({comp.credentials_request})..." in logged
+
+
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.error")
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
+def test_discovery_failure_exits(mock_run, mock_error, discovery):
+    message = "no operator AccessKeys carry target annotations for c1; regenerate"
+    discovery.side_effect = DiscoveryError(message)
+    with _argv():
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    mock_run.assert_not_called()
+    assert [str(c.args[0]) for c in mock_error.call_args_list] == [
+        f"Failed to read operator credentials: {message}"
+    ]
