@@ -3,8 +3,14 @@
 Mirrors COMPONENTS in fleet-cluster-scaffold src/scaffold/providers/aws_policies.py. Each
 component's Crossplane AccessKey writes Secret <cluster>-<key>-credentials-raw (username/password)
 in the cluster namespace; the pipeline turns them into Secrets in <namespace>/<secret> on the spoke.
+
+discover_components reads the operator set from the cluster's own AccessKeys on the hub: every
+operator AccessKey carries the three openshiftpartnerlabs.com target annotations the scaffold
+writes (TARGET_ANNOTATIONS); the installer AccessKey <cluster>-access-key carries none and is
+skipped.
 """
 
+import json
 import subprocess
 from typing import NamedTuple
 
@@ -24,6 +30,30 @@ _IAM_RESOURCES = ",".join(
     f"{r}.iam.aws.upbound.io"
     for r in ("userpolicyattachments", "accesskeys", "policies", "users", "roles")
 )
+
+# Written by fleet-cluster-scaffold on every operator AccessKey; the installer AccessKey has none.
+ANNOTATION_CREDENTIALS_REQUEST = "openshiftpartnerlabs.com/credentials-request"
+ANNOTATION_TARGET_NAMESPACE = "openshiftpartnerlabs.com/target-namespace"
+# The value is an annotation key, not a credential (bandit B105 keys on the name)
+ANNOTATION_TARGET_SECRET = "openshiftpartnerlabs.com/target-secret"  # nosec B105
+TARGET_ANNOTATIONS = (
+    ANNOTATION_CREDENTIALS_REQUEST,
+    ANNOTATION_TARGET_NAMESPACE,
+    ANNOTATION_TARGET_SECRET,
+)
+REGENERATE = "regenerate the overlay with the current fleet-cluster-scaffold"
+
+
+class DiscoveryError(RuntimeError):
+    """The cluster's IAM resources could not be listed, or the overlay predates the annotations."""
+
+
+class OperatorCredential(NamedTuple):
+    credentials_request: str  # log lines only
+    namespace: str  # spoke target namespace
+    secret: str  # spoke target Secret
+    raw_secret: str  # hub Secret written by the AccessKey (spec.writeConnectionSecretToRef.name)
+    access_key: str  # AccessKey name, for messages
 
 
 class Component(NamedTuple):
@@ -56,9 +86,64 @@ def access_key_name(cluster: str, key: str) -> str:
     return f"{cluster}-{key}-access-key"
 
 
+def installer_access_key_name(cluster: str) -> str:
+    return f"{cluster}-access-key"
+
+
 def manifests_secret_name(cluster: str) -> str:
     """Secret referenced by ClusterDeployment.spec.provisioning.manifestsSecretRef."""
     return f"{cluster}-cloud-credentials-manifests"
+
+
+def discover_components(cluster: str) -> list[OperatorCredential]:
+    """Operator credentials of a scoped cluster, read from its labelled AccessKeys.
+
+    Skips installer_access_key_name(cluster); sorted by access_key. DiscoveryError when oc
+    fails, when any other labelled AccessKey lacks a target annotation (a hand-edited or
+    pre-annotation overlay), or when no operator AccessKey is left.
+    """
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "accesskeys.iam.aws.upbound.io",
+            "-l",
+            f"{CLUSTER_LABEL}={cluster}",
+            "-o",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise DiscoveryError(
+            f"AccessKey lookup failed for {cluster}: {result.stderr.strip()}"
+        )
+    installer = installer_access_key_name(cluster)
+    operators: list[OperatorCredential] = []
+    for item in json.loads(result.stdout).get("items", []):
+        name = item["metadata"]["name"]
+        if name == installer:
+            continue
+        annotations = item["metadata"].get("annotations") or {}
+        if not all(annotations.get(key) for key in TARGET_ANNOTATIONS):
+            raise DiscoveryError(
+                f"AccessKey {name} lacks target annotations; {REGENERATE}"
+            )
+        operators.append(
+            OperatorCredential(
+                credentials_request=annotations[ANNOTATION_CREDENTIALS_REQUEST],
+                namespace=annotations[ANNOTATION_TARGET_NAMESPACE],
+                secret=annotations[ANNOTATION_TARGET_SECRET],
+                raw_secret=item["spec"]["writeConnectionSecretToRef"]["name"],
+                access_key=name,
+            )
+        )
+    if not operators:
+        raise DiscoveryError(
+            f"no operator AccessKeys carry target annotations for {cluster}; {REGENERATE}"
+        )
+    return sorted(operators, key=lambda c: c.access_key)
 
 
 def iam_targets(cluster: str) -> list[str]:
