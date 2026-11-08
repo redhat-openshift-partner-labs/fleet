@@ -4,12 +4,15 @@ CLI: fleet-scope-aws-credentials --cluster-name NAME [--timeout-seconds 600]
 Scaffold-rendered policies carry INFRA_ID_PLACEHOLDER / VPC_ID_PLACEHOLDER, which match nothing
 until install. This task reads the infra ID from the ClusterDeployment, finds the cluster VPC
 (tag kubernetes.io/cluster/<infraID>=owned) with the hub's installer credentials, and substitutes
-both into the cluster's Crossplane Policies and Roles. Afterwards resources tagged only with the
-installer cluster tag (cloud-controller-manager LBs/SGs, CSI volumes) count as owned, and egress-IP
-ENI changes are limited to the cluster VPC. It then waits until the provider's observed AWS state
+both into every Crossplane Policy and Role carrying the cluster's ownership label
+(openshiftpartnerlabs.com/cluster); the installer policy has no placeholders and is reported
+"already bound". Afterwards resources tagged only with the installer cluster tag
+(cloud-controller-manager LBs/SGs, CSI volumes) count as owned, and egress-IP ENI changes are
+limited to the cluster VPC. It then waits until the provider's observed AWS state
 (status.atProvider) no longer contains placeholders, so a hub identity that cannot update IAM
 policies (e.g. missing iam:CreatePolicyVersion) fails here with the Synced message instead of
-leaving the cluster fail-closed. Idempotent. Exits 1 on any failure.
+leaving the cluster fail-closed. Idempotent. Exits 1 on any failure, including a failed or empty
+label lookup.
 """
 
 import argparse
@@ -29,19 +32,50 @@ from fleet.tasks._aws_binding import (
     oc_json,
 )
 from fleet.tasks._aws_components import (
-    COMPONENTS,
+    CLUSTER_LABEL,
     INFRA_ID_PLACEHOLDER,
+    REGENERATE,
     VPC_ID_PLACEHOLDER,
+    DiscoveryError,
 )
 from fleet.tasks._log import configure, error, info
 
+_POLICY_RESOURCES = "policies.iam.aws.upbound.io,roles.iam.aws.upbound.io"
+
 
 def policy_targets(cluster: str) -> list[str]:
-    """Crossplane IAM resources whose policies may contain placeholders."""
-    return [f"policy.iam/{cluster}-{c.key}-policy" for c in COMPONENTS] + [
-        f"role.iam/{cluster}-master-role",
-        f"role.iam/{cluster}-worker-role",
+    """Labelled Policies and Roles as kind.iam/name: the resources that may carry placeholders.
+
+    DiscoveryError when oc fails or when nothing is labelled (an overlay rendered before the
+    ownership label, or the wrong cluster name).
+    """
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            _POLICY_RESOURCES,
+            "-l",
+            f"{CLUSTER_LABEL}={cluster}",
+            "-o",
+            "name",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise DiscoveryError(
+            f"IAM label lookup failed for {cluster}: {result.stderr.strip()}"
+        )
+    # oc prints kind.iam.aws.upbound.io/name; the rest of the task uses kind.iam/name
+    targets = [
+        f"{ref.split('.', 1)[0]}.iam/{ref.split('/', 1)[1]}"
+        for ref in result.stdout.split()
     ]
+    if not targets:
+        raise DiscoveryError(
+            f"no labelled Policies or Roles for {cluster}; {REGENERATE}"
+        )
+    return targets
 
 
 def _substitute(target: str, infra_id: str, vpc_id: str) -> bool:
@@ -103,6 +137,8 @@ def main() -> None:
     info(f"  cluster-name={cluster}")
 
     try:
+        # One labelled listing serves both the substitution loop and the wait loop
+        targets = policy_targets(cluster)
         infra_id, region, creds_secret = cluster_facts(cluster)
         info(f"  infraID={infra_id} region={region}")
         key_id, secret = aws_credentials(cluster, creds_secret)
@@ -110,7 +146,7 @@ def main() -> None:
         info(f"  vpc={vpc_id}")
 
         patched = 0
-        for target in policy_targets(cluster):
+        for target in targets:
             if _substitute(target, infra_id, vpc_id):
                 info(f"  -> {target}: placeholders substituted")
                 patched += 1
@@ -120,6 +156,7 @@ def main() -> None:
         error(f"oc command failed: {exc.stderr}")
         sys.exit(1)
     except (
+        DiscoveryError,
         ValueError,
         KeyError,
         binascii.Error,
@@ -132,7 +169,6 @@ def main() -> None:
     info(
         f"Patched {patched} resource(s); waiting for AWS to reflect the bound policies..."
     )
-    targets = policy_targets(cluster)
     elapsed, interval = 0, 10
     while True:
         pending = _unbound(targets)
