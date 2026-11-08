@@ -1,15 +1,30 @@
+import json
 import subprocess
 from unittest import mock
 
+import pytest
+
 from fleet.tasks._aws_components import (
+    ANNOTATION_TARGET_SECRET,
     CLUSTER_LABEL,
     COMPONENTS,
+    REGENERATE,
+    TARGET_ANNOTATIONS,
+    DiscoveryError,
     access_key_name,
     all_iam_targets,
+    discover_components,
     iam_targets,
+    installer_access_key_name,
     labelled_iam_targets,
     manifests_secret_name,
     raw_secret_name,
+)
+from tests.unit._aws_fixtures import (
+    OPERATORS,
+    RENDERING,
+    access_key_item,
+    access_keys_payload,
 )
 
 
@@ -81,3 +96,131 @@ def test_all_targets_union_dedup_and_dependency_order(mock_run):
     rank = ["userpolicyattachment", "accesskey", "policy", "user", "role"]
     kinds = [rank.index(t.split(".", 1)[0]) for t in targets]
     assert kinds == sorted(kinds)
+
+
+# ---------------------------------------------------------------------------
+# Operator discovery: the target annotations the scaffold writes on each AccessKey
+# ---------------------------------------------------------------------------
+
+
+def _key(comp):
+    return comp.access_key.removeprefix("test-cluster-").removesuffix("-access-key")
+
+
+def _operator_items(cluster="test-cluster"):
+    """OPERATORS as labelled AccessKeys, listed in reverse so the result must be sorted."""
+    return [
+        access_key_item(
+            cluster, _key(comp), comp.credentials_request, comp.namespace, comp.secret
+        )
+        for comp in reversed(OPERATORS)
+    ]
+
+
+def _payload(*items, cluster="test-cluster"):
+    """oc get accesskeys -o json: the installer AccessKey (no annotations) plus items."""
+    return access_keys_payload(access_key_item(cluster, None), *items)
+
+
+def test_installer_access_key_name():
+    assert installer_access_key_name("c1") == "c1-access-key"
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_query(mock_run):
+    mock_run.return_value = _payload(*_operator_items("c1"), cluster="c1")
+    discover_components("c1")
+    mock_run.assert_called_once_with(
+        [
+            "oc",
+            "get",
+            "accesskeys.iam.aws.upbound.io",
+            "-l",
+            f"{CLUSTER_LABEL}=c1",
+            "-o",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_parses_annotated_access_keys(mock_run):
+    mock_run.return_value = _payload(*_operator_items())
+    found = discover_components("test-cluster")
+    # Sorted by access_key (the payload was reversed); raw_secret is the
+    # AccessKey's writeConnectionSecretToRef.name
+    assert found == OPERATORS
+    assert [c.raw_secret for c in found] == [
+        "test-cluster-ingress-credentials-raw",
+        "test-cluster-machine-api-credentials-raw",
+    ]
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_skips_installer_access_key(mock_run):
+    mock_run.return_value = _payload(*_operator_items())
+    found = discover_components("test-cluster")
+    assert len(found) == len(OPERATORS)
+    assert installer_access_key_name("test-cluster") not in {
+        c.access_key for c in found
+    }
+    assert "aws-credentials-raw" not in {c.raw_secret for c in found}
+
+
+@pytest.mark.parametrize("annotated", [True, False])
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_fails_on_missing_annotation(mock_run, annotated):
+    broken = access_key_item("test-cluster", "extra", annotated=annotated)
+    if annotated:
+        del broken["metadata"]["annotations"][ANNOTATION_TARGET_SECRET]
+    mock_run.return_value = _payload(*_operator_items(), broken)
+    with pytest.raises(DiscoveryError) as exc:
+        discover_components("test-cluster")
+    assert "AccessKey test-cluster-extra-access-key lacks target annotations" in str(
+        exc.value
+    )
+    assert REGENERATE in str(exc.value)
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_fails_when_none_annotated(mock_run):
+    mock_run.return_value = _payload(cluster="c1")
+    with pytest.raises(DiscoveryError) as exc:
+        discover_components("c1")
+    assert str(exc.value) == (
+        f"no operator AccessKeys carry target annotations for c1; {REGENERATE}"
+    )
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_discover_components_fails_on_oc_error(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=1, stdout="", stderr="denied\n"
+    )
+    with pytest.raises(DiscoveryError) as exc:
+        discover_components("c1")
+    assert str(exc.value) == "AccessKey lookup failed for c1: denied"
+
+
+@mock.patch("fleet.tasks._aws_components.subprocess.run")
+def test_vendored_rendering_matches_contract(mock_run):
+    """The scaffold rendering in tests/data is what discovery reads on a real hub."""
+    rendering = json.loads(RENDERING.read_text())
+    items = {item["metadata"]["name"]: item for item in rendering["items"]}
+    cluster = next(iter(items.values()))["metadata"]["labels"][CLUSTER_LABEL]
+    installer = installer_access_key_name(cluster)
+    assert installer in items
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout=RENDERING.read_text(), stderr=""
+    )
+    found = discover_components(cluster)
+    assert len(found) == len(items) - 1
+    assert installer not in {c.access_key for c in found}
+    for comp in found:
+        item = items[comp.access_key]
+        assert set(TARGET_ANNOTATIONS) <= set(item["metadata"]["annotations"])
+        assert comp.raw_secret == item["spec"]["writeConnectionSecretToRef"]["name"]
+        assert comp.namespace and comp.secret
