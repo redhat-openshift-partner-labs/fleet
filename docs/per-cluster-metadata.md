@@ -52,6 +52,8 @@ The key is ignored for `base` and `virt`.
 
 `timezone` and `schedule` control the hub CronJob named after the cluster. The CronJob is created in the `default` namespace and uses the pre-provisioned `ecoeng` service account. The handler image is `quay.io/rhopl/osplc:v0.0.2`.
 
+The task pulls the configured pipeline image on every run so the `latest` tag cannot resolve to an older cached image.
+
 `timezone` must be an IANA timezone name. `schedule` must be a five-field cron expression. Missing keys fall back to `America/Chicago` and `00 08 * * 1-5`, so existing cluster definitions continue to work.
 
 ```yaml

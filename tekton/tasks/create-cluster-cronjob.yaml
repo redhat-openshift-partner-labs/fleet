@@ -17,7 +17,7 @@ spec:
   steps:
     - name: create
       image: $(params.pipeline-image)
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
