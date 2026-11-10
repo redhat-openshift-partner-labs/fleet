@@ -14,25 +14,40 @@ def _fail(stderr: str) -> subprocess.CompletedProcess[str]:
 
 
 def _manifest(
+    package_name: str = "operator",
     source: str = "redhat-operators",
     channel: str = "stable",
     current_csv: str = "operator.v1.0.0",
 ) -> dict:
     return {
+        "metadata": {"name": package_name},
         "status": {
+            "packageName": package_name,
             "catalogSource": source,
             "catalogSourceNamespace": "openshift-marketplace",
             "channels": [{"name": channel, "currentCSV": current_csv}],
-        }
+        },
     }
+
+
+def _manifest_list(*manifests: dict) -> dict:
+    return {"items": list(manifests)}
+
+
+def _check_catalog(
+    mock_retry: mock.Mock,
+    response: dict,
+    package_name: str = "nfd",
+    source: str = "redhat-operators",
+) -> tuple[bool, str]:
+    mock_retry.return_value = _ok(json.dumps(response))
+    return check_operator_catalog(package_name, "stable", source, "kubeconfig")
 
 
 @mock.patch("fleet.tasks._operator_catalog.run_with_retry")
 def test_check_operator_catalog_success(mock_retry):
-    mock_retry.return_value = _ok(json.dumps(_manifest()))
-
-    available, reason = check_operator_catalog(
-        "nfd", "stable", "redhat-operators", "kubeconfig"
+    available, reason = _check_catalog(
+        mock_retry, _manifest_list(_manifest(package_name="nfd"))
     )
 
     assert available is True
@@ -42,7 +57,6 @@ def test_check_operator_catalog_success(mock_retry):
             "oc",
             "get",
             "packagemanifest",
-            "nfd",
             "-n",
             "openshift-marketplace",
             "-o",
@@ -55,13 +69,33 @@ def test_check_operator_catalog_success(mock_retry):
 
 
 @mock.patch("fleet.tasks._operator_catalog.run_with_retry")
-def test_check_operator_catalog_rejects_wrong_source(mock_retry):
-    manifest = _manifest(source="certified-operators")
-    mock_retry.return_value = _ok(json.dumps(manifest))
-
-    available, reason = check_operator_catalog(
-        "nfd", "stable", "redhat-operators", "kubeconfig"
+def test_check_operator_catalog_selects_matching_source_for_repeated_package(
+    mock_retry,
+):
+    community_manifest = _manifest(
+        package_name="authorino-operator",
+        source="community-operators",
+        channel="beta",
+        current_csv="community.v1.0.0",
     )
+    community_manifest["metadata"]["name"] += "-community"
+
+    redhat_manifest = _manifest(package_name="authorino-operator")
+    redhat_manifest["metadata"]["name"] += "-redhat"
+
+    available, reason = _check_catalog(
+        mock_retry,
+        _manifest_list(community_manifest, redhat_manifest),
+        package_name="authorino-operator",
+    )
+    assert available is True
+    assert reason == "authorino-operator stable is available from redhat-operators"
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_check_operator_catalog_rejects_wrong_source(mock_retry):
+    manifest = _manifest(package_name="nfd", source="certified-operators")
+    available, reason = _check_catalog(mock_retry, _manifest_list(manifest))
 
     assert available is False
     assert (
@@ -70,14 +104,18 @@ def test_check_operator_catalog_rejects_wrong_source(mock_retry):
 
 
 @mock.patch("fleet.tasks._operator_catalog.run_with_retry")
-def test_check_operator_catalog_rejects_missing_channel(mock_retry):
-    manifest = _manifest()
-    manifest["status"]["channels"] = [{"name": "beta", "currentCSV": "operator.v1.0.0"}]
-    mock_retry.return_value = _ok(json.dumps(manifest))
+def test_check_operator_catalog_rejects_package_missing_from_catalog_list(mock_retry):
+    available, reason = _check_catalog(mock_retry, _manifest_list())
 
-    available, reason = check_operator_catalog(
-        "nfd", "stable", "redhat-operators", "kubeconfig"
-    )
+    assert available is False
+    assert reason == "nfd is not available from any catalog"
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_check_operator_catalog_rejects_missing_channel(mock_retry):
+    manifest = _manifest(package_name="nfd")
+    manifest["status"]["channels"] = [{"name": "beta", "currentCSV": "operator.v1.0.0"}]
+    available, reason = _check_catalog(mock_retry, _manifest_list(manifest))
 
     assert available is False
     assert reason == "nfd does not provide channel stable"
@@ -85,13 +123,9 @@ def test_check_operator_catalog_rejects_missing_channel(mock_retry):
 
 @mock.patch("fleet.tasks._operator_catalog.run_with_retry")
 def test_check_operator_catalog_rejects_wrong_namespace(mock_retry):
-    manifest = _manifest()
+    manifest = _manifest(package_name="nfd")
     manifest["status"]["catalogSourceNamespace"] = "other-marketplace"
-    mock_retry.return_value = _ok(json.dumps(manifest))
-
-    available, reason = check_operator_catalog(
-        "nfd", "stable", "redhat-operators", "kubeconfig"
-    )
+    available, reason = _check_catalog(mock_retry, _manifest_list(manifest))
 
     assert available is False
     assert reason == (
@@ -101,13 +135,9 @@ def test_check_operator_catalog_rejects_wrong_namespace(mock_retry):
 
 @mock.patch("fleet.tasks._operator_catalog.run_with_retry")
 def test_check_operator_catalog_rejects_channel_without_csv(mock_retry):
-    manifest = _manifest()
+    manifest = _manifest(package_name="nfd")
     manifest["status"]["channels"] = [{"name": "stable", "currentCSV": ""}]
-    mock_retry.return_value = _ok(json.dumps(manifest))
-
-    available, reason = check_operator_catalog(
-        "nfd", "stable", "redhat-operators", "kubeconfig"
-    )
+    available, reason = _check_catalog(mock_retry, _manifest_list(manifest))
 
     assert available is False
     assert reason == "nfd channel stable has no current ClusterServiceVersion"

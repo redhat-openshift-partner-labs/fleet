@@ -1,8 +1,42 @@
 """Catalog checks for operators before their subscriptions are applied."""
 
 import json
+from typing import Any
 
 from fleet._retry import run_with_retry
+
+
+def _select_package_manifest(
+    response: dict[str, Any], package_name: str, source: str
+) -> tuple[dict[str, Any] | None, str | None]:
+    package_manifests = [
+        manifest
+        for manifest in response.get("items", [])
+        if manifest.get("status", {}).get("packageName") == package_name
+    ]
+    if not package_manifests:
+        return None, f"{package_name} is not available from any catalog"
+
+    manifest = next(
+        (
+            manifest
+            for manifest in package_manifests
+            if manifest.get("status", {}).get("catalogSource") == source
+        ),
+        None,
+    )
+    if manifest is None:
+        sources = ", ".join(
+            sorted(
+                {
+                    manifest.get("status", {}).get("catalogSource", "unknown")
+                    for manifest in package_manifests
+                }
+            )
+        )
+        return None, f"{package_name} is available from {sources}, expected {source}"
+
+    return manifest, None
 
 
 def check_operator_catalog(
@@ -17,7 +51,6 @@ def check_operator_catalog(
             "oc",
             "get",
             "packagemanifest",
-            package_name,
             "-n",
             "openshift-marketplace",
             "-o",
@@ -32,19 +65,16 @@ def check_operator_catalog(
         return False, f"failed to query {package_name}: {result.stderr.strip()}"
 
     try:
-        manifest = json.loads(result.stdout)
+        response = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         return False, f"failed to parse {package_name} PackageManifest: {exc}"
 
-    status = manifest.get("status", {})
-    catalog_source = status.get("catalogSource", "unknown")
-    catalog_source_namespace = status.get("catalogSourceNamespace", "unknown")
+    manifest, selection_error = _select_package_manifest(response, package_name, source)
+    if manifest is None:
+        return False, selection_error or "failed to select a PackageManifest"
 
-    if catalog_source != source:
-        return (
-            False,
-            f"{package_name} is available from {catalog_source}, expected {source}",
-        )
+    status = manifest.get("status", {})
+    catalog_source_namespace = status.get("catalogSourceNamespace", "unknown")
 
     if catalog_source_namespace != "openshift-marketplace":
         return (
