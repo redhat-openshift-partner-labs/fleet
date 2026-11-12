@@ -5,13 +5,14 @@ Discovers the operators from the cluster's annotated AccessKeys (discover_compon
 each one's raw credential Secret (Crossplane AccessKey: username/password) and writes Secret
 <cluster>-cloud-credentials-manifests in namespace {cluster}. Each key is a Secret manifest for
 the operator's target namespace/name, which Hive adds to the install manifests via
-ClusterDeployment.spec.provisioning.manifestsSecretRef (credentialsMode Manual). Secret values
-go through stdin only and are never logged. Exits 1 on any failure, including an overlay whose
-AccessKeys carry no target annotations.
+ClusterDeployment.spec.provisioning.manifestsSecretRef (credentialsMode Manual). A credential
+annotated delivery=post-provision is skipped: its target namespace does not exist at install
+time and a post-provision task delivers it. Secret values go through stdin only and are never
+logged. Exits 1 on any failure, including an overlay whose AccessKeys carry no target
+annotations.
 """
 
 import argparse
-import base64
 import binascii
 import json
 import subprocess
@@ -23,25 +24,11 @@ from fleet.tasks._aws_components import (
     DiscoveryError,
     OperatorCredential,
     discover_components,
+    install_credentials,
     manifests_secret_name,
+    read_raw_credentials,
 )
 from fleet.tasks._log import configure, error, info
-
-
-def _read_credentials(cluster: str, comp: OperatorCredential) -> tuple[str, str]:
-    name = comp.raw_secret
-    result = subprocess.run(
-        ["oc", "get", "secret", name, "-n", cluster, "-o", "json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    data = json.loads(result.stdout).get("data") or {}
-    key_id = base64.b64decode(data["username"]).decode()
-    secret = base64.b64decode(data["password"]).decode()
-    if not key_id or not secret:
-        raise ValueError(f"Secret {name} has an empty username or password")
-    return key_id, secret
 
 
 def _operator_manifest(comp: OperatorCredential, key_id: str, secret: str) -> str:
@@ -76,10 +63,17 @@ def main() -> None:
 
     manifests: dict[str, str] = {}
     try:
-        components = discover_components(cluster)
+        discovered = discover_components(cluster)
+        components = install_credentials(discovered)
+        for comp in discovered:
+            if comp not in components:
+                info(
+                    f"Skipping {comp.raw_secret} ({comp.credentials_request}): "
+                    "delivered post-provision"
+                )
         for comp in components:
             info(f"Reading {comp.raw_secret} ({comp.credentials_request})...")
-            key_id, secret = _read_credentials(cluster, comp)
+            key_id, secret = read_raw_credentials(cluster, comp)
             filename = f"cco-secret-{comp.namespace}-{comp.secret}.yaml"
             manifests[filename] = _operator_manifest(comp, key_id, secret)
             info(f"  -> {comp.namespace}/{comp.secret}")

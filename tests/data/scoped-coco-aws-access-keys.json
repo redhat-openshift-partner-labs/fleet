@@ -1,0 +1,242 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-ocp-installer"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "aws-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "cloud-credential-operator-iam-ro",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-cloud-credential-operator",
+          "openshiftpartnerlabs.com/target-secret": "cloud-credential-operator-iam-ro-creds"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-cco-iam-ro-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-cco-iam-ro"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-cco-iam-ro-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "openshift-cloud-network-config-controller-aws",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-cloud-network-config-controller",
+          "openshiftpartnerlabs.com/target-secret": "cloud-credentials"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-cncc-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-cncc"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-cncc-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "aws-ebs-csi-driver-operator",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-cluster-csi-drivers",
+          "openshiftpartnerlabs.com/target-secret": "ebs-cloud-credentials"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-ebs-csi-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-ebs-csi"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-ebs-csi-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "openshift-image-registry",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-image-registry",
+          "openshiftpartnerlabs.com/target-secret": "installer-cloud-credentials"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-image-registry-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-image-registry"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-image-registry-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "openshift-ingress",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-ingress-operator",
+          "openshiftpartnerlabs.com/target-secret": "cloud-credentials"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-ingress-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-ingress"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-ingress-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "openshift-machine-api-aws",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-machine-api",
+          "openshiftpartnerlabs.com/target-secret": "aws-cloud-credentials"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-machine-api-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-machine-api"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-machine-api-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    },
+    {
+      "apiVersion": "iam.aws.upbound.io/v1beta1",
+      "kind": "AccessKey",
+      "metadata": {
+        "annotations": {
+          "openshiftpartnerlabs.com/credentials-request": "openshift-sandboxed-containers-aws",
+          "openshiftpartnerlabs.com/delivery": "post-provision",
+          "openshiftpartnerlabs.com/target-namespace": "openshift-sandboxed-containers-operator",
+          "openshiftpartnerlabs.com/target-secret": "peer-pods-secret"
+        },
+        "labels": {
+          "openshiftpartnerlabs.com/cluster": "fixture"
+        },
+        "name": "fixture-peer-pods-access-key",
+        "namespace": "fixture"
+      },
+      "spec": {
+        "forProvider": {
+          "userRef": {
+            "name": "fixture-peer-pods"
+          }
+        },
+        "providerConfigRef": {
+          "name": "default"
+        },
+        "writeConnectionSecretToRef": {
+          "name": "fixture-peer-pods-credentials-raw",
+          "namespace": "fixture"
+        }
+      }
+    }
+  ],
+  "kind": "List"
+}

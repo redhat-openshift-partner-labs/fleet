@@ -9,8 +9,15 @@ discover_components reads the operator set from the cluster's own AccessKeys on 
 operator AccessKey carries the three openshiftpartnerlabs.com target annotations the scaffold
 writes (TARGET_ANNOTATIONS); the installer AccessKey <cluster>-access-key carries none and is
 skipped.
+
+The optional delivery annotation (ANNOTATION_DELIVERY) says which pipeline delivers a credential
+to the spoke. Without it Hive adds the credential to the install manifests
+(install_credentials). With the value post-provision a post-provision task writes the Secret,
+because its target namespace does not exist at install time (post_provision_credentials). Both
+kinds have a raw Secret on the hub, decoded by read_raw_credentials.
 """
 
+import base64
 import json
 import subprocess
 from typing import NamedTuple
@@ -42,6 +49,14 @@ TARGET_ANNOTATIONS = (
 )
 REGENERATE = "regenerate the overlay with the current fleet-cluster-scaffold"
 
+# Optional, written by fleet-cluster-scaffold: where the pipeline delivers the credential
+ANNOTATION_DELIVERY = "openshiftpartnerlabs.com/delivery"
+DELIVERY_POST_PROVISION = "post-provision"
+# ManagedCluster tier label value of a confidential containers cluster (written by the scaffold)
+TIER_COCO = "coco"
+# target-secret annotation value of the peer-pods credential; the name is fixed by the OSC operator
+PEER_PODS_SECRET = "peer-pods-secret"  # nosec B105
+
 
 class DiscoveryError(RuntimeError):
     """The cluster's IAM resources could not be listed, or the overlay predates the annotations."""
@@ -53,6 +68,8 @@ class OperatorCredential(NamedTuple):
     secret: str  # spoke target Secret
     raw_secret: str  # hub Secret written by the AccessKey (spec.writeConnectionSecretToRef.name)
     access_key: str  # AccessKey name, for messages
+    # None: Hive install manifests; DELIVERY_POST_PROVISION: a post-provision task
+    delivery: str | None = None
 
 
 def installer_access_key_name(cluster: str) -> str:
@@ -64,12 +81,10 @@ def manifests_secret_name(cluster: str) -> str:
     return f"{cluster}-cloud-credentials-manifests"
 
 
-def discover_components(cluster: str) -> list[OperatorCredential]:
-    """Operator credentials of a scoped cluster, read from its labelled AccessKeys.
+def _labelled_access_keys(cluster: str) -> list[dict]:
+    """Items of `oc get accesskeys.iam.aws.upbound.io -l <label>=<cluster> -o json`.
 
-    Skips installer_access_key_name(cluster); sorted by access_key. DiscoveryError when oc
-    fails, when any other labelled AccessKey lacks a target annotation (a hand-edited or
-    pre-annotation overlay), or when no operator AccessKey is left.
+    DiscoveryError when oc fails.
     """
     result = subprocess.run(
         [
@@ -88,31 +103,96 @@ def discover_components(cluster: str) -> list[OperatorCredential]:
         raise DiscoveryError(
             f"AccessKey lookup failed for {cluster}: {result.stderr.strip()}"
         )
+    return json.loads(result.stdout).get("items", [])
+
+
+def _credential(item: dict) -> OperatorCredential | None:
+    """The credential an AccessKey describes; None when a target annotation is missing or empty."""
+    annotations = item["metadata"].get("annotations") or {}
+    if not all(annotations.get(key) for key in TARGET_ANNOTATIONS):
+        return None
+    return OperatorCredential(
+        credentials_request=annotations[ANNOTATION_CREDENTIALS_REQUEST],
+        namespace=annotations[ANNOTATION_TARGET_NAMESPACE],
+        secret=annotations[ANNOTATION_TARGET_SECRET],
+        raw_secret=item["spec"]["writeConnectionSecretToRef"]["name"],
+        access_key=item["metadata"]["name"],
+        delivery=annotations.get(ANNOTATION_DELIVERY) or None,
+    )
+
+
+def discover_components(cluster: str) -> list[OperatorCredential]:
+    """Operator credentials of a scoped cluster, read from its labelled AccessKeys.
+
+    Skips installer_access_key_name(cluster); sorted by access_key. Each credential carries its
+    delivery (None or DELIVERY_POST_PROVISION). DiscoveryError when oc fails, when any other
+    labelled AccessKey lacks a target annotation (a hand-edited or pre-annotation overlay),
+    when a delivery value is unknown to this image, or when no credential is left for the
+    install manifests.
+    """
     installer = installer_access_key_name(cluster)
     operators: list[OperatorCredential] = []
-    for item in json.loads(result.stdout).get("items", []):
+    for item in _labelled_access_keys(cluster):
         name = item["metadata"]["name"]
         if name == installer:
             continue
-        annotations = item["metadata"].get("annotations") or {}
-        if not all(annotations.get(key) for key in TARGET_ANNOTATIONS):
+        credential = _credential(item)
+        if credential is None:
             raise DiscoveryError(
                 f"AccessKey {name} lacks target annotations; {REGENERATE}"
             )
-        operators.append(
-            OperatorCredential(
-                credentials_request=annotations[ANNOTATION_CREDENTIALS_REQUEST],
-                namespace=annotations[ANNOTATION_TARGET_NAMESPACE],
-                secret=annotations[ANNOTATION_TARGET_SECRET],
-                raw_secret=item["spec"]["writeConnectionSecretToRef"]["name"],
-                access_key=name,
+        if credential.delivery not in (None, DELIVERY_POST_PROVISION):
+            raise DiscoveryError(
+                f"AccessKey {name} has unknown delivery '{credential.delivery}'; "
+                "update the pipeline image"
             )
-        )
-    if not operators:
+        operators.append(credential)
+    if not install_credentials(operators):
         raise DiscoveryError(
             f"no operator AccessKeys carry target annotations for {cluster}; {REGENERATE}"
         )
     return sorted(operators, key=lambda c: c.access_key)
+
+
+def install_credentials(
+    components: list[OperatorCredential],
+) -> list[OperatorCredential]:
+    """The credentials Hive adds to the install manifests: delivery None."""
+    return [c for c in components if c.delivery is None]
+
+
+def post_provision_credentials(cluster: str) -> list[OperatorCredential]:
+    """Labelled AccessKeys annotated delivery=post-provision that carry the three target annotations.
+
+    [] when there are none (legacy clusters, non-coco tiers). DiscoveryError only when oc fails.
+    Sorted by access_key.
+    """
+    credentials = [_credential(item) for item in _labelled_access_keys(cluster)]
+    return sorted(
+        (c for c in credentials if c and c.delivery == DELIVERY_POST_PROVISION),
+        key=lambda c: c.access_key,
+    )
+
+
+def read_raw_credentials(cluster: str, comp: OperatorCredential) -> tuple[str, str]:
+    """(access key id, secret access key) from comp.raw_secret in namespace cluster.
+
+    Raises CalledProcessError when oc fails, KeyError when username or password is absent,
+    binascii.Error on invalid base64 and ValueError when either value is empty.
+    """
+    name = comp.raw_secret
+    result = subprocess.run(
+        ["oc", "get", "secret", name, "-n", cluster, "-o", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(result.stdout).get("data") or {}
+    key_id = base64.b64decode(data["username"]).decode()
+    secret = base64.b64decode(data["password"]).decode()
+    if not key_id or not secret:
+        raise ValueError(f"Secret {name} has an empty username or password")
+    return key_id, secret
 
 
 def iam_targets(cluster: str) -> list[str]:

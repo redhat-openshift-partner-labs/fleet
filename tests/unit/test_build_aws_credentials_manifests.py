@@ -9,7 +9,7 @@ import yaml
 
 from fleet.tasks._aws_components import DiscoveryError
 from fleet.tasks.build_aws_credentials_manifests import main
-from tests.unit._aws_fixtures import OPERATORS
+from tests.unit._aws_fixtures import OPERATORS, PEER_PODS
 
 KEY_ID, SECRET = "AKIAEXAMPLEKEYID", "s3cr3t/value+with=chars"
 
@@ -34,10 +34,14 @@ def _argv():
 
 @pytest.fixture(autouse=True)
 def discovery():
-    """Every test sees OPERATORS from discovery; oc sequences hold only Secret reads and the apply."""
+    """Every test sees OPERATORS and the post-provision PEER_PODS from discovery.
+
+    The oc sequences hold only the Secret reads of OPERATORS and the apply: a read of the
+    peer-pods raw Secret would exhaust them.
+    """
     with mock.patch(
         "fleet.tasks.build_aws_credentials_manifests.discover_components",
-        return_value=OPERATORS,
+        return_value=OPERATORS + [PEER_PODS],
     ) as discover:
         yield discover
 
@@ -159,3 +163,29 @@ def test_discovery_failure_exits(mock_run, mock_error, discovery):
     assert [str(c.args[0]) for c in mock_error.call_args_list] == [
         f"Failed to read operator credentials: {message}"
     ]
+
+
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.info")
+@mock.patch("fleet.tasks.build_aws_credentials_manifests.subprocess.run")
+def test_post_provision_credential_is_left_out(mock_run, mock_info):
+    """The peer-pods namespace does not exist at install time; a post-provision task delivers it."""
+    mock_run.side_effect = [_raw_secret() for _ in OPERATORS] + [_ok()]
+    with _argv():
+        main()
+
+    argvs = [call.args[0] for call in mock_run.call_args_list]
+    assert not [argv for argv in argvs if PEER_PODS.raw_secret in argv]
+    outer = json.loads(mock_run.call_args_list[-1].kwargs["input"])
+    assert sorted(outer["stringData"]) == sorted(
+        f"cco-secret-{comp.namespace}-{comp.secret}.yaml" for comp in OPERATORS
+    )
+    assert not [key for key in outer["stringData"] if PEER_PODS.secret in key]
+    logged = [str(c.args[0]) for c in mock_info.call_args_list]
+    assert (
+        f"Skipping {PEER_PODS.raw_secret} ({PEER_PODS.credentials_request}): "
+        "delivered post-provision"
+    ) in logged
+    assert (
+        f"Applying Secret c1-cloud-credentials-manifests with {len(OPERATORS)} manifest(s)..."
+        in logged
+    )

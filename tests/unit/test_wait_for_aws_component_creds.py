@@ -7,10 +7,12 @@ import pytest
 
 from fleet.tasks._aws_components import DiscoveryError
 from fleet.tasks.wait_for_aws_component_creds import main
-from tests.unit._aws_fixtures import OPERATORS, iam_targets_for
+from tests.unit._aws_fixtures import OPERATORS, PEER_PODS, iam_targets_for
 
-RAW_SECRETS = [c.raw_secret for c in OPERATORS]
-TARGETS = iam_targets_for("test-cluster")
+# The wait covers every discovered credential, the post-provision one included
+DISCOVERED = OPERATORS + [PEER_PODS]
+RAW_SECRETS = [c.raw_secret for c in DISCOVERED]
+TARGETS = iam_targets_for("test-cluster", DISCOVERED)
 
 
 def _ok(stdout=""):
@@ -63,7 +65,7 @@ def _argv(timeout=None):
 
 @pytest.fixture(autouse=True)
 def discovery():
-    """Every main() test sees OPERATORS and their IAM resources from discovery.
+    """Every main() test sees DISCOVERED and their IAM resources from discovery.
 
     The task imports both functions by name, so the patch goes on the task module. The oc
     sequences below therefore hold only the Secret and resource polls, as before.
@@ -71,7 +73,7 @@ def discovery():
     with (
         mock.patch(
             "fleet.tasks.wait_for_aws_component_creds.discover_components",
-            return_value=OPERATORS,
+            return_value=DISCOVERED,
         ) as discover,
         mock.patch(
             "fleet.tasks.wait_for_aws_component_creds.all_iam_targets",
@@ -100,6 +102,18 @@ def test_secrets_and_all_resources_ready_immediately(mock_run, mock_sleep):
             text=True,
         ),
     ]
+
+
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.time.sleep")
+@mock.patch("fleet.tasks.wait_for_aws_component_creds.subprocess.run")
+def test_waits_for_the_post_provision_raw_secret(mock_run, mock_sleep):
+    """The peer-pods raw Secret must exist before the install starts (post-provision reads it)."""
+    mock_run.side_effect = [_ok(), _all_ready()]
+    with _argv():
+        main()
+    poll = mock_run.call_args_list[0].args[0]
+    assert poll[:3] == ["oc", "get", "secret"]
+    assert "test-cluster-peer-pods-credentials-raw" in poll
 
 
 @mock.patch("fleet.tasks.wait_for_aws_component_creds.time.sleep")
