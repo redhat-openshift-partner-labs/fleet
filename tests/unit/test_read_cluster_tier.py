@@ -64,7 +64,7 @@ def test_read_tier_empty(mock_run):
             main()
 
 
-@pytest.mark.parametrize("tier", ["base", "virt", "ai"])
+@pytest.mark.parametrize("tier", ["base", "virt", "ai", "coco"])
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
 def test_supported_tier_is_printed(mock_run, capsys, tier):
     mock_run.return_value = subprocess.CompletedProcess(
@@ -75,7 +75,7 @@ def test_supported_tier_is_printed(mock_run, capsys, tier):
     assert capsys.readouterr().out == f"{tier}\n"
 
 
-@pytest.mark.parametrize("tier", ["coco", "gold"])
+@pytest.mark.parametrize("tier", ["gold", "Coco", "coco-2"])
 @mock.patch("fleet.tasks.read_cluster_tier.error")
 @mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
 def test_unsupported_tier_exits(mock_run, mock_error, capsys, tier):
@@ -88,6 +88,6 @@ def test_unsupported_tier_exits(mock_run, mock_error, capsys, tier):
             main()
     assert [str(c.args[0]) for c in mock_error.call_args_list] == [
         f"Tier '{tier}' is not supported by this pipeline image; "
-        "supported tiers: base, virt, ai"
+        "supported tiers: base, virt, ai, coco"
     ]
     assert capsys.readouterr().out == ""

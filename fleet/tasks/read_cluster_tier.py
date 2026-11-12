@@ -9,10 +9,11 @@ import argparse
 import subprocess
 import sys
 
+from fleet.tasks._aws_components import TIER_COCO
 from fleet.tasks._log import configure, error, info
 
 # Tiers the post-provision pipeline of this image has tasks for
-SUPPORTED_TIERS = ("base", "virt", "ai")
+SUPPORTED_TIERS = ("base", "virt", "ai", TIER_COCO)
 
 
 def main() -> None:
