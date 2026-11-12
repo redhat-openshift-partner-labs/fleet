@@ -58,6 +58,7 @@ def test_results_have_no_trailing_newline(tmp_path):
             "aws-credentials-mode": "scoped",
             "timezone": "America/Chicago",
             "schedule": "00 08 * * 1-5",
+            "podvm-instance-type": "m6a.large",
         },
     )
     assert values == {
@@ -68,6 +69,7 @@ def test_results_have_no_trailing_newline(tmp_path):
         "aws-credentials-mode": b"scoped",
         "timezone": b"America/Chicago",
         "schedule": b"00 08 * * 1-5",
+        "podvm-instance-type": b"m6a.large",
     }
 
 
@@ -81,4 +83,6 @@ def test_defaults_when_keys_absent(tmp_path):
         "aws-credentials-mode": b"legacy",
         "timezone": b"America/Chicago",
         "schedule": b"00 08 * * 1-5",
+        # No default in fleet: apply-coco-workloads rejects the empty value
+        "podvm-instance-type": b"",
     }

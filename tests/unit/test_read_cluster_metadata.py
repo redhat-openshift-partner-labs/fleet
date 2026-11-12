@@ -133,3 +133,51 @@ def test_schedule_with_out_of_range_value_exits_1(tmp_path):
     with mock.patch("sys.argv", ["prog", "--cluster-dir", str(cluster_dir)]):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+def _cluster_dir(tmp_path, metadata):
+    cluster_dir = tmp_path / "provision" / "c1"
+    cluster_dir.mkdir(parents=True)
+    (cluster_dir / "metadata.yaml").write_text(metadata)
+    return str(cluster_dir)
+
+
+def test_podvm_instance_type_is_output(tmp_path, capsys):
+    cluster_dir = _cluster_dir(tmp_path, "podvm-instance-type: m6a.large\n")
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", cluster_dir]):
+        main()
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["podvm-instance-type"] == "m6a.large"
+
+
+def test_podvm_instance_type_is_absent_when_not_set(tmp_path, capsys):
+    cluster_dir = _cluster_dir(tmp_path, "platform: aws\n")
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", cluster_dir]):
+        main()
+    assert "podvm-instance-type" not in json.loads(capsys.readouterr().out.strip())
+
+
+@pytest.mark.parametrize(
+    "metadata, shown",
+    [
+        ('podvm-instance-type: "m6a large"\n', "m6a large"),
+        ('podvm-instance-type: "a.b; c"\n', "a.b; c"),
+        ("podvm-instance-type: 5\n", "5"),
+        ('podvm-instance-type: ""\n', ""),
+        ('podvm-instance-type: "m6a.large\\n"\n', "m6a.large\n"),
+        ("podvm-instance-type: M6A.LARGE\n", "M6A.LARGE"),
+    ],
+)
+@mock.patch("fleet.tasks.read_cluster_metadata.error")
+def test_invalid_podvm_instance_type_exits_1(
+    mock_error, tmp_path, capsys, metadata, shown
+):
+    """The value is written into the post-provision PipelineRun YAML: one type name only."""
+    cluster_dir = _cluster_dir(tmp_path, metadata)
+    with mock.patch("sys.argv", ["prog", "--cluster-dir", cluster_dir]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert [str(c.args[0]) for c in mock_error.call_args_list] == [
+        f"Invalid podvm-instance-type value: {shown}"
+    ]
+    assert capsys.readouterr().out == ""

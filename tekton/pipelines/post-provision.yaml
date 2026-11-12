@@ -70,6 +70,9 @@ spec:
     - name: schedule
       type: string
       default: "00 08 * * 1-5"
+    - name: podvm-instance-type
+      type: string
+      default: ""
   workspaces:
     - name: shared-workspace
 
