@@ -10,7 +10,7 @@ OpenShift cluster fleet management control plane for Red Hat OpenShift Partner L
 bootstrap/          — Hub bootstrap (ArgoCD, Tekton install, ACM config)
 tekton/             — Pipeline, Task, EventListener, Trigger definitions
 hub-config/         — cert-manager, baseline hub operators
-workloads/          — Tier-specific day-2 overlays (base / virt / ai)
+workloads/          — Tier-specific day-2 overlays (base / virt / ai / coco)
 docs/               — Architecture, runbooks, diagrams
 ```
 
@@ -124,7 +124,7 @@ tests/
 - Kustomize for manifest templating (no Helm unless existing charts require it)
 - YAML manifests follow OpenShift conventions
 - Cluster definitions live in the fleet-clusters repo under `provision/<name>/`
-- Tier labels on ManagedCluster: `tier=base|virt|ai`
+- Tier labels on ManagedCluster: `tier=base|virt|ai|coco`
 
 ## Architecture Principles
 

@@ -89,7 +89,7 @@ sequenceDiagram
     rect rgb(230, 247, 237)
         Note over Pipe,K8s: Task 11: read-cluster-tier<br/>(read tier label from ManagedCluster)
         Pipe->>K8s: oc get managedcluster/NAME<br/>-o jsonpath tier label
-        K8s-->>Pipe: tier=base|virt|ai (result)
+        K8s-->>Pipe: tier=base|virt|ai|coco (result)
     end
 
     rect rgb(230, 247, 237)

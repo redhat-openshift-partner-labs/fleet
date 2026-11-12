@@ -34,6 +34,7 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | `ai-accelerator` | `nvidia-gpu` | `apply-ai-workloads`, `add-ai-workers` | Hardware profile for `tier=ai` (`none` or `nvidia-gpu`) |
 | `timezone` | `America/Chicago` | `create-cluster-cronjob` | IANA timezone for the hub-side recurring cluster job |
 | `schedule` | `00 08 * * 1-5` | `create-cluster-cronjob` | Five-field cron schedule for the hub-side recurring cluster job |
+| `podvm-instance-type` | none | `apply-coco-workloads` | EC2 instance type of peer pod VMs for `tier=coco`; written by `fleet-cluster-scaffold --tier coco` |
 
 ### AI accelerator
 
@@ -44,7 +45,7 @@ If the file is missing or empty, all values fall back to their defaults. This ma
 | `none` | Installs CPU-only OpenShift AI and skips NFD, the NVIDIA GPU Operator, the GPU ClusterPolicy, and the AI worker MachinePool |
 | `nvidia-gpu` | Requires NFD and the NVIDIA GPU Operator in the spoke catalog, installs the GPU-backed OpenShift AI stack, and creates the AI worker MachinePool |
 
-The key is ignored for `base` and `virt`.
+The key is ignored for `base`, `virt` and `coco`.
 
 `apply-ai-workloads` preflights every required operator for the selected `openshift-ai-version` and `ai-accelerator` before applying subscriptions. CPU-only clusters do not preflight or install NFD or the NVIDIA GPU Operator.
 
@@ -62,6 +63,19 @@ schedule: "00 08 * * 1-5"
 ```
 
 Deprovision deletes the CronJob from the `default` namespace before deleting the cluster namespace. Namespace deletion alone cannot remove the CronJob because the object is outside the cluster namespace.
+
+### Pod VM instance type
+
+`podvm-instance-type` is the EC2 instance type of the peer pod VMs of a `tier=coco` cluster (see [coco-tier.md](coco-tier.md)). `fleet-cluster-scaffold --tier coco` writes it and checks it against the instance types that support AMD SEV-SNP.
+
+```yaml
+podvm-instance-type: m6a.large
+```
+
+- fleet has no default. `read-cluster-metadata` returns the empty string when the key is absent.
+- When the key is present, `read-cluster-metadata` accepts one instance type name (`<family>.<size>`, lowercase letters, digits and hyphens). Any other value fails the task with `Invalid podvm-instance-type value: <value>`.
+- For `tier=coco`, `apply-coco-workloads` fails on an empty value with `podvm-instance-type is empty for <name>; regenerate the overlay with the current fleet-cluster-scaffold`.
+- The other tiers do not read the value.
 
 ## How values flow through the pipeline
 
@@ -87,9 +101,13 @@ post-provision pipeline
   │    receives: timezone and schedule as pipeline params
   │    creates: CronJob/<cluster-name> in the hub default namespace
   │
-  └─ configure-spoke-oauth
-       receives: htpasswd-provider-name as pipeline param
-       uses it in the OAuth CR's htpasswd identity provider name
+  ├─ configure-spoke-oauth
+  │    receives: htpasswd-provider-name as pipeline param
+  │    uses it in the OAuth CR's htpasswd identity provider name
+  │
+  └─ apply-coco-workloads (tier=coco)
+       receives: podvm-instance-type as pipeline param
+       writes it to PODVM_INSTANCE_TYPE and PODVM_INSTANCE_TYPES in the spoke's peer-pods-cm
 ```
 
 ### Where defaults are applied

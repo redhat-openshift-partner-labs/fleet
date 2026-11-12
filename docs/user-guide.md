@@ -36,7 +36,7 @@ Edit `provision/<cluster-name>/kustomization.yaml` and replace every occurrence 
 |-------|----------|-------------|
 | `namespace` | Top-level | Cluster namespace on the hub |
 | Cluster name | All patches | Must match across ClusterDeployment, ManagedCluster, MachinePool, etc. |
-| `tier` label | ManagedCluster patch | `base`, `virt`, or `ai` — controls post-provision workloads |
+| `tier` label | ManagedCluster patch | `base`, `virt`, `ai`, or `coco` — controls post-provision workloads |
 | `environment` label | ManagedCluster patch | e.g. `development`, `production` |
 
 ### 3. Customize install config (optional)
@@ -80,7 +80,7 @@ The pipeline runs these tasks in sequence:
 11. **wait-for-managed-cluster** — waits for ACM to report the cluster as joined and available
 12. **extract-spoke-kubeconfig** — extracts the spoke kubeconfig from the hub
 13. **read-cluster-metadata** — reads per-cluster values from `metadata.yaml` (see [per-cluster-metadata.md](per-cluster-metadata.md))
-14. **read-cluster-tier** — reads the tier label from the ManagedCluster
+14. **read-cluster-tier** — reads the tier label from the ManagedCluster; fails on a tier the pipeline image does not support
 15. **label-for-post-provision** — labels the cluster to signal readiness
 16. **trigger-post-provision** — triggers the post-provision pipeline (forwards tier and metadata values)
 
@@ -93,6 +93,7 @@ The `tier` label on the ManagedCluster determines what software is deployed post
 | `base` | Core configuration only — OAuth, SSL, RBAC, base workloads |
 | `virt` | Base + OpenShift Virtualization; optional NFD when its catalog package is available |
 | `ai` | Base + OpenShift AI; required operators are preflighted for the selected version and accelerator |
+| `coco` | Base + OpenShift sandboxed containers with peer pods on AWS (pod VMs with AMD SEV-SNP); see [coco-tier.md](coco-tier.md) for prerequisites and limits |
 
 For `tier=ai`, set `ai-accelerator` in `metadata.yaml`:
 
@@ -101,7 +102,7 @@ For `tier=ai`, set `ai-accelerator` in `metadata.yaml`:
 | `none` | CPU-only OpenShift AI; no NFD, NVIDIA GPU Operator, GPU ClusterPolicy, or AI worker MachinePool |
 | `nvidia-gpu` | GPU-backed OpenShift AI; installs NFD, NVIDIA GPU Operator, GPU ClusterPolicy, and an AI worker MachinePool |
 
-`ai-accelerator` defaults to `nvidia-gpu` and is ignored for `base` and `virt`.
+`ai-accelerator` defaults to `nvidia-gpu` and is ignored for `base`, `virt` and `coco`.
 
 Before applying AI operator subscriptions, the pipeline checks the spoke's `PackageManifest` resources for the exact v2/v3 and CPU/GPU stack. A missing required operator fails the task before partial installation. For `tier=virt`, OpenShift Virtualization is required and NFD is optional; if NFD is unavailable or fails to install, the virtualization task continues.
 
@@ -122,6 +123,11 @@ The post-provision pipeline runs automatically after a successful provision. It 
 11. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
 12. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
 13. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
+
+For `tier=coco`, two more tasks run between `apply-base-workloads` and `configure-spoke-rbac` (see [coco-tier.md](coco-tier.md)):
+
+- **prepare-podvm-aws** — reads the pod VM network and AMI from EC2 with the cluster's installer credential and opens the pod VM ports
+- **apply-coco-workloads** — installs OpenShift sandboxed containers with peer pods on the spoke and waits for the KataConfig
 
 The access paste URL and password are stored in the `openshift-pipelines`
 namespace as `<cluster-name>-access-paste`:
@@ -175,10 +181,11 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 
 ### What the deprovision pipeline does
 
-1. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
-2. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure
-3. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
-4. **verify-deprovision** — confirms all resources have been cleaned up
+1. **terminate-pod-vms** — for `tier=coco`, deletes the peer-pods AccessKey and terminates the cluster's pod VMs; ends without a change for other tiers
+2. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
+3. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure
+4. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
+5. **verify-deprovision** — confirms all resources have been cleaned up
 
 ## Troubleshooting
 
@@ -244,5 +251,6 @@ tkn pipelinerun describe <pipelinerun-name> -n openshift-pipelines
 
 - [Architecture and design rationale](architecture.md)
 - [Per-cluster metadata](per-cluster-metadata.md)
+- [Confidential containers tier](coco-tier.md)
 - [Image pull secret setup](image-pull-secret-setup.md)
 - [Pipeline sequence diagrams](diagrams/)
