@@ -21,11 +21,24 @@ spec:
         - name: pipeline-image
           value: $(params.pipeline-image)
 
+    # coco tier only (the task returns at once for other tiers): pod VMs are not found by
+    # the installer's destroy and must be gone before the cluster is uninstalled.
+    - name: terminate-pod-vms
+      taskRef:
+        name: terminate-pod-vms
+      runAfter:
+        - load-config
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+
     - name: delete-cluster-resources
       taskRef:
         name: delete-cluster-resources
       runAfter:
-        - load-config
+        - terminate-pod-vms
       params:
         - name: cluster-name
           value: $(params.cluster-name)

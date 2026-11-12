@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: terminate-pod-vms
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+    - name: timeout-seconds
+      type: string
+      default: "600"
+  steps:
+    - name: terminate
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        fleet-terminate-pod-vms \
+          --cluster-name "$(params.cluster-name)" \
+          --timeout-seconds "$(params.timeout-seconds)"
