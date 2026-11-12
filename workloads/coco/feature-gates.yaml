@@ -1,0 +1,9 @@
+# With this gate on and peer pods enabled the operator sets DISABLECVM to "false" in
+# peer-pods-cm, so pod VMs start as confidential VMs (AMD SEV-SNP).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osc-feature-gates
+  namespace: openshift-sandboxed-containers-operator
+data:
+  confidential: "true"
