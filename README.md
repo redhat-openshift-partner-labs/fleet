@@ -30,7 +30,7 @@ For day-to-day operations (provisioning, deprovisioning, troubleshooting), see t
 ├── bootstrap/          # Hub bootstrap (ArgoCD Application for hub-config)
 ├── hub-config/         # Hub operators: Tekton, cert-manager, Crossplane provider
 ├── tekton/             # Pipeline, Task, EventListener, Trigger definitions
-├── workloads/          # Tier-specific day-2 overlays (base / virt / ai)
+├── workloads/          # Tier-specific day-2 overlays (base / virt / ai / coco)
 ├── fleet/              # Python CLI tools for Tekton pipeline tasks
 ├── tests/              # Unit, validation, and fixture data
 └── docs/               # Architecture, runbooks, diagrams

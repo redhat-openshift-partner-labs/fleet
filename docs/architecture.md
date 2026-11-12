@@ -302,7 +302,7 @@ sequenceDiagram
     rect rgb(230, 247, 237)
         Note over Pipe,K8s: Task 11: read-cluster-tier<br/>(read tier label from ManagedCluster)
         Pipe->>K8s: oc get managedcluster/NAME<br/>-o jsonpath tier label
-        K8s-->>Pipe: tier=base|virt|ai (result)
+        K8s-->>Pipe: tier=base|virt|ai|coco (result)
     end
 
     rect rgb(230, 247, 237)
@@ -331,6 +331,8 @@ The pre-provision pipeline branches on `aws-credentials-mode` in the cluster's `
 | `legacy` (absent key; existing clusters) | CCO Mint mode; the account-admin installer key is stored on the spoke in `kube-system/aws-creds` | `wait-for-aws-credentials` → `transform-aws-credentials` |
 
 `wait-for-aws-component-credentials` and `build-aws-credentials-manifests` read the operator set from the cluster's AccessKeys on the hub. `fleet-cluster-scaffold` annotates every operator AccessKey with `openshiftpartnerlabs.com/credentials-request`, `openshiftpartnerlabs.com/target-namespace` and `openshiftpartnerlabs.com/target-secret`, and the AccessKey's `writeConnectionSecretToRef` names the raw credential Secret; the installer AccessKey carries no annotations. fleet keeps no list of operators. An overlay rendered before the annotations existed fails pre-provision with `regenerate the overlay with the current fleet-cluster-scaffold`. `wait-for-aws-component-credentials` waits until every operator's raw Secret exists and all of the cluster's Crossplane IAM resources (the installer set and BYO node roles by name, everything else by the `openshiftpartnerlabs.com/cluster=<name>` label) report `Ready`. The installer tags the node roles, so they must exist before provisioning. On timeout it logs each unready resource's Synced message, such as an AWS `AccessDenied` from the hub's Crossplane identity. `build-aws-credentials-manifests` then turns each raw Secret into a Secret manifest for the annotated target namespace and name, bundled as Secret `<name>-cloud-credentials-manifests`, which Hive installs through `ClusterDeployment.spec.provisioning.manifestsSecretRef`. Deprovision (`cleanup-hub-artifacts`) finds the IAM resources by the `openshiftpartnerlabs.com/cluster=<name>` label (the installer set and node roles also by name), deletes them and waits up to 10 minutes for them to go. A failed label lookup fails the task before any deletion and keeps the namespace; re-run deprovision when the hub API answers. If any resources remain at the timeout, it logs each one's AWS name and conditions and fails before deleting the namespace. Stripping their finalizers would leave live IAM users and access keys in AWS, and some of those keys were on the spoke. When the provider can never reach AWS, re-run with `tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true` and delete the logged AWS resources by hand.
+
+An AccessKey can also carry the annotation `openshiftpartnerlabs.com/delivery`. Without it, the credential goes into the install manifests as described above. With the value `post-provision`, `wait-for-aws-component-credentials` still waits for the raw Secret, `build-aws-credentials-manifests` leaves the credential out of `<name>-cloud-credentials-manifests`, and a post-provision task writes the Secret to the spoke, because the target namespace does not exist at install time. Any other value fails discovery with `update the pipeline image`. The only such credential is the peer-pods credential of the `coco` tier: `apply-coco-workloads` writes it to `openshift-sandboxed-containers-operator/peer-pods-secret`, and deprovision runs `terminate-pod-vms` before `delete-cluster-resources` to delete that AccessKey and terminate the cluster's pod VMs (see [coco-tier.md](coco-tier.md)).
 
 Scaffold-rendered policies contain `INFRA_ID_PLACEHOLDER` and `VPC_ID_PLACEHOLDER`, which match nothing until install. In the provision pipeline, `scope-aws-credentials` runs after `wait-for-hive-ready` and before `trigger-post-provision`. It substitutes the installed cluster's infra ID (from the ClusterDeployment) and its VPC (looked up with the hub installer key). After that:
 - resources tagged only `kubernetes.io/cluster/<infraID>=owned` also count as owned. The cloud-controller-manager, machine-api and EBS CSI always apply that tag, so partner `LoadBalancer` Services need no annotation.
@@ -473,6 +475,8 @@ The key insight: **when the pipeline controls the order, finalizers become unnec
 
 The implemented pipeline has **4 tasks** with 2 aspirational tasks not yet built (shown in grey below): draining day-2 workloads before teardown and closing the loop with a PR comment.
 
+A further task, `terminate-pod-vms`, runs before `delete-cluster-resources`. It acts only for `tier=coco` (see [coco-tier.md](coco-tier.md)) and is not shown in the diagram below.
+
 ```mermaid
 %% Deprovision pipeline: 4 implemented tasks + 2 aspirational
 %% Aspirational tasks shown in grey (not yet implemented)
@@ -577,7 +581,7 @@ sequenceDiagram
 - **A `tekton/` directory** in this repo containing `Pipeline`, `Task`, `TriggerBinding`, `TriggerTemplate`, and `EventListener` definitions for provision, post-provision, and deprovision flows.
 - **`cert-manager`** on the hub with a `ClusterIssuer` pointing at internal PKI.
 - **A git webhook** on the fleet-clusters repo pointing at the Tekton `EventListener`. Pipeline selection is by changed path (`provision/**` vs `deprovision/**`).
-- **Tier labels** on `ManagedCluster` (`tier=virt|ai|base`) read by the post-provision pipeline and by `ApplicationSet` placement.
+- **Tier labels** on `ManagedCluster` (`tier=virt|ai|coco|base`) read by the post-provision pipeline and by `ApplicationSet` placement.
 - **A hub-side CronJob per cluster** in `default`, using the pre-provisioned `ecoeng` service account and per-cluster `timezone` and `schedule` values.
 
 ---
