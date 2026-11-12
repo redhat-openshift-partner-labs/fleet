@@ -71,6 +71,7 @@ fleet-apply-ai-workloads = "fleet.tasks.apply_ai_workloads:main"
 fleet-add-ai-workers = "fleet.tasks.add_ai_workers:main"
 fleet-create-access-paste = "fleet.tasks.create_access_paste:main"
 fleet-prepare-podvm-aws = "fleet.tasks.prepare_podvm_aws:main"
+fleet-apply-coco-workloads = "fleet.tasks.apply_coco_workloads:main"
 
 [tool.pylint.messages_control]
 disable = [

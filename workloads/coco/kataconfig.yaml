@@ -1,0 +1,9 @@
+# Cluster-scoped. Applying it installs the kata runtime on the nodes (one reboot each) and,
+# with enablePeerPods, starts the cloud-api-adaptor DaemonSet.
+apiVersion: kataconfiguration.openshift.io/v1
+kind: KataConfig
+metadata:
+  name: example-kataconfig
+spec:
+  enablePeerPods: true
+  logLevel: info
