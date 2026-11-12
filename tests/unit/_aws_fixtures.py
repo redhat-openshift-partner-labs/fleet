@@ -2,8 +2,10 @@
 
 RENDERING is one fleet-cluster-scaffold rendering of a scoped overlay's AccessKeys; the refresh
 command is under "Fixture refresh" in the PRD
-(.taskmaster/docs/prd-discover-aws-components-from-annotations.txt). The hand-written payloads
-use two operators so that no test depends on how many operators the scaffold defines.
+(.taskmaster/docs/prd-discover-aws-components-from-annotations.txt). COCO_RENDERING is the same
+for a coco overlay, which adds the peer-pods AccessKey (refresh command: "Fixture refresh" in
+.taskmaster/docs/prd-coco-tier.txt). The hand-written payloads use two operators so that no test
+depends on how many operators the scaffold defines.
 """
 
 import json
@@ -12,6 +14,7 @@ from pathlib import Path
 
 from fleet.tasks._aws_components import (
     ANNOTATION_CREDENTIALS_REQUEST,
+    ANNOTATION_DELIVERY,
     ANNOTATION_TARGET_NAMESPACE,
     ANNOTATION_TARGET_SECRET,
     CLUSTER_LABEL,
@@ -19,6 +22,9 @@ from fleet.tasks._aws_components import (
 )
 
 RENDERING = Path(__file__).parent.parent / "data" / "scoped-aws-access-keys.json"
+COCO_RENDERING = (
+    Path(__file__).parent.parent / "data" / "scoped-coco-aws-access-keys.json"
+)
 
 # Two operators, not six: the code must not care how many there are.
 OPERATORS = [
@@ -38,6 +44,16 @@ OPERATORS = [
     ),
 ]
 
+# The credential a coco overlay adds; a post-provision task delivers it, not the install manifests.
+PEER_PODS = OperatorCredential(
+    "openshift-sandboxed-containers-aws",
+    "openshift-sandboxed-containers-operator",
+    "peer-pods-secret",
+    "test-cluster-peer-pods-credentials-raw",
+    "test-cluster-peer-pods-access-key",
+    "post-provision",
+)
+
 
 def access_key_item(
     cluster,
@@ -46,8 +62,12 @@ def access_key_item(
     namespace=None,
     secret=None,
     annotated=True,
+    delivery=None,
 ):
-    """One AccessKey as `oc get -o json` lists it; key None builds the installer AccessKey."""
+    """One AccessKey as `oc get -o json` lists it; key None builds the installer AccessKey.
+
+    delivery adds the delivery annotation, with or without the target annotations.
+    """
     if key is None:
         name = f"{cluster}-access-key"
         raw_secret = "aws-credentials-raw"
@@ -67,6 +87,8 @@ def access_key_item(
             ANNOTATION_TARGET_NAMESPACE: namespace or f"openshift-{key}-operator",
             ANNOTATION_TARGET_SECRET: secret or "cloud-credentials",
         }
+    if key is not None and delivery is not None:
+        metadata.setdefault("annotations", {})[ANNOTATION_DELIVERY] = delivery
     return {
         "apiVersion": "iam.aws.upbound.io/v1beta1",
         "kind": "AccessKey",
