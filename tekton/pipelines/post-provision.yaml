@@ -320,6 +320,7 @@ spec:
             - "base"
             - "virt"
             - "ai"
+            - "coco"
       taskRef:
         name: apply-base-workloads
       runAfter:
@@ -417,6 +418,60 @@ spec:
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)
 
+    # coco tier: EC2 lookups and security group rules on the hub with the installer credential
+    - name: prepare-podvm-aws
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "coco"
+      taskRef:
+        name: prepare-podvm-aws
+      runAfter:
+        - apply-base-workloads
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # coco tier: sandboxed containers operator, peer-pods credential and config, KataConfig.
+    # Every node reboots once; the task waits up to 90 minutes for the KataConfig.
+    - name: apply-coco-workloads
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "coco"
+      taskRef:
+        name: apply-coco-workloads
+      runAfter:
+        - prepare-podvm-aws
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+        - name: podvm-instance-type
+          value: $(params.podvm-instance-type)
+        - name: region
+          value: $(tasks.prepare-podvm-aws.results.region)
+        - name: vpc-id
+          value: $(tasks.prepare-podvm-aws.results.vpc-id)
+        - name: subnet-id
+          value: $(tasks.prepare-podvm-aws.results.subnet-id)
+        - name: sg-ids
+          value: $(tasks.prepare-podvm-aws.results.sg-ids)
+        - name: ami-id
+          value: $(tasks.prepare-podvm-aws.results.ami-id)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      timeout: "2h"
+
     - name: configure-spoke-rbac
       when:
         - input: $(params.openshift-cluster)
@@ -429,6 +484,7 @@ spec:
         - apply-base-workloads
         - add-baremetal-workers
         - add-ai-workers
+        - apply-coco-workloads
       params:
         - name: cluster-name
           value: $(params.cluster-name)

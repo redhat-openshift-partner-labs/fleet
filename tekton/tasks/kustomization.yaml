@@ -34,6 +34,8 @@ resources:
   - apply-base-workloads.yaml
   - apply-virt-workloads.yaml
   - add-baremetal-workers.yaml
+  - prepare-podvm-aws.yaml
+  - apply-coco-workloads.yaml
   - configure-spoke-rbac.yaml
   - terminate-pod-vms.yaml
   - delete-cluster-resources.yaml
