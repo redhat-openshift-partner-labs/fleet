@@ -62,3 +62,32 @@ def test_read_tier_empty(mock_run):
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+@pytest.mark.parametrize("tier", ["base", "virt", "ai"])
+@mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
+def test_supported_tier_is_printed(mock_run, capsys, tier):
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout=f"{tier}\n", stderr=""
+    )
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        main()
+    assert capsys.readouterr().out == f"{tier}\n"
+
+
+@pytest.mark.parametrize("tier", ["coco", "gold"])
+@mock.patch("fleet.tasks.read_cluster_tier.error")
+@mock.patch("fleet.tasks.read_cluster_tier.subprocess.run")
+def test_unsupported_tier_exits(mock_run, mock_error, capsys, tier):
+    """A tier this image does not list would skip every tier task without an error."""
+    mock_run.return_value = subprocess.CompletedProcess(
+        [], returncode=0, stdout=tier, stderr=""
+    )
+    with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    assert [str(c.args[0]) for c in mock_error.call_args_list] == [
+        f"Tier '{tier}' is not supported by this pipeline image; "
+        "supported tiers: base, virt, ai"
+    ]
+    assert capsys.readouterr().out == ""

@@ -1,7 +1,8 @@
 """Read the tier label from a ManagedCluster.
 
 CLI: fleet-read-cluster-tier --cluster-name NAME
-Prints the tier value to stdout. Exits 1 on failure or empty result.
+Prints the tier value to stdout. Exits 1 on failure, on an empty result, or on a tier outside
+SUPPORTED_TIERS: the post-provision pipeline would skip every tier task for it without an error.
 """
 
 import argparse
@@ -9,6 +10,9 @@ import subprocess
 import sys
 
 from fleet.tasks._log import configure, error, info
+
+# Tiers the post-provision pipeline of this image has tasks for
+SUPPORTED_TIERS = ("base", "virt", "ai")
 
 
 def main() -> None:
@@ -45,6 +49,12 @@ def main() -> None:
     info(f"  -> tier value: '{tier}' (length: {len(tier)})")
     if not tier:
         error("Tier label is empty on ManagedCluster")
+        sys.exit(1)
+    if tier not in SUPPORTED_TIERS:
+        error(
+            f"Tier '{tier}' is not supported by this pipeline image; supported tiers: "
+            f"{', '.join(SUPPORTED_TIERS)}"
+        )
         sys.exit(1)
 
     print(tier)
