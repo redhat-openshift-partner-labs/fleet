@@ -1,0 +1,43 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: prepare-podvm-aws
+spec:
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: source
+  results:
+    - name: region
+      description: AWS region of the cluster
+    - name: vpc-id
+      description: VPC of the first worker node
+    - name: subnet-id
+      description: Subnet of the first worker node
+    - name: sg-ids
+      description: Security groups of the first worker node, comma-separated
+    - name: ami-id
+      description: Pod VM AMI found by tag in the cluster's region
+  steps:
+    - name: prepare-podvm
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        VALUES=$(fleet-prepare-podvm-aws \
+          --cluster-name "$(params.cluster-name)" \
+          --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig")
+        # Tekton keeps result files verbatim: write values without jq's trailing newline.
+        result() {
+          printf '%s' "$(echo "$VALUES" | jq -r "$2")" | tee "$1"
+          echo
+        }
+        result "$(results.region.path)" '.["region"]'
+        result "$(results.vpc-id.path)" '.["vpc-id"]'
+        result "$(results.subnet-id.path)" '.["subnet-id"]'
+        result "$(results.sg-ids.path)" '.["sg-ids"]'
+        result "$(results.ami-id.path)" '.["ami-id"]'
