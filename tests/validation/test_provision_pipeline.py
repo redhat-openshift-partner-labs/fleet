@@ -44,6 +44,14 @@ def test_post_provision_receives_cronjob_settings():
     assert params["schedule"] == ("$(tasks.read-cluster-metadata.results.schedule)")
 
 
+def test_post_provision_receives_podvm_instance_type():
+    task = _load_tasks_by_name()["trigger-post-provision"]
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params["podvm-instance-type"] == (
+        "$(tasks.read-cluster-metadata.results.podvm-instance-type)"
+    )
+
+
 def test_every_task_param_is_a_name_value_mapping():
     for name, task in _load_tasks_by_name().items():
         for param in task.get("params", []):

@@ -22,6 +22,7 @@ def main() -> None:
     parser.add_argument("--ai-accelerator", default="nvidia-gpu")
     parser.add_argument("--timezone", default="America/Chicago")
     parser.add_argument("--schedule", default="00 08 * * 1-5")
+    parser.add_argument("--podvm-instance-type", default="")
     args = parser.parse_args()
 
     configure("trigger-post-provision")
@@ -86,6 +87,8 @@ def main() -> None:
               value: {args.timezone}
             - name: schedule
               value: "{args.schedule}"
+            - name: podvm-instance-type
+              value: "{args.podvm_instance_type}"
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

@@ -208,3 +208,5 @@ spec:
           value: $(tasks.read-cluster-metadata.results.timezone)
         - name: schedule
           value: $(tasks.read-cluster-metadata.results.schedule)
+        - name: podvm-instance-type
+          value: $(tasks.read-cluster-metadata.results.podvm-instance-type)

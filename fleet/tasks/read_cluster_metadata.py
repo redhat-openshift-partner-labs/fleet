@@ -7,6 +7,7 @@ Outputs {} if the file is missing or empty. Exits 1 if the directory does not ex
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -16,6 +17,9 @@ from fleet.tasks._schedule import schedule_error, timezone_error
 from fleet.tasks._log import configure, error, info
 
 SUPPORTED_AI_ACCELERATORS = {"none", "nvidia-gpu"}
+# One EC2 instance type name (family.size); the value is written into the post-provision
+# PipelineRun YAML. Which types are valid for the tier is checked by fleet-cluster-scaffold.
+PODVM_INSTANCE_TYPE = re.compile(r"[a-z0-9-]+\.[a-z0-9-]+")
 
 
 def main() -> None:
@@ -65,6 +69,14 @@ def main() -> None:
         message = schedule_error(schedule)
         if message:
             error(message)
+            sys.exit(1)
+
+    if "podvm-instance-type" in metadata:
+        instance_type = metadata["podvm-instance-type"]
+        if not isinstance(instance_type, str) or not PODVM_INSTANCE_TYPE.fullmatch(
+            instance_type
+        ):
+            error(f"Invalid podvm-instance-type value: {instance_type}")
             sys.exit(1)
 
     info(f"  -> loaded {len(metadata)} key(s)")

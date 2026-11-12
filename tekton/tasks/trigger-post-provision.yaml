@@ -25,6 +25,9 @@ spec:
     - name: schedule
       type: string
       default: "00 08 * * 1-5"
+    - name: podvm-instance-type
+      type: string
+      default: ""
   steps:
     - name: trigger
       image: $(params.pipeline-image)
@@ -39,4 +42,5 @@ spec:
           --openshift-ai-version "$(params.openshift-ai-version)" \
           --ai-accelerator "$(params.ai-accelerator)" \
           --timezone "$(params.timezone)" \
-          --schedule "$(params.schedule)"
+          --schedule "$(params.schedule)" \
+          --podvm-instance-type "$(params.podvm-instance-type)"

@@ -138,6 +138,7 @@ def test_trigger_only_passes_per_run_params(mock_run):
         "ai-accelerator",
         "timezone",
         "schedule",
+        "podvm-instance-type",
     }
 
 
@@ -215,3 +216,22 @@ def test_trigger_forwards_cronjob_settings(mock_run):
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
     assert params["timezone"] == "Europe/Berlin"
     assert params["schedule"] == "30 07 * * 1"
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_podvm_instance_type_defaults_to_empty(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    # Quoted in the YAML: an unquoted empty value would be null, not the empty string
+    assert params["podvm-instance-type"] == ""
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_forwards_podvm_instance_type(mock_run):
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    argv = [*BASE_ARGV, "--podvm-instance-type", "m6a.large"]
+    doc = _run_and_capture_yaml(mock_run, argv)
+    params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
+    assert params["podvm-instance-type"] == "m6a.large"
+    assert 'value: "m6a.large"' in mock_run.call_args.kwargs["input"]
