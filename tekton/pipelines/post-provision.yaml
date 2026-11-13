@@ -438,6 +438,28 @@ spec:
         - name: source
           workspace: shared-workspace
 
+    # coco tier: the pod VM AMI of this cluster, built from the disk image that the operator
+    # in the spoke's catalog names. An AMI already built from that disk image is returned.
+    - name: build-podvm-image-aws
+      when:
+        - input: $(params.tier)
+          operator: in
+          values:
+            - "coco"
+      taskRef:
+        name: build-podvm-image-aws
+      runAfter:
+        - prepare-podvm-aws
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: pipeline-image
+          value: $(tasks.load-config.results.pipeline-image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      timeout: "2h"
+
     # coco tier: sandboxed containers operator, peer-pods credential and config, KataConfig.
     # Every node reboots once; the task waits up to 90 minutes for the KataConfig.
     - name: apply-coco-workloads
@@ -449,7 +471,7 @@ spec:
       taskRef:
         name: apply-coco-workloads
       runAfter:
-        - prepare-podvm-aws
+        - build-podvm-image-aws
       params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -466,7 +488,9 @@ spec:
         - name: sg-ids
           value: $(tasks.prepare-podvm-aws.results.sg-ids)
         - name: ami-id
-          value: $(tasks.prepare-podvm-aws.results.ami-id)
+          value: $(tasks.build-podvm-image-aws.results.ami-id)
+        - name: podvm-payload
+          value: $(tasks.build-podvm-image-aws.results.podvm-payload)
       workspaces:
         - name: source
           workspace: shared-workspace

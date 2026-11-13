@@ -19,8 +19,6 @@ spec:
       description: Subnet of the first worker node
     - name: sg-ids
       description: Security groups of the first worker node, comma-separated
-    - name: ami-id
-      description: Pod VM AMI found by tag in the cluster's region
   steps:
     - name: prepare-podvm
       image: $(params.pipeline-image)
@@ -40,4 +38,3 @@ spec:
         result "$(results.vpc-id.path)" '.["vpc-id"]'
         result "$(results.subnet-id.path)" '.["subnet-id"]'
         result "$(results.sg-ids.path)" '.["sg-ids"]'
-        result "$(results.ami-id.path)" '.["ami-id"]'

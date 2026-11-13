@@ -1,11 +1,19 @@
 from unittest import mock
 
 import subprocess
+from pathlib import Path
 
 import pytest
 import yaml
 
-from fleet.tasks.trigger_post_provision import main
+from fleet.tasks.trigger_post_provision import PIPELINE_TIMEOUT, main
+
+TRIGGER_TEMPLATE = (
+    Path(__file__).parent.parent.parent
+    / "tekton"
+    / "triggers"
+    / "triggertemplate-post-provision.yaml"
+)
 
 BASE_ARGV = [
     "prog",
@@ -235,3 +243,19 @@ def test_trigger_forwards_podvm_instance_type(mock_run):
     params = {p["name"]: p["value"] for p in doc["spec"]["params"]}
     assert params["podvm-instance-type"] == "m6a.large"
     assert 'value: "m6a.large"' in mock_run.call_args.kwargs["input"]
+
+
+@mock.patch("fleet.tasks.trigger_post_provision.subprocess.run")
+def test_trigger_sets_the_pipeline_timeout(mock_run):
+    """Build task limit 2h, apply-coco-workloads limit 2h, 1h for the other tasks."""
+    mock_run.side_effect = [_basedomain_result(), _create_result()]
+    doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
+    assert PIPELINE_TIMEOUT == "5h"
+    assert doc["spec"]["timeouts"] == {"pipeline": "5h"}
+
+
+def test_trigger_template_sets_the_same_pipeline_timeout():
+    """The EventListener creates the same PipelineRun from the TriggerTemplate."""
+    template = yaml.safe_load(TRIGGER_TEMPLATE.read_text())
+    (run,) = template["spec"]["resourcetemplates"]
+    assert run["spec"]["timeouts"] == {"pipeline": PIPELINE_TIMEOUT}

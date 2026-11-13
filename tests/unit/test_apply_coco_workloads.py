@@ -25,6 +25,7 @@ from fleet.tasks.apply_coco_workloads import (
     main,
     peer_pods_config,
     peer_pods_credential,
+    podvm_pairing,
     wait_for_kataconfig,
 )
 from tests.unit._aws_fixtures import OPERATORS, PEER_PODS
@@ -34,6 +35,12 @@ WORKLOADS = Path(__file__).parent.parent.parent / "workloads" / "coco"
 KUBECONFIG = "/workspace/source/kubeconfig"
 SOURCE_DIR = "/workspace/source/workloads/coco"
 KEY_ID, SECRET = "AKIAEXAMPLEKEYID", "s3cr3t/value+with=chars"
+PAYLOAD = "sha256:" + "a" * 64
+OTHER_PAYLOAD = "sha256:" + "b" * 64
+DISK_REPOSITORY = (
+    "registry.redhat.io/openshift-sandboxed-containers/osc-dm-verity-image"
+)
+INSTALLED_CSV = "sandboxed-containers-operator.v1.12.0"
 
 
 def _argv(instance_type="m6a.large"):
@@ -59,6 +66,8 @@ def _argv(instance_type="m6a.large"):
             "sg-a,sg-b",
             "--ami-id",
             "ami-1",
+            "--podvm-payload",
+            PAYLOAD,
         ],
     )
 
@@ -69,6 +78,15 @@ def _ok(stdout=""):
 
 def _fail(stderr="connection refused"):
     return subprocess.CompletedProcess([], returncode=1, stdout="", stderr=stderr)
+
+
+def _csv(payload=PAYLOAD):
+    """The installed CSV as `oc get clusterserviceversion -o json` prints it."""
+    related = [
+        {"name": "operator", "image": "registry.redhat.io/osc/operator@sha256:1"},
+        {"name": "podvm", "image": f"{DISK_REPOSITORY}@{payload}"},
+    ]
+    return _ok(json.dumps({"spec": {"relatedImages": related}}))
 
 
 def _kataconfig(in_progress="False", nodes=3, ready=3, failed=()):
@@ -346,6 +364,115 @@ def test_kataconfig_timeout_while_the_daemonset_is_missing(mock_run, clock):
 
 
 # ---------------------------------------------------------------------------
+# The pod VM AMI and the installed operator are built from the same disk image
+# ---------------------------------------------------------------------------
+
+
+SUBSCRIPTION_GET = [
+    "oc",
+    "get",
+    "subscription.operators.coreos.com",
+    OSC_PACKAGE,
+    "-n",
+    OSC_NAMESPACE,
+    "-o",
+    "jsonpath={.status.installedCSV}",
+    f"--kubeconfig={KUBECONFIG}",
+]
+CSV_GET = [
+    "oc",
+    "get",
+    "clusterserviceversion",
+    INSTALLED_CSV,
+    "-n",
+    OSC_NAMESPACE,
+    "-o",
+    "json",
+    f"--kubeconfig={KUBECONFIG}",
+]
+
+
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_reads_the_installed_csv_of_the_subscription(mock_run, mock_error):
+    mock_run.side_effect = [_ok(f"{INSTALLED_CSV}\n"), _csv()]
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is True
+    assert mock_run.call_args_list == [
+        mock.call(SUBSCRIPTION_GET, capture_output=True, text=True),
+        mock.call(CSV_GET, capture_output=True, text=True),
+    ]
+    mock_error.assert_not_called()
+
+
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_mismatch_names_both_and_asks_for_a_re_run(mock_run, mock_error):
+    mock_run.side_effect = [_ok(INSTALLED_CSV), _csv(OTHER_PAYLOAD)]
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is False
+    mock_error.assert_called_once_with(
+        f"The pod VM AMI was built from disk image {PAYLOAD}; {INSTALLED_CSV} uses "
+        f"{DISK_REPOSITORY}@{OTHER_PAYLOAD}; re-run post-provision"
+    )
+
+
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_fails_without_an_installed_csv(mock_run, mock_error):
+    mock_run.return_value = _ok("")
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is False
+    mock_run.assert_called_once()
+    mock_error.assert_called_once_with(
+        f"Subscription {OSC_PACKAGE} has no installedCSV; re-run post-provision"
+    )
+
+
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_fails_when_the_subscription_is_unreadable(mock_run, mock_error):
+    mock_run.return_value = _fail("connection refused\n")
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is False
+    mock_run.assert_called_once()
+    mock_error.assert_called_once_with(
+        f"Failed to read Subscription {OSC_PACKAGE}: connection refused"
+    )
+
+
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_fails_when_the_csv_is_unreadable(mock_run, mock_error):
+    mock_run.side_effect = [_ok(INSTALLED_CSV), _fail("not found\n")]
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is False
+    mock_error.assert_called_once_with(
+        f"Failed to read ClusterServiceVersion {INSTALLED_CSV}: not found"
+    )
+
+
+@pytest.mark.parametrize(
+    "csv, message",
+    [
+        (_ok("not json"), "Expecting value"),
+        (_ok("{}"), "no related image of repository"),
+        (
+            _ok(json.dumps({"spec": {"relatedImages": [{"name": "operator"}]}})),
+            "no related image of repository",
+        ),
+    ],
+    ids=["no-json", "no-related-images", "no-disk-image"],
+)
+@mock.patch(f"{MODULE}.error")
+@mock.patch(f"{MODULE}.subprocess.run")
+def test_pairing_fails_when_the_csv_names_no_disk_image(
+    mock_run, mock_error, csv, message
+):
+    mock_run.side_effect = [_ok(INSTALLED_CSV), csv]
+    assert podvm_pairing(PAYLOAD, KUBECONFIG) is False
+    mock_error.assert_called_once()
+    logged = mock_error.call_args.args[0]
+    assert logged.startswith(f"ClusterServiceVersion {INSTALLED_CSV}: ")
+    assert message in logged
+
+
+# ---------------------------------------------------------------------------
 # main: order on the spoke and failure handling
 # ---------------------------------------------------------------------------
 
@@ -355,7 +482,7 @@ def spoke(clock):
     """Hub lookups and the imported helpers are replaced; oc sees the stdin applies and the polls.
 
     steps records what reaches the spoke, in order: manifest file names, Kind/name of stdin
-    applies, and the CSV wait.
+    applies, the CSV wait and the pairing check.
     """
     steps = []
 
@@ -380,6 +507,11 @@ def spoke(clock):
             step = f"{obj['kind']}/{obj['metadata']['name']}"
             steps.append(step)
             return _fail("denied") if step in failing else _ok()
+        if "subscription.operators.coreos.com" in argv:
+            steps.append("pairing")
+            return _ok(INSTALLED_CSV)
+        if "clusterserviceversion" in argv:
+            return _csv(OTHER_PAYLOAD if "pairing" in failing else PAYLOAD)
         if "kataconfig" in argv:
             return _kataconfig(failed=["w-1"] if "kataconfig" in failing else [])
         return _ok()
@@ -420,6 +552,7 @@ ALL_STEPS = [
     f"ConfigMap/{PEER_PODS_CONFIGMAP}",
     "subscription.yaml",
     "csv",
+    "pairing",
     "kataconfig.yaml",
 ]
 
@@ -529,7 +662,9 @@ def test_unreadable_raw_secret_exits(spoke):
     assert "forbidden" in str(spoke.error.call_args.args[0])
 
 
-@pytest.mark.parametrize("failed", [step for step in ALL_STEPS if step != "csv"])
+@pytest.mark.parametrize(
+    "failed", [step for step in ALL_STEPS if step not in ("csv", "pairing")]
+)
 def test_failed_apply_exits_at_that_step(spoke, failed):
     spoke.failing.add(f"{SOURCE_DIR}/{failed}" if failed.endswith(".yaml") else failed)
     with _argv(), pytest.raises(SystemExit, match="1"):
@@ -542,6 +677,15 @@ def test_csv_wait_failure_exits(spoke):
     with _argv(), pytest.raises(SystemExit, match="1"):
         main()
     assert spoke.steps == ALL_STEPS[: ALL_STEPS.index("csv") + 1]
+
+
+def test_pairing_mismatch_exits_before_the_kataconfig(spoke):
+    spoke.failing.add("pairing")
+    with _argv(), pytest.raises(SystemExit, match="1"):
+        main()
+    assert spoke.steps == ALL_STEPS[: ALL_STEPS.index("pairing") + 1]
+    assert len(spoke.error.call_args_list) == 1
+    assert "re-run post-provision" in str(spoke.error.call_args.args[0])
 
 
 def test_kataconfig_wait_failure_exits(spoke):

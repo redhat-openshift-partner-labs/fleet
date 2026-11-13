@@ -148,7 +148,7 @@ def test_cluster_cronjob_runs_for_every_cluster_after_kubeconfig_save():
 # tier=coco: pod VM lookups on the hub, then the operator on the spoke
 # ---------------------------------------------------------------------------
 
-COCO_TASKS = ("prepare-podvm-aws", "apply-coco-workloads")
+COCO_TASKS = ("prepare-podvm-aws", "build-podvm-image-aws", "apply-coco-workloads")
 SOURCE_WORKSPACE = [{"name": "source", "workspace": "shared-workspace"}]
 
 
@@ -186,17 +186,32 @@ def test_prepare_podvm_aws_runs_only_for_coco_after_base():
     }
 
 
-def test_apply_coco_workloads_runs_only_for_coco_after_prepare():
+def test_build_podvm_image_aws_runs_only_for_coco_after_prepare():
+    task = _load_tasks_by_name()["build-podvm-image-aws"]
+    assert task["taskRef"] == {"name": "build-podvm-image-aws"}
+    assert _tier_when_values(task) == ["coco"]
+    assert task.get("runAfter") == ["prepare-podvm-aws"]
+    assert task["workspaces"] == SOURCE_WORKSPACE
+    # The CLI polls the snapshot import for up to 3600 s after the extraction and the upload
+    assert task["timeout"] == "2h"
+    params = {param["name"]: param["value"] for param in task["params"]}
+    assert params == {
+        "cluster-name": "$(params.cluster-name)",
+        "pipeline-image": "$(tasks.load-config.results.pipeline-image)",
+    }
+
+
+def test_apply_coco_workloads_runs_only_for_coco_after_the_image_build():
     task = _load_tasks_by_name()["apply-coco-workloads"]
     assert task["taskRef"] == {"name": "apply-coco-workloads"}
     assert _tier_when_values(task) == ["coco"]
-    assert task.get("runAfter") == ["prepare-podvm-aws"]
+    assert task.get("runAfter") == ["build-podvm-image-aws"]
     assert task["workspaces"] == SOURCE_WORKSPACE
     # KataConfig reboots every node; the CLI waits up to 5400 s for it
     assert task["timeout"] == "2h"
 
 
-def test_apply_coco_workloads_receives_the_prepared_values():
+def test_apply_coco_workloads_receives_the_network_and_the_image():
     task = _load_tasks_by_name()["apply-coco-workloads"]
     params = {param["name"]: param["value"] for param in task["params"]}
     assert params == {
@@ -207,7 +222,8 @@ def test_apply_coco_workloads_receives_the_prepared_values():
         "vpc-id": "$(tasks.prepare-podvm-aws.results.vpc-id)",
         "subnet-id": "$(tasks.prepare-podvm-aws.results.subnet-id)",
         "sg-ids": "$(tasks.prepare-podvm-aws.results.sg-ids)",
-        "ami-id": "$(tasks.prepare-podvm-aws.results.ami-id)",
+        "ami-id": "$(tasks.build-podvm-image-aws.results.ami-id)",
+        "podvm-payload": "$(tasks.build-podvm-image-aws.results.podvm-payload)",
     }
 
 
@@ -221,9 +237,26 @@ def test_coco_pipeline_params_match_the_task_definitions():
         passed = {param["name"] for param in pipeline_tasks[name]["params"]}
         assert passed == declared, name
         assert [w["name"] for w in definition["workspaces"]] == ["source"], name
-    prepare = yaml.safe_load((tasks_dir / "prepare-podvm-aws.yaml").read_text())
-    results = {result["name"] for result in prepare["spec"]["results"]}
-    assert results == {"region", "vpc-id", "subnet-id", "sg-ids", "ami-id"}
+    expected_results = {
+        "prepare-podvm-aws": {"region", "vpc-id", "subnet-id", "sg-ids"},
+        "build-podvm-image-aws": {"ami-id", "podvm-payload"},
+    }
+    for name, expected in expected_results.items():
+        definition = yaml.safe_load((tasks_dir / f"{name}.yaml").read_text())
+        results = {result["name"] for result in definition["spec"]["results"]}
+        assert results == expected, name
+
+
+def test_build_podvm_image_aws_has_a_scratch_volume_outside_the_workspace():
+    """The disk is larger than the 1Gi workspace; the task extracts it into an emptyDir."""
+    tasks_dir = PIPELINE_PATH.parents[1] / "tasks"
+    spec = yaml.safe_load((tasks_dir / "build-podvm-image-aws.yaml").read_text())[
+        "spec"
+    ]
+    assert spec["volumes"] == [{"name": "scratch", "emptyDir": {}}]
+    (step,) = spec["steps"]
+    assert step["volumeMounts"] == [{"name": "scratch", "mountPath": "/scratch"}]
+    assert "--work-dir /scratch" in step["script"]
 
 
 def test_coco_tasks_are_in_the_task_kustomization():

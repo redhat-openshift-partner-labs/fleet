@@ -20,6 +20,8 @@ spec:
       type: string
     - name: ami-id
       type: string
+    - name: podvm-payload
+      type: string
   workspaces:
     - name: source
   steps:
@@ -38,4 +40,5 @@ spec:
           --vpc-id "$(params.vpc-id)" \
           --subnet-id "$(params.subnet-id)" \
           --sg-ids "$(params.sg-ids)" \
-          --ami-id "$(params.ami-id)"
+          --ami-id "$(params.ami-id)" \
+          --podvm-payload "$(params.podvm-payload)"

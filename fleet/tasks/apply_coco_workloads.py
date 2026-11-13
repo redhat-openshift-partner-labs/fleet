@@ -2,14 +2,17 @@
 
 CLI: fleet-apply-coco-workloads --cluster-name NAME --source-dir DIR --spoke-kubeconfig PATH
        --podvm-instance-type TYPE --region R --vpc-id V --subnet-id S --sg-ids IDS --ami-id AMI
-       [--kataconfig-timeout-seconds 5400]
+       --podvm-payload DIGEST [--kataconfig-timeout-seconds 5400]
 Order on the spoke: Namespace, Secret peer-pods-secret, ConfigMap osc-feature-gates, ConfigMap
-peer-pods-cm, OperatorGroup and Subscription, CSV Succeeded, KataConfig, completion. The
-Secret exists before the operator runs, so the operator creates no CredentialsRequest (Manual
-credentials mode would not fulfil one). The peer-pods credential is the discovered credential
-with delivery post-provision whose target Secret is peer-pods-secret; its values are read from
-the raw Secret on the hub, go to oc through stdin only and are never logged. The network and
-image values come from prepare-podvm-aws. Exits 1 on any failure.
+peer-pods-cm, OperatorGroup and Subscription, CSV Succeeded, pairing check, KataConfig,
+completion. The Secret exists before the operator runs, so the operator creates no
+CredentialsRequest (Manual credentials mode would not fulfil one). The peer-pods credential is
+the discovered credential with delivery post-provision whose target Secret is peer-pods-secret;
+its values are read from the raw Secret on the hub, go to oc through stdin only and are never
+logged. The network values come from prepare-podvm-aws; the AMI and the digest of the disk
+image it was built from come from build-podvm-image-aws. The pairing check reads the installed
+ClusterServiceVersion of the Subscription and fails when its disk image has another digest.
+Exits 1 on any failure.
 """
 
 import argparse
@@ -31,6 +34,7 @@ from fleet.tasks._aws_components import (
 )
 from fleet.tasks._log import configure, error, info
 from fleet.tasks._operator_catalog import check_operator_catalog
+from fleet.tasks._podvm_image_aws import PodVMImageError, disk_image
 from fleet.tasks.apply_virt_workloads import apply_manifest, wait_for_csv
 
 # Names fixed by the operator and its documentation; the first four also appear in workloads/coco
@@ -114,6 +118,70 @@ def _exists(kubeconfig: str, *resource: str) -> bool:
     return result.returncode == 0
 
 
+def podvm_pairing(payload: str, kubeconfig: str) -> bool:
+    """True when the installed operator names the disk image the pod VM AMI was built from.
+
+    payload is the digest that build-podvm-image-aws returned. The installed version is
+    status.installedCSV of the Subscription; its disk image is selected from spec.relatedImages
+    by disk_image. Each failure logs one error line.
+    """
+    info("Checking the pod VM image against the installed operator")
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "subscription.operators.coreos.com",
+            OSC_PACKAGE,
+            "-n",
+            OSC_NAMESPACE,
+            "-o",
+            "jsonpath={.status.installedCSV}",
+            f"--kubeconfig={kubeconfig}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        error(f"Failed to read Subscription {OSC_PACKAGE}: {result.stderr.strip()}")
+        return False
+    csv = result.stdout.strip()
+    if not csv:
+        error(f"Subscription {OSC_PACKAGE} has no installedCSV; re-run post-provision")
+        return False
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "clusterserviceversion",
+            csv,
+            "-n",
+            OSC_NAMESPACE,
+            "-o",
+            "json",
+            f"--kubeconfig={kubeconfig}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        error(f"Failed to read ClusterServiceVersion {csv}: {result.stderr.strip()}")
+        return False
+    try:
+        related = json.loads(result.stdout).get("spec", {}).get("relatedImages") or []
+        image, digest = disk_image([entry.get("image", "") for entry in related])
+    except (json.JSONDecodeError, PodVMImageError) as exc:
+        error(f"ClusterServiceVersion {csv}: {exc}")
+        return False
+    if digest != payload:
+        error(
+            f"The pod VM AMI was built from disk image {payload}; {csv} uses {image}; "
+            "re-run post-provision"
+        )
+        return False
+    info(f"  -> {csv} uses the disk image the pod VM AMI was built from")
+    return True
+
+
 def _kataconfig_progress(name: str, kubeconfig: str) -> tuple[bool, list[str]]:
     """(installed on every node, nodes that failed to install).
 
@@ -178,6 +246,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--subnet-id", required=True)
     parser.add_argument("--sg-ids", required=True)
     parser.add_argument("--ami-id", required=True)
+    parser.add_argument("--podvm-payload", required=True)
     parser.add_argument("--kataconfig-timeout-seconds", type=int, default=5400)
     return parser.parse_args()
 
@@ -211,6 +280,7 @@ def main() -> None:
     info(f"  podvm-instance-type={args.podvm_instance_type}")
     info(f"  region={args.region} vpc-id={args.vpc_id} subnet-id={args.subnet_id}")
     info(f"  sg-ids={args.sg_ids} ami-id={args.ami_id}")
+    info(f"  podvm-payload={args.podvm_payload}")
 
     if not args.podvm_instance_type:
         error(f"podvm-instance-type is empty for {cluster}; {REGENERATE}")
@@ -246,6 +316,7 @@ def main() -> None:
         lambda: apply_object(peer_pods_cm, kubeconfig),
         lambda: apply_manifest(f"{source_dir}/subscription.yaml", kubeconfig),
         lambda: wait_for_csv(OSC_NAMESPACE, OSC_PACKAGE, kubeconfig, timeout=900),
+        lambda: podvm_pairing(args.podvm_payload, kubeconfig),
         lambda: apply_manifest(f"{source_dir}/kataconfig.yaml", kubeconfig),
         lambda: wait_for_kataconfig(
             KATACONFIG, kubeconfig, args.kataconfig_timeout_seconds

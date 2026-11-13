@@ -43,7 +43,6 @@ def helpers():
         mock.patch(f"{module}.cluster_facts", return_value=FACTS) as cluster_facts,
         mock.patch(f"{module}.ec2_client") as ec2_client,
         mock.patch(f"{module}.node_network", return_value=NETWORK) as node_network,
-        mock.patch(f"{module}.podvm_image", return_value="ami-1") as podvm_image,
         mock.patch(f"{module}.open_podvm_ports", return_value=6) as open_podvm_ports,
         mock.patch(f"{module}.subprocess.run", return_value=_nodes(a="i-0a")) as run,
     ):
@@ -51,13 +50,12 @@ def helpers():
             cluster_facts=cluster_facts,
             ec2_client=ec2_client,
             node_network=node_network,
-            podvm_image=podvm_image,
             open_podvm_ports=open_podvm_ports,
             run=run,
         )
 
 
-def test_prints_the_five_values(helpers, capsys):
+def test_prints_the_four_values(helpers, capsys):
     with _argv():
         main()
     assert json.loads(capsys.readouterr().out) == {
@@ -65,7 +63,6 @@ def test_prints_the_five_values(helpers, capsys):
         "vpc-id": "vpc-1",
         "subnet-id": "subnet-1",
         "sg-ids": "sg-a,sg-b",
-        "ami-id": "ami-1",
     }
     ec2 = helpers.ec2_client.return_value
     helpers.cluster_facts.assert_called_once_with("c1")
@@ -86,7 +83,6 @@ def test_prints_the_five_values(helpers, capsys):
         check=True,
     )
     helpers.node_network.assert_called_once_with(ec2, "i-0a")
-    helpers.podvm_image.assert_called_once_with(ec2, "us-east-2")
     helpers.open_podvm_ports.assert_called_once_with(ec2, ["sg-a", "sg-b"])
 
 
@@ -116,9 +112,9 @@ def test_no_worker_node_exits(helpers, capsys):
     helpers.open_podvm_ports.assert_not_called()
 
 
-def test_missing_image_exits_before_any_rule_is_added(helpers, capsys):
-    helpers.podvm_image.side_effect = PodVMError("no pod VM AMI tagged")
-    _assert_fails(helpers, capsys, "no pod VM AMI tagged")
+def test_missing_instance_exits_before_any_rule_is_added(helpers, capsys):
+    helpers.node_network.side_effect = PodVMError("instance i-0a not found")
+    _assert_fails(helpers, capsys, "instance i-0a not found")
     helpers.open_podvm_ports.assert_not_called()
 
 
@@ -149,7 +145,7 @@ def test_node_listing_failure_exits_with_stderr(helpers, capsys):
 )
 def test_hub_lookup_failure_exits(helpers, capsys, exc):
     helpers.cluster_facts.side_effect = exc
-    _assert_fails(helpers, capsys, "Failed to prepare the pod VM network and image")
+    _assert_fails(helpers, capsys, "Failed to prepare the pod VM network")
     helpers.run.assert_not_called()
 
 

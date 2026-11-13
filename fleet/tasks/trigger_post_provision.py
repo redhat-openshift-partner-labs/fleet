@@ -2,7 +2,8 @@
 
 CLI: fleet-trigger-post-provision --cluster-name NAME --tier TIER
 Derives dns-zones from the ClusterDeployment baseDomain, then creates a
-PipelineRun for the post-provision pipeline. Exits 1 on failure.
+PipelineRun for the post-provision pipeline with the timeout PIPELINE_TIMEOUT.
+Exits 1 on failure.
 """
 
 import argparse
@@ -11,6 +12,10 @@ import sys
 import textwrap
 
 from fleet.tasks._log import configure, error, info
+
+# Limit of the whole PipelineRun: build-podvm-image-aws 2h, apply-coco-workloads 2h, 1h for the
+# other tasks. tekton/triggers/triggertemplate-post-provision.yaml sets the same value.
+PIPELINE_TIMEOUT = "5h"
 
 
 def main() -> None:
@@ -70,6 +75,8 @@ def main() -> None:
         spec:
           pipelineRef:
             name: post-provision
+          timeouts:
+            pipeline: "{PIPELINE_TIMEOUT}"
           params:
             - name: cluster-name
               value: {cluster}

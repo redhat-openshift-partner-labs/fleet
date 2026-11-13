@@ -5,7 +5,6 @@ from botocore.exceptions import ClientError
 
 from fleet.tasks._aws_components import CLUSTER_LABEL
 from fleet.tasks._podvm_aws import (
-    PODVM_IMAGE_TAG,
     PODVM_PORTS,
     UEFI_BOOT_MODES,
     PodVMError,
@@ -14,13 +13,11 @@ from fleet.tasks._podvm_aws import (
     node_network,
     open_podvm_ports,
     pod_vm_instances,
-    podvm_image,
     terminate,
 )
 
 REGION = "us-east-2"
 LIVE_STATES = ["pending", "running", "stopping", "stopped", "shutting-down"]
-TAGGED = [{"Key": PODVM_IMAGE_TAG, "Value": "true"}]
 
 
 def _client_error(code, operation="AuthorizeSecurityGroupIngress"):
@@ -28,8 +25,7 @@ def _client_error(code, operation="AuthorizeSecurityGroupIngress"):
 
 
 def test_scaffold_contract_strings():
-    """The peer-pods policy of the scaffold allows launches by this tag."""
-    assert PODVM_IMAGE_TAG == "openshiftpartnerlabs.com/podvm-image"
+    """The operator documents the ports; AMD SEV-SNP needs a UEFI boot mode."""
     assert PODVM_PORTS == (("tcp", 15150), ("tcp", 9000), ("udp", 9000))
     assert UEFI_BOOT_MODES == ("uefi", "uefi-preferred")
 
@@ -96,125 +92,6 @@ def test_node_network_fails_without_an_instance(answer):
     with pytest.raises(PodVMError) as exc:
         node_network(ec2, "i-0abc")
     assert str(exc.value) == "instance i-0abc not found"
-
-
-# ---------------------------------------------------------------------------
-# Pod VM image: the newest tagged AMI, usable for SEV-SNP and by the peer-pods policy
-# ---------------------------------------------------------------------------
-
-
-def _image(ami, created, boot_mode="uefi", snapshots=("snap-1",)):
-    image = {
-        "ImageId": ami,
-        "CreationDate": created,
-        # An instance-store mapping has no Ebs entry
-        "BlockDeviceMappings": [{"DeviceName": "/dev/sdb", "VirtualName": "ephemeral0"}]
-        + [
-            {"DeviceName": "/dev/sda1", "Ebs": {"SnapshotId": snap}}
-            for snap in snapshots
-        ],
-    }
-    if boot_mode is not None:
-        image["BootMode"] = boot_mode
-    return image
-
-
-def _ec2_with_images(*images, snapshots=None):
-    ec2 = mock.MagicMock()
-    ec2.describe_images.return_value = {"Images": list(images)}
-    ec2.describe_snapshots.return_value = {
-        "Snapshots": (
-            [{"SnapshotId": "snap-1", "Tags": TAGGED}]
-            if snapshots is None
-            else snapshots
-        )
-    }
-    return ec2
-
-
-def test_podvm_image_query():
-    ec2 = _ec2_with_images(_image("ami-1", "2026-10-01T00:00:00.000Z"))
-    assert podvm_image(ec2, REGION) == "ami-1"
-    ec2.describe_images.assert_called_once_with(
-        Owners=["self"],
-        Filters=[
-            {"Name": f"tag:{PODVM_IMAGE_TAG}", "Values": ["true"]},
-            {"Name": "state", "Values": ["available"]},
-        ],
-    )
-    ec2.describe_snapshots.assert_called_once_with(SnapshotIds=["snap-1"])
-
-
-def test_podvm_image_is_the_newest():
-    ec2 = _ec2_with_images(
-        _image("ami-old", "2026-09-01T00:00:00.000Z"),
-        _image("ami-new", "2026-10-01T00:00:00.000Z"),
-        _image("ami-oldest", "2025-12-31T23:59:59.000Z"),
-    )
-    assert podvm_image(ec2, REGION) == "ami-new"
-
-
-def test_podvm_image_fails_when_none_is_tagged():
-    ec2 = _ec2_with_images()
-    with pytest.raises(PodVMError) as exc:
-        podvm_image(ec2, REGION)
-    assert str(exc.value) == (
-        f"no pod VM AMI tagged {PODVM_IMAGE_TAG}=true in us-east-2; "
-        "see docs/coco-tier.md"
-    )
-    ec2.describe_snapshots.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "boot_mode, shown", [("legacy-bios", "legacy-bios"), (None, "")]
-)
-def test_podvm_image_fails_on_a_non_uefi_boot_mode(boot_mode, shown):
-    ec2 = _ec2_with_images(_image("ami-1", "2026-10-01T00:00:00.000Z", boot_mode))
-    with pytest.raises(PodVMError) as exc:
-        podvm_image(ec2, REGION)
-    assert str(exc.value) == (
-        f"AMI ami-1 has boot mode '{shown}'; AMD SEV-SNP needs uefi or uefi-preferred"
-    )
-
-
-def test_podvm_image_accepts_uefi_preferred():
-    ec2 = _ec2_with_images(
-        _image("ami-1", "2026-10-01T00:00:00.000Z", "uefi-preferred")
-    )
-    assert podvm_image(ec2, REGION) == "ami-1"
-
-
-@pytest.mark.parametrize(
-    "snapshot",
-    [
-        {"SnapshotId": "snap-2"},
-        {"SnapshotId": "snap-2", "Tags": [{"Key": "Name", "Value": "podvm"}]},
-        {"SnapshotId": "snap-2", "Tags": [{"Key": PODVM_IMAGE_TAG, "Value": "false"}]},
-        None,  # not in the answer at all
-    ],
-)
-def test_podvm_image_fails_on_an_untagged_snapshot(snapshot):
-    """The peer-pods policy allows RunInstances only from tagged snapshots."""
-    ec2 = _ec2_with_images(
-        _image("ami-1", "2026-10-01T00:00:00.000Z", snapshots=("snap-1", "snap-2")),
-        snapshots=[{"SnapshotId": "snap-1", "Tags": TAGGED}]
-        + ([snapshot] if snapshot else []),
-    )
-    with pytest.raises(PodVMError) as exc:
-        podvm_image(ec2, REGION)
-    assert str(exc.value) == (
-        f"snapshot snap-2 of AMI ami-1 lacks tag {PODVM_IMAGE_TAG}=true; "
-        "the peer-pods policy denies launches from it"
-    )
-    ec2.describe_snapshots.assert_called_once_with(SnapshotIds=["snap-1", "snap-2"])
-
-
-def test_podvm_image_fails_without_ebs_mappings():
-    ec2 = _ec2_with_images(_image("ami-1", "2026-10-01T00:00:00.000Z", snapshots=()))
-    with pytest.raises(PodVMError) as exc:
-        podvm_image(ec2, REGION)
-    assert str(exc.value) == "AMI ami-1 has no EBS snapshot"
-    ec2.describe_snapshots.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
