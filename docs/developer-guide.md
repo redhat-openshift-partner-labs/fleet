@@ -200,7 +200,8 @@ The pipeline image is a multi-stage build (`Dockerfile`):
 
 - **Build stage** — UBI9 + Python 3.11, installs `fleet` package via Poetry
 - **Runtime stage** — UBI9-minimal with `oc`, `kubectl`, `kustomize`,
-  `vcluster`, `privatebin`, `ca-certificates`, and all `fleet-*` entry points
+  `vcluster`, `privatebin`, `qemu-img`, `ca-certificates`, and all `fleet-*`
+  entry points
 
 All Tekton tasks share this single image, referenced via the `pipeline-image`
 param.
@@ -210,6 +211,78 @@ To rebuild locally:
 ```bash
 podman build -t fleet-pipeline:dev .
 ```
+
+### Maintenance: CentOS signing key
+
+The runtime stage installs `qemu-img` from CentOS Stream 9 AppStream with
+`gpgcheck=1`. The `Dockerfile` downloads the CentOS Official signing key file from
+`CENTOS_KEY_URL`, compares the file's SHA-256 with `CENTOS_KEY_SHA256`, and imports
+the key. `CENTOS_KEY_SHA256` pins the bytes of the key file; the fingerprint
+identifies the key.
+
+| Item | State on 2026-11-13 |
+|------|---------------------|
+| Key fingerprint | `99DB 70FA E1D7 CE22 7FB6 4882 05B5 55B3 8483 C65D` |
+| Key creation date | 2019-05-03 |
+| Key expiry date | none |
+| Key file | `https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256` |
+
+The key has no expiry date, so no date announces a rotation. The image is built by
+`.github/workflows/build-image.yml` on a `v*` tag push and by a local
+`podman build`; `ci.yml` does not build it. A change of the key or of the key file
+appears as a failed image build at the next tag push. Published images are
+unaffected.
+
+| Build output | Cause |
+|--------------|-------|
+| `/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial: FAILED` and `sha256sum: WARNING: 1 computed checksum did NOT match` | The file at `CENTOS_KEY_URL` changed: a new key, an added key, or the same key in a re-exported file. |
+| `curl: (22) The requested URL returned error: 404` | The key file moved. The current URL is listed at <https://www.centos.org/keys/>. |
+| `microdnf install -y qemu-img` fails on the package signature | CentOS signs the package with a key that the pinned file does not contain. |
+
+Update the pin:
+
+1. Download the key file. When the file moved, set `CENTOS_KEY_URL` in the
+   `Dockerfile` to the new URL first.
+
+   ```bash
+   curl -fsSL https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256 -o /tmp/centos-key.asc
+   ```
+
+2. List the fingerprints of the keys in the file.
+
+   ```bash
+   gpg --show-keys --with-fingerprint /tmp/centos-key.asc
+   ```
+
+3. Compare every fingerprint with two sources: the list at
+   <https://www.centos.org/keys/> and the file `RPM-GPG-KEY-centosofficial` in
+   branch `c9s` of
+   <https://gitlab.com/redhat/centos-stream/rpms/centos-stream-release>. The
+   GitLab file holds the same key in different bytes, so its SHA-256 differs
+   from `CENTOS_KEY_SHA256`; compare fingerprints only. Stop when a fingerprint
+   is absent from either source.
+
+4. Compute the SHA-256 of the key file and set `CENTOS_KEY_SHA256` in the
+   `Dockerfile` to it. `Containerfile` is a symlink to `Dockerfile`.
+
+   ```bash
+   sha256sum /tmp/centos-key.asc
+   ```
+
+5. Build the image for both platforms of `build-image.yml` and run `qemu-img`.
+
+   ```bash
+   podman build --platform linux/amd64 -t fleet-pipeline:dev-amd64 .
+   podman build --platform linux/arm64 -t fleet-pipeline:dev-arm64 .
+   podman run --rm fleet-pipeline:dev-amd64 qemu-img --version
+   podman run --rm fleet-pipeline:dev-arm64 qemu-img --version
+   ```
+
+6. Update the table in this section. `.gitleaks.toml` allowlists the line
+   pattern `CENTOS_KEY_SHA256=<64 hex digits>` and needs no change.
+
+7. Commit the change with the type `build(image)` and push a `v*` tag after the
+   merge; `build-image.yml` publishes the image.
 
 ## Commit Conventions
 

@@ -201,7 +201,7 @@ oc get daemonset osc-caa-ds -n openshift-sandboxed-containers-operator
 - An AMI of an earlier disk image is deleted only by deprovision.
 - A KataConfig deletion on the spoke runs the operator's image deletion Job against the cluster's AMI; the peer-pods policy denies it.
 - The scratch volume of `build-podvm-image-aws` has no size limit.
-- `qemu-img` in the pipeline image comes from CentOS Stream 9 AppStream; UBI 9 does not ship it, and the package is outside Red Hat's support for UBI content.
+- `qemu-img` in the pipeline image comes from CentOS Stream 9 AppStream; UBI 9 does not ship it, and the package is outside Red Hat's support for UBI content. The image build pins the CentOS signing key file by SHA-256; a changed key file fails the build (see [developer-guide.md](developer-guide.md#maintenance-centos-signing-key)).
 - No pipeline run has verified these: the file name and the size of the disk in the disk image, the duration of the snapshot import, and the launch of a TPM 2.0 AMI with AMD SEV-SNP.
 - Pod VMs run in one availability zone, with all security groups of the first worker node.
 - The unit tests replace `oc`, `qemu-img`, EC2 and S3; no test runs against the operator or AWS.
