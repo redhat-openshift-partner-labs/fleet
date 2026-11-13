@@ -26,6 +26,28 @@ FROM registry.access.redhat.com/ubi9-minimal:latest
 
 RUN microdnf install -y openssh-clients openssl-libs ca-certificates jq httpd-tools tzdata && microdnf clean all
 
+# qemu-img converts the pod VM disk to raw. It is not in the UBI 9 repositories and
+# is installed from CentOS Stream 9 AppStream; its dependencies come from UBI. The
+# repo file is removed so that later installs use UBI only.
+ARG CENTOS_KEY_URL=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
+ARG CENTOS_KEY_SHA256=5af55449d6c9bc594e2e2fb7222374cb25a8ad2d8ea6ce3de894a3201944daa2
+
+RUN curl -fsSL "${CENTOS_KEY_URL}" -o /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial && \
+    echo "${CENTOS_KEY_SHA256}  /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial" | sha256sum -c - && \
+    rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial && \
+    printf '%s\n' \
+      '[centos-stream-appstream]' \
+      'name=CentOS Stream 9 - AppStream' \
+      'baseurl=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial' \
+      'includepkgs=qemu-img' \
+      > /etc/yum.repos.d/centos-stream-appstream.repo && \
+    microdnf install -y qemu-img && \
+    rm -f /etc/yum.repos.d/centos-stream-appstream.repo && \
+    microdnf clean all
+
 COPY --from=build /opt/app-root /opt/app-root
 COPY --from=build /usr/bin/python3.11 /usr/bin/python3.11
 COPY --from=build /usr/lib64/python3.11 /usr/lib64/python3.11
