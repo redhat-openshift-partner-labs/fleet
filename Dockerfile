@@ -28,7 +28,8 @@ RUN microdnf install -y openssh-clients openssl-libs ca-certificates jq httpd-to
 
 # qemu-img converts the pod VM disk to raw. It is not in the UBI 9 repositories and
 # is installed from CentOS Stream 9 AppStream; its dependencies come from UBI. The
-# repo file is removed so that later installs use UBI only.
+# repo file is removed so that later installs use UBI only. dnf replaces $basearch with
+# the architecture of the build platform (x86_64 or aarch64).
 ARG CENTOS_KEY_URL=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
 ARG CENTOS_KEY_SHA256=5af55449d6c9bc594e2e2fb7222374cb25a8ad2d8ea6ce3de894a3201944daa2
 
@@ -38,7 +39,7 @@ RUN curl -fsSL "${CENTOS_KEY_URL}" -o /etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficia
     printf '%s\n' \
       '[centos-stream-appstream]' \
       'name=CentOS Stream 9 - AppStream' \
-      'baseurl=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/' \
+      'baseurl=https://mirror.stream.centos.org/9-stream/AppStream/$basearch/os/' \
       'enabled=1' \
       'gpgcheck=1' \
       'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial' \
