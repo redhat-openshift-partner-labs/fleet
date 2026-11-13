@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-podvm-image-aws
+spec:
+  description: >-
+    Builds the pod VM AMI of one coco cluster from the disk image that the
+    sandboxed containers operator of the spoke's catalog names, or returns
+    the AMI already built from that disk image. The disk is extracted and
+    converted in the scratch volume, which uses the node's ephemeral storage.
+  params:
+    - name: cluster-name
+      type: string
+    - name: pipeline-image
+      type: string
+  workspaces:
+    - name: source
+  results:
+    - name: ami-id
+      description: Pod VM AMI of the cluster
+    - name: podvm-payload
+      description: Digest of the disk image the AMI was built from
+  volumes:
+    - name: scratch
+      emptyDir: {}
+  steps:
+    - name: build-podvm-image
+      image: $(params.pipeline-image)
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: scratch
+          mountPath: /scratch
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        VALUES=$(fleet-build-podvm-image-aws \
+          --cluster-name "$(params.cluster-name)" \
+          --spoke-kubeconfig "$(workspaces.source.path)/kubeconfig" \
+          --work-dir /scratch)
+        # Tekton keeps result files verbatim: write values without jq's trailing newline.
+        result() {
+          printf '%s' "$(echo "$VALUES" | jq -r "$2")" | tee "$1"
+          echo
+        }
+        result "$(results.ami-id.path)" '.["ami-id"]'
+        result "$(results.podvm-payload.path)" '.["podvm-payload"]'
