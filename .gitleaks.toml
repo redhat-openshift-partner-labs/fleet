@@ -1,0 +1,16 @@
+# gitleaks configuration, read by `gitleaks detect --source .` in CI and by the
+# pre-commit hook. The default rules apply; the allowlist names values that the
+# generic-api-key rule reports and that are public.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Published checksums and unit test fixtures"
+regexTarget = "line"
+regexes = [
+  # SHA-256 of the CentOS Official RPM signing key file, checked in the Dockerfile
+  '''CENTOS_KEY_SHA256=[0-9a-f]{64}''',
+  # base64 of the string "top-secret", the pull secret fixture of the unit tests
+  '''"auth":"dG9wLXNlY3JldA=="''',
+]
