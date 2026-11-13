@@ -30,6 +30,8 @@ RUN microdnf install -y openssh-clients openssl-libs ca-certificates jq httpd-to
 # is installed from CentOS Stream 9 AppStream; its dependencies come from UBI. The
 # repo file is removed so that later installs use UBI only. dnf replaces $basearch with
 # the architecture of the build platform (x86_64 or aarch64).
+# CENTOS_KEY_SHA256 pins the key file; a changed file fails the build. The update
+# steps are in docs/developer-guide.md, section "Maintenance: CentOS signing key".
 ARG CENTOS_KEY_URL=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
 ARG CENTOS_KEY_SHA256=5af55449d6c9bc594e2e2fb7222374cb25a8ad2d8ea6ce3de894a3201944daa2
 
