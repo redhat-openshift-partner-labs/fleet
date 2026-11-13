@@ -284,6 +284,122 @@ Update the pin:
 7. Commit the change with the type `build(image)` and push a `v*` tag after the
    merge; `build-image.yml` publishes the image.
 
+### Maintenance: CentOS Stream 9 end of life
+
+| Item | State on 2026-11-13 |
+|------|---------------------|
+| CentOS Stream 9 end of life | 2027-05-31, listed at <https://www.centos.org/download/> |
+| Repository in the `Dockerfile` | `https://mirror.stream.centos.org/9-stream/AppStream/$basearch/os/` |
+| Precedent | CentOS Stream 8 ended on 2024-05-31. `https://mirror.stream.centos.org/8-stream/` returns 404; the content is at `https://vault.centos.org/8-stream/`. |
+| Replacement | `qemu-img` from RHEL 9 AppStream, installed with a Red Hat subscription at build time |
+
+CentOS publishes no `qemu-img` update for Stream 9 after 2027-05-31. When CentOS
+removes `9-stream` from the mirror, `microdnf install -y qemu-img` fails at the
+next image build. Published images are unaffected. Complete the switch to RHEL
+before 2027-05-31.
+
+The image uses CentOS Stream today because the RHEL 9 AppStream repository
+requires a subscription during the build, and the GitHub runner of
+`build-image.yml` and a local `podman build` have none. The UBI 9 repositories
+require no subscription and do not contain `qemu-img`.
+
+Requirements of the switch:
+
+- An activation key and the organization ID of a Red Hat account whose terms
+  permit use in GitHub Actions.
+- Two GitHub Actions secrets that hold them, for example `RHSM_ORG` and
+  `RHSM_ACTIVATION_KEY`.
+- A private image repository. The UBI terms cover redistribution of UBI content;
+  a RHEL package in the image is outside them. The pull secret of the image is
+  described in [image-pull-secret-setup.md](image-pull-secret-setup.md).
+- The same two values in local files for every local build.
+
+Switch the image to RHEL:
+
+1. Create the activation key in the Red Hat Hybrid Cloud Console and store the
+   organization ID and the key as the two repository secrets.
+
+2. Add a stage to the `Dockerfile` that registers, downloads the package and
+   unregisters in one `RUN`. `ubi9` contains `subscription-manager`;
+   `ubi9-minimal` does not. A build secret is mounted at `/run/secrets/<id>`
+   during the `RUN` and is stored in no image layer.
+
+   ```dockerfile
+   FROM registry.access.redhat.com/ubi9:latest AS qemu
+   RUN --mount=type=secret,id=rhsm_org --mount=type=secret,id=rhsm_activationkey \
+       subscription-manager register \
+         --org "$(cat /run/secrets/rhsm_org)" \
+         --activationkey "$(cat /run/secrets/rhsm_activationkey)" && \
+       { dnf install -y --downloadonly --downloaddir=/rpms qemu-img; rc=$?; \
+         subscription-manager unregister; exit "$rc"; }
+   ```
+
+3. In the final stage, replace the CentOS block (`CENTOS_KEY_URL`,
+   `CENTOS_KEY_SHA256` and the `RUN` that writes
+   `centos-stream-appstream.repo`) with a copy of the package and its install.
+   `libaio`, `liburing` and `numactl-libs` are the dependencies of the CentOS
+   package that UBI provides; `rpm -qpR` on the downloaded file lists the
+   dependencies of the RHEL package. `rpm -K` checks the package signature
+   against the Red Hat keys in the RPM database of `ubi9-minimal` and exits 1
+   for a package signed with another key.
+
+   ```dockerfile
+   COPY --from=qemu /rpms/qemu-img-*.rpm /tmp/
+   RUN microdnf install -y libaio liburing numactl-libs && \
+       rpm -K /tmp/qemu-img-*.rpm && rpm -i /tmp/qemu-img-*.rpm && \
+       rm -f /tmp/qemu-img-*.rpm && microdnf clean all
+   ```
+
+4. Pass the secrets to the build step of `.github/workflows/build-image.yml`
+   (`docker/build-push-action`):
+
+   ```yaml
+   secrets: |
+     rhsm_org=${{ secrets.RHSM_ORG }}
+     rhsm_activationkey=${{ secrets.RHSM_ACTIVATION_KEY }}
+   ```
+
+5. Build the image for both platforms and run `qemu-img`. `org.txt` holds the
+   organization ID and `key.txt` the activation key; keep both files outside
+   the repository checkout or delete them after the build.
+
+   ```bash
+   podman build --platform linux/amd64 --secret id=rhsm_org,src=org.txt --secret id=rhsm_activationkey,src=key.txt -t fleet-pipeline:dev-amd64 .
+   podman build --platform linux/arm64 --secret id=rhsm_org,src=org.txt --secret id=rhsm_activationkey,src=key.txt -t fleet-pipeline:dev-arm64 .
+   podman run --rm fleet-pipeline:dev-amd64 qemu-img --version
+   podman run --rm fleet-pipeline:dev-arm64 qemu-img --version
+   ```
+
+6. Remove what the CentOS source needed: the section "Maintenance: CentOS
+   signing key" and this section, the `CENTOS_KEY_SHA256` pattern in
+   `.gitleaks.toml`, and the CentOS statements in `CLAUDE.md` and
+   [coco-tier.md](coco-tier.md).
+
+7. Commit the change with the type `build(image)` and push a `v*` tag after the
+   merge.
+
+Checked on 2026-11-13 on a host without a subscription:
+
+- The stage of step 2, built with placeholder secrets, mounts both secrets and
+  stops at `subscription-manager register` with HTTP 401 for the unknown
+  organization ID.
+- `ubi9` contains `subscription-manager` 1.29.55 and `dnf install --downloadonly`.
+- The UBI repositories contain `libaio`, `liburing` and `numactl-libs` and no
+  `qemu-img`.
+- In `ubi9-minimal`, `rpm -i` installs the CentOS `qemu-img` package after the
+  `microdnf install` of step 3, and `rpm -K` exits 1 for that package.
+
+Not run: a registration with a valid key, the package download from RHEL 9
+AppStream, and `rpm -K` and `rpm -i` on the RHEL package.
+
+Each build registers one system in the Red Hat account and unregisters it. A
+build that is cancelled between the two commands leaves the system registered.
+
+When the switch is not complete on 2027-05-31, a `baseurl` at
+`https://vault.centos.org/9-stream/AppStream/$basearch/os/` is the fallback
+that the Stream 8 precedent indicates. That path does not exist on 2026-11-13,
+and an archived repository receives no updates.
+
 ## Commit Conventions
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `feat:`,
