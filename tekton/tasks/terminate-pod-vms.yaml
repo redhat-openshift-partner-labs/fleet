@@ -3,6 +3,11 @@ kind: Task
 metadata:
   name: terminate-pod-vms
 spec:
+  description: >-
+    Terminates the peer pod VMs of a coco cluster, then deletes the pod VM
+    AMIs of the cluster, their snapshots and the staging bucket
+    <infraID>-podvm-image. Returns at once for any other tier and for a
+    cluster that is not installed.
   params:
     - name: cluster-name
       type: string

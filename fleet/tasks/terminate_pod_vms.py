@@ -1,4 +1,4 @@
-"""Terminate the peer pod VMs of a coco cluster before the cluster is uninstalled.
+"""Terminate the peer pod VMs of a coco cluster and delete its pod VM image before the uninstall.
 
 CLI: fleet-terminate-pod-vms --cluster-name NAME [--timeout-seconds 600]
 Pod VMs carry only the ownership tag openshiftpartnerlabs.com/cluster=<name>, which
@@ -6,8 +6,16 @@ Pod VMs carry only the ownership tag openshiftpartnerlabs.com/cluster=<name>, wh
 in the cluster subnet. The task acts only when the ManagedCluster tier label is coco and the
 cluster is installed. It deletes the peer-pods AccessKey first, so cloud-api-adaptor can launch
 nothing new, then terminates the pod VMs with the installer credential and polls every 10 s
-until none is left. Exits 1 on any failure, before the deprovision pipeline deletes anything
-else; instances left at the timeout are logged one per line.
+until none is left.
+
+After the pod VMs are gone it deletes what build-podvm-image-aws created, with the same
+credential: every AMI of the cluster that carries the tag key
+openshiftpartnerlabs.com/podvm-payload, the snapshots of those AMIs, every snapshot with both
+tags, and the staging bucket <infraID>-podvm-image when it exists. Snapshots of persistent
+volumes carry the cluster tag only and are left to the uninstall.
+
+Exits 1 on any failure, before the deprovision pipeline deletes anything else; instances left
+at the timeout are logged one per line.
 """
 
 import argparse
@@ -28,6 +36,12 @@ from fleet.tasks._aws_components import (
 )
 from fleet.tasks._log import configure, error, info
 from fleet.tasks._podvm_aws import ec2_client, pod_vm_instances, terminate
+from fleet.tasks._podvm_image_aws import (
+    BUCKET_SUFFIX,
+    delete_images,
+    s3_client,
+    unstage,
+)
 
 _POLL_SECONDS = 10
 
@@ -105,6 +119,17 @@ def _terminate_until_gone(ec2: Any, cluster: str, infra_id: str, timeout: int) -
     sys.exit(1)
 
 
+def _delete_pod_vm_image(
+    ec2: Any, cluster: str, infra_id: str, region: str, creds_secret: str
+) -> None:
+    """Delete the cluster's pod VM AMIs, their snapshots and the staging bucket."""
+    images, snapshots = delete_images(ec2, cluster)
+    info(f"Deleted {images} pod VM image(s) and {snapshots} snapshot(s)")
+    bucket = f"{infra_id}{BUCKET_SUFFIX}"
+    unstage(s3_client(cluster, region, creds_secret), bucket)
+    info(f"Staging bucket {bucket} is gone")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -133,6 +158,7 @@ def main() -> None:
         _delete_peer_pods_access_keys(cluster)
         ec2 = ec2_client(cluster, region, creds_secret)
         _terminate_until_gone(ec2, cluster, infra_id, args.timeout_seconds)
+        _delete_pod_vm_image(ec2, cluster, infra_id, region, creds_secret)
     except subprocess.CalledProcessError as exc:
         error(f"Failed to terminate pod VMs: {exc}: {(exc.stderr or '').strip()}")
         sys.exit(1)
