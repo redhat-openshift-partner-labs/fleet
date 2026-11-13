@@ -2,7 +2,12 @@ import json
 import subprocess
 from unittest import mock
 
-from fleet.tasks._operator_catalog import check_operator_catalog
+import pytest
+
+from fleet.tasks._operator_catalog import (
+    channel_related_images,
+    check_operator_catalog,
+)
 
 
 def _ok(stdout: str) -> subprocess.CompletedProcess[str]:
@@ -168,3 +173,121 @@ def test_check_operator_catalog_reports_invalid_json(mock_retry):
         reason
         == "failed to parse nfd PackageManifest: Expecting value: line 1 column 1 (char 0)"
     )
+
+
+OSC_IMAGES = [
+    "registry.redhat.io/openshift-sandboxed-containers/osc-rhel9-operator@sha256:aaa",
+    "registry.redhat.io/openshift-sandboxed-containers/osc-dm-verity-image@sha256:bbb",
+]
+
+
+def _manifest_with_images(images: object, **kwargs: str) -> dict:
+    manifest = _manifest(package_name="osc", **kwargs)
+    manifest["status"]["channels"][0]["currentCSVDesc"] = {"relatedImages": images}
+    return manifest
+
+
+def _related_images(mock_retry: mock.Mock, response: dict) -> list[str]:
+    mock_retry.return_value = _ok(json.dumps(response))
+    return channel_related_images("osc", "stable", "redhat-operators", "kubeconfig")
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_returns_the_channel_list(mock_retry):
+    other = _manifest_with_images(["quay.io/other/image@sha256:ccc"])
+    other["status"]["channels"][0]["name"] = "candidate"
+    manifest = _manifest_with_images(OSC_IMAGES)
+    manifest["status"]["channels"].insert(0, other["status"]["channels"][0])
+
+    assert _related_images(mock_retry, _manifest_list(manifest)) == OSC_IMAGES
+    mock_retry.assert_called_once_with(
+        [
+            "oc",
+            "get",
+            "packagemanifest",
+            "-n",
+            "openshift-marketplace",
+            "-o",
+            "json",
+            "--kubeconfig=kubeconfig",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_selects_the_expected_source(mock_retry):
+    community = _manifest_with_images(
+        ["quay.io/community/image@sha256:ddd"], source="community-operators"
+    )
+
+    images = _related_images(
+        mock_retry, _manifest_list(community, _manifest_with_images(OSC_IMAGES))
+    )
+
+    assert images == OSC_IMAGES
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_rejects_absent_package(mock_retry):
+    with pytest.raises(ValueError, match="^osc is not available from any catalog$"):
+        _related_images(mock_retry, _manifest_list(_manifest(package_name="nfd")))
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_rejects_wrong_source(mock_retry):
+    manifest = _manifest_with_images(OSC_IMAGES, source="certified-operators")
+
+    with pytest.raises(
+        ValueError,
+        match="^osc is available from certified-operators, expected redhat-operators$",
+    ):
+        _related_images(mock_retry, _manifest_list(manifest))
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_rejects_absent_channel(mock_retry):
+    manifest = _manifest_with_images(OSC_IMAGES, channel="candidate")
+
+    with pytest.raises(ValueError, match="^osc does not provide channel stable$"):
+        _related_images(mock_retry, _manifest_list(manifest))
+
+
+@pytest.mark.parametrize(
+    "channel_entry",
+    [
+        {"name": "stable", "currentCSV": "osc.v1.0.0"},
+        {"name": "stable", "currentCSVDesc": {}},
+        {"name": "stable", "currentCSVDesc": {"relatedImages": []}},
+        {"name": "stable", "currentCSVDesc": {"relatedImages": None}},
+    ],
+    ids=["no-description", "no-list", "empty-list", "null-list"],
+)
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_rejects_missing_list(mock_retry, channel_entry):
+    manifest = _manifest(package_name="osc")
+    manifest["status"]["channels"] = [channel_entry]
+
+    with pytest.raises(
+        ValueError, match="^osc channel stable lists no related images$"
+    ):
+        _related_images(mock_retry, _manifest_list(manifest))
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_reports_oc_failure(mock_retry):
+    mock_retry.return_value = _fail("connection refused\n")
+
+    with pytest.raises(ValueError, match="^failed to query osc: connection refused$"):
+        channel_related_images("osc", "stable", "redhat-operators", "kubeconfig")
+
+
+@mock.patch("fleet.tasks._operator_catalog.run_with_retry")
+def test_channel_related_images_reports_invalid_json(mock_retry):
+    mock_retry.return_value = _ok("invalid json")
+
+    with pytest.raises(
+        ValueError, match="^failed to parse osc PackageManifest: Expecting value"
+    ):
+        channel_related_images("osc", "stable", "redhat-operators", "kubeconfig")
