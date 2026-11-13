@@ -12,6 +12,7 @@ from tests.unit._aws_fixtures import PEER_PODS
 
 MODULE = "fleet.tasks.terminate_pod_vms"
 FACTS = ("c1-abcde", "us-east-2", "aws-credentials")
+BUCKET = "c1-abcde-podvm-image"
 TIER_LOOKUP = [
     "oc",
     "get",
@@ -52,13 +53,14 @@ def _fail(stderr):
 
 @pytest.fixture
 def hub():
-    """A coco cluster that is installed and has no pod VM.
+    """A coco cluster that is installed and has no pod VM and no pod VM image.
 
-    events records the order of the oc calls and the EC2 helpers. Tests change tier, the
-    delete answer, the credentials and the pod_vm_instances answers.
+    events records the order of the oc calls, the clients and the image and bucket deletion.
+    Tests change tier, the delete answer, the credentials, the pod_vm_instances answers and
+    deleted, the answer of delete_images.
     """
     events = []
-    state = mock.Mock(tier=_ok("coco"), delete=_ok(), events=events)
+    state = mock.Mock(tier=_ok("coco"), delete=_ok(), events=events, deleted=(0, 0))
 
     def run(argv, **kwargs):
         assert kwargs == {"capture_output": True, "text": True}
@@ -72,6 +74,10 @@ def hub():
 
         return call
 
+    def delete_images(*args):
+        events.append(("delete_images", args))
+        return state.deleted
+
     with (
         mock.patch(f"{MODULE}.subprocess.run", side_effect=run) as oc,
         mock.patch(f"{MODULE}.installed_cluster_facts", return_value=FACTS) as facts,
@@ -83,6 +89,13 @@ def hub():
         ) as ec2_client,
         mock.patch(f"{MODULE}.pod_vm_instances", return_value={}) as instances,
         mock.patch(f"{MODULE}.terminate") as terminate,
+        mock.patch(
+            f"{MODULE}.delete_images", side_effect=delete_images
+        ) as delete_images_mock,
+        mock.patch(
+            f"{MODULE}.s3_client", side_effect=record("s3_client", "s3")
+        ) as s3_client,
+        mock.patch(f"{MODULE}.unstage", side_effect=record("unstage")) as unstage,
         mock.patch(f"{MODULE}.time.sleep") as sleep,
         mock.patch(f"{MODULE}.error") as error,
     ):
@@ -93,6 +106,9 @@ def hub():
             ec2_client=ec2_client,
             instances=instances,
             terminate=terminate,
+            delete_images=delete_images_mock,
+            s3_client=s3_client,
+            unstage=unstage,
             sleep=sleep,
             error=error,
         )
@@ -104,12 +120,15 @@ def _errors(hub):
 
 
 def _assert_nothing_touched(hub):
-    """Only the tier lookup ran: no AccessKey delete and no EC2 call."""
+    """Only the tier lookup ran: no AccessKey delete, no EC2 call and no S3 call."""
     assert [argv for _, argv in hub.events] == [TIER_LOOKUP]
     hub.credentials.assert_not_called()
     hub.ec2_client.assert_not_called()
     hub.instances.assert_not_called()
     hub.terminate.assert_not_called()
+    hub.delete_images.assert_not_called()
+    hub.s3_client.assert_not_called()
+    hub.unstage.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +176,9 @@ def test_access_key_is_deleted_before_the_first_ec2_call(hub):
         ("oc", TIER_LOOKUP),
         ("oc", _delete(PEER_PODS.access_key)),
         ("ec2_client", ("c1", "us-east-2", "aws-credentials")),
+        ("delete_images", ("ec2", "c1")),
+        ("s3_client", ("c1", "us-east-2", "aws-credentials")),
+        ("unstage", ("s3", BUCKET)),
     ]
     hub.credentials.assert_called_once_with("c1")
     hub.instances.assert_called_once_with("ec2", "c1", "c1-abcde")
@@ -237,6 +259,70 @@ def test_instances_left_at_the_timeout_exit(hub):
         "pod VM i-1 is still stopped after 20s",
         "pod VM i-2 is still shutting-down after 20s",
     ]
+    hub.delete_images.assert_not_called()
+    hub.unstage.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# coco: the pod VM image goes after the pod VMs
+# ---------------------------------------------------------------------------
+
+
+def test_images_and_bucket_are_deleted_after_the_pod_vms(hub, capsys):
+    answers = iter([{"i-1": "running"}, {"i-1": "shutting-down"}, {}])
+
+    def instances(*args):
+        hub.events.append(("pod_vm_instances", args))
+        return next(answers)
+
+    hub.instances.side_effect = instances
+    hub.deleted = (1, 2)
+    with _argv():
+        main()
+    assert hub.events[2:] == [
+        ("ec2_client", ("c1", "us-east-2", "aws-credentials")),
+        ("pod_vm_instances", ("ec2", "c1", "c1-abcde")),
+        ("pod_vm_instances", ("ec2", "c1", "c1-abcde")),
+        ("pod_vm_instances", ("ec2", "c1", "c1-abcde")),
+        ("delete_images", ("ec2", "c1")),
+        ("s3_client", ("c1", "us-east-2", "aws-credentials")),
+        ("unstage", ("s3", BUCKET)),
+    ]
+    log = capsys.readouterr().err
+    assert "Deleted 1 pod VM image(s) and 2 snapshot(s)" in log
+    assert f"Staging bucket {BUCKET} is gone" in log
+    hub.error.assert_not_called()
+
+
+def test_nothing_to_delete_is_not_an_error(hub, capsys):
+    with _argv():
+        main()
+    hub.delete_images.assert_called_once_with("ec2", "c1")
+    hub.unstage.assert_called_once_with("s3", BUCKET)
+    assert "Deleted 0 pod VM image(s) and 0 snapshot(s)" in capsys.readouterr().err
+    hub.error.assert_not_called()
+
+
+def test_image_delete_error_exits_before_the_bucket(hub):
+    hub.delete_images.side_effect = ClientError(
+        {"Error": {"Code": "InvalidSnapshot.InUse", "Message": "in use"}},
+        "DeleteSnapshot",
+    )
+    with _argv(), pytest.raises(SystemExit, match="1"):
+        main()
+    hub.unstage.assert_not_called()
+    assert len(_errors(hub)) == 1
+    assert "InvalidSnapshot.InUse" in _errors(hub)[0]
+
+
+def test_bucket_delete_error_exits(hub):
+    hub.unstage.side_effect = ClientError(
+        {"Error": {"Code": "BucketNotEmpty", "Message": "not empty"}}, "DeleteBucket"
+    )
+    with _argv(), pytest.raises(SystemExit, match="1"):
+        main()
+    assert len(_errors(hub)) == 1
+    assert "BucketNotEmpty" in _errors(hub)[0]
 
 
 # ---------------------------------------------------------------------------
