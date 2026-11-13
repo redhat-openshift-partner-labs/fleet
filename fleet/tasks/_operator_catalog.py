@@ -97,3 +97,50 @@ def check_operator_catalog(
         )
 
     return True, f"{package_name} {channel} is available from {source}"
+
+
+def channel_related_images(
+    package_name: str, channel: str, source: str, kubeconfig: str
+) -> list[str]:
+    """currentCSVDesc.relatedImages of the channel; ValueError with the reason when unavailable."""
+    result = run_with_retry(
+        [
+            "oc",
+            "get",
+            "packagemanifest",
+            "-n",
+            "openshift-marketplace",
+            "-o",
+            "json",
+            f"--kubeconfig={kubeconfig}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise ValueError(f"failed to query {package_name}: {result.stderr.strip()}")
+
+    try:
+        response = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"failed to parse {package_name} PackageManifest: {exc}"
+        ) from exc
+
+    manifest, selection_error = _select_package_manifest(response, package_name, source)
+    if manifest is None:
+        raise ValueError(selection_error)
+
+    channels = manifest.get("status", {}).get("channels", [])
+    matching_channel = next(
+        (entry for entry in channels if entry.get("name") == channel), None
+    )
+    if matching_channel is None:
+        raise ValueError(f"{package_name} does not provide channel {channel}")
+
+    # The catalog lists the pull specs of the channel's current CSV.
+    images = (matching_channel.get("currentCSVDesc") or {}).get("relatedImages")
+    if not images:
+        raise ValueError(f"{package_name} channel {channel} lists no related images")
+
+    return [str(image) for image in images]
