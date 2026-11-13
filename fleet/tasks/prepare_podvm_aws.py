@@ -1,11 +1,11 @@
-"""Resolve the network and image of peer pod VMs and open their ports (coco tier, AWS).
+"""Resolve the network of peer pod VMs and open their ports (coco tier, AWS).
 
 CLI: fleet-prepare-podvm-aws --cluster-name NAME --spoke-kubeconfig PATH
 Reads the cluster's region and installer credential from the hub, takes the first worker node
-of the spoke by name and reads its VPC, subnet and security groups from EC2. Finds the pod VM
-AMI by tag, then authorizes the pod VM ports on those security groups. Prints one JSON object
-to stdout: region, vpc-id, subnet-id, sg-ids (comma-separated), ami-id. Log lines go to stderr.
-Exits 1 on any failure; a missing or unusable AMI fails before a security group rule is added.
+of the spoke by name and reads its VPC, subnet and security groups from EC2, then authorizes
+the pod VM ports on those security groups. Prints one JSON object to stdout: region, vpc-id,
+subnet-id, sg-ids (comma-separated). Log lines go to stderr. Exits 1 on any failure. The pod VM
+image is built by build-podvm-image-aws.
 """
 
 import argparse
@@ -24,7 +24,6 @@ from fleet.tasks._podvm_aws import (
     instance_id,
     node_network,
     open_podvm_ports,
-    podvm_image,
 )
 
 
@@ -64,7 +63,7 @@ def main() -> None:
     configure("prepare-podvm-aws")
 
     cluster = args.cluster_name
-    info("=== Preparing the pod VM network and image ===")
+    info("=== Preparing the pod VM network ===")
     info(f"Parameters:")
     info(f"  cluster-name={cluster}")
     info(f"  spoke-kubeconfig={args.spoke_kubeconfig}")
@@ -75,13 +74,11 @@ def main() -> None:
         instance = _first_worker_instance(args.spoke_kubeconfig)
         vpc_id, subnet_id, sg_ids = node_network(ec2, instance)
         info(f"  -> {instance}: vpc={vpc_id} subnet={subnet_id} sgs={','.join(sg_ids)}")
-        ami_id = podvm_image(ec2, region)
-        info(f"  -> pod VM AMI: {ami_id}")
         added = open_podvm_ports(ec2, sg_ids)
         info(f"  -> pod VM ports: {added} rule(s) added")
     except subprocess.CalledProcessError as exc:
         error(
-            f"Failed to prepare the pod VM network and image: {exc}: "
+            f"Failed to prepare the pod VM network: {exc}: "
             f"{(exc.stderr or '').strip()}"
         )
         sys.exit(1)
@@ -93,7 +90,7 @@ def main() -> None:
         ClientError,
         BotoCoreError,
     ) as exc:
-        error(f"Failed to prepare the pod VM network and image: {exc}")
+        error(f"Failed to prepare the pod VM network: {exc}")
         sys.exit(1)
 
     print(
@@ -103,7 +100,6 @@ def main() -> None:
                 "vpc-id": vpc_id,
                 "subnet-id": subnet_id,
                 "sg-ids": ",".join(sg_ids),
-                "ami-id": ami_id,
             }
         )
     )

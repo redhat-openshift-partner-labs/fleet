@@ -16,6 +16,10 @@ spec:
       spec:
         pipelineRef:
           name: post-provision
+        # Limit of the whole run: build-podvm-image-aws 2h, apply-coco-workloads 2h, 1h for
+        # the other tasks. fleet/tasks/trigger_post_provision.py sets the same value.
+        timeouts:
+          pipeline: "5h"
         params:
           - name: cluster-name
             value: $(tt.params.cluster-name)
