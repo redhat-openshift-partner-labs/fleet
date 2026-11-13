@@ -67,6 +67,7 @@ tests/
 
 **Pre-commit hooks:**
 - `gitleaks` — secret detection on every push
+- `.gitleaks.toml` extends the default gitleaks rules with an allowlist of public values (checksums, test fixtures); CI and the hook read it
 
 **`tox` is the single entry point** — never run linters individually in CI or commit workflows.
 
