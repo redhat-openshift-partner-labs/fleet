@@ -110,6 +110,7 @@ tests/
 - **All** Tekton task logic lives in Python CLI tools, packaged via `pyproject.toml` entry points
 - Tekton Task YAML contains only a thin bash stub that calls the Python CLI entry point
 - Python tools are built into a custom pipeline container image (single image for all tasks)
+- External tools that a task calls (`oc`, `jq`, `qemu-img`) are installed in the same image; `qemu-img` comes from CentOS Stream 9 AppStream, because UBI 9 does not ship it
 - Scripts: single-purpose, fail fast, 100% pytest coverage required
 - Image tag pinned in one place (pipeline param or ConfigMap), not scattered across Task YAML
 

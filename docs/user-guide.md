@@ -124,10 +124,13 @@ The post-provision pipeline runs automatically after a successful provision. It 
 12. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
 13. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
 
-For `tier=coco`, two more tasks run between `apply-base-workloads` and `configure-spoke-rbac` (see [coco-tier.md](coco-tier.md)):
+For `tier=coco`, three more tasks run between `apply-base-workloads` and `configure-spoke-rbac` (see [coco-tier.md](coco-tier.md)):
 
-- **prepare-podvm-aws** — reads the pod VM network and AMI from EC2 with the cluster's installer credential and opens the pod VM ports
-- **apply-coco-workloads** — installs OpenShift sandboxed containers with peer pods on the spoke and waits for the KataConfig
+- **prepare-podvm-aws** — reads the pod VM network from EC2 with the cluster's installer credential and opens the pod VM ports
+- **build-podvm-image-aws** — builds the cluster's pod VM AMI from the operator's disk image, or returns the AMI already built from it
+- **apply-coco-workloads** — installs OpenShift sandboxed containers with peer pods on the spoke, checks that the installed operator names the disk image of the AMI, and waits for the KataConfig
+
+The post-provision PipelineRun has a timeout of 5 hours for every tier.
 
 The access paste URL and password are stored in the `openshift-pipelines`
 namespace as `<cluster-name>-access-paste`:
@@ -181,7 +184,7 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 
 ### What the deprovision pipeline does
 
-1. **terminate-pod-vms** — for `tier=coco`, deletes the peer-pods AccessKey and terminates the cluster's pod VMs; ends without a change for other tiers
+1. **terminate-pod-vms** — for `tier=coco`, deletes the peer-pods AccessKey, terminates the cluster's pod VMs, and deletes the cluster's pod VM AMIs, their snapshots and the staging bucket; ends without a change for other tiers
 2. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
 3. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure
 4. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
