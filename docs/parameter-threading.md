@@ -261,7 +261,7 @@ flowchart TD
         TT4["TriggerTemplate"]
     end
 
-    PP4["post-provision pipeline<br/>cluster-name, tier threaded to all tasks"]
+    PP4["post-provision pipeline<br/>cluster-name passed to the tasks<br/>tier selects tasks in when conditions"]
 
     GH --> EL3 --> TB3 --> TT3 --> P3
     P3 --> T_AC --> T_WH --> T_WM
