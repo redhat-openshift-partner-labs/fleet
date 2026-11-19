@@ -8,8 +8,6 @@ spec:
       type: string
     - name: pipeline-image
       type: string
-    - name: tier
-      type: string
     - name: openshift-ai-version
       type: string
       default: "v3"

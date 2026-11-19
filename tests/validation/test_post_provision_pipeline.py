@@ -144,6 +144,20 @@ def test_cluster_cronjob_runs_for_every_cluster_after_kubeconfig_save():
     assert params["schedule"] == "$(params.schedule)"
 
 
+WORKLOAD_TASKS = ("apply-base-workloads", "apply-virt-workloads", "apply-ai-workloads")
+
+
+def test_workload_pipeline_params_match_the_task_definitions():
+    """The pipeline passes exactly the params that each workload Task declares."""
+    tasks_dir = PIPELINE_PATH.parents[1] / "tasks"
+    pipeline_tasks = _load_tasks_by_name()
+    for name in WORKLOAD_TASKS:
+        definition = yaml.safe_load((tasks_dir / f"{name}.yaml").read_text())["spec"]
+        declared = {param["name"] for param in definition["params"]}
+        passed = {param["name"] for param in pipeline_tasks[name]["params"]}
+        assert passed == declared, name
+
+
 # ---------------------------------------------------------------------------
 # tier=coco: pod VM lookups on the hub, then the operator on the spoke
 # ---------------------------------------------------------------------------
