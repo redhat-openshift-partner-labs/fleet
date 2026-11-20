@@ -118,6 +118,18 @@ FLOWS = {
         "frame_cols": {"Virt": (0, 1), "Ai": (1, 1), "Coco": (2, 1)},
         "frame_rows": {"Virt": (6, 8), "Ai": (6, 8)},
     },
+    "test-vcluster": {
+        "title": "test-vcluster pipeline",
+        "subtitle": "Five tasks create a vCluster on the hub, run post-provision "
+        "against it, and delete it.",
+        "place": {
+            "load_config": (0, 0, 3),
+            "create_test_vcluster": (0, 1, 1),
+            "seed_test_vcluster": (1, 1, 1),
+            "run_post_provision": (2, 1, 1),
+            "delete_test_vcluster": (0, 2, 1),
+        },
+    },
     "deprovision": {
         "title": "deprovision pipeline",
         "subtitle": "Seven tasks delete a cluster, its cloud resources and its hub "

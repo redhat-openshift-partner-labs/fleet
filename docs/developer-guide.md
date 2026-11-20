@@ -450,12 +450,16 @@ compares their messages and wait limits with the code.
 
 ## Diagrams
 
-`docs/diagrams/` holds ten diagrams: the architecture diagram, the value-flow
-diagram, and a task flowchart and a sequence diagram for each of
-`pre-provision`, `provision`, `post-provision` and `deprovision`.
-`docs/architecture.md` shows the architecture diagram and the eight pipeline
-diagrams. `README.md` shows the architecture diagram.
-`docs/parameter-threading.md` shows the value-flow diagram.
+`docs/diagrams/` holds twelve diagrams: the architecture diagram, the
+value-flow diagram, and a task flowchart and a sequence diagram for each of
+the five pipelines.
+
+| Document | Diagrams it shows |
+|---|---|
+| `README.md` | The architecture diagram |
+| `docs/architecture.md` | The architecture diagram and the eight diagrams of `pre-provision`, `provision`, `post-provision` and `deprovision` |
+| `docs/parameter-threading.md` | The value-flow diagram |
+| `docs/vcluster.md` | The two diagrams of `test-vcluster` |
 
 Each diagram is two files: a `.mermaid` file that holds the content and an
 `.svg` file that a layout script writes. mermaid-cli does not produce the SVGs.

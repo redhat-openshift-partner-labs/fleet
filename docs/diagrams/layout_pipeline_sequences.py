@@ -31,6 +31,7 @@ ROLES = {  # card role per participant; the pipeline itself is "src"
     "PrivateBin": "gate",
     "Git": "store",
     "Spoke API": "out",
+    "vCluster": "out",
 }
 LEGEND = {  # legend text per card role, in legend order
     "gate": "external endpoint",
@@ -59,6 +60,12 @@ SEQUENCES = {
         "subtitle": "The calls each of the twenty-three tasks makes, in an order the "
         "pipeline allows.",
         "xs": (380, 600, 740, 860, 960, 1060, 1170),
+    },
+    "test-vcluster": {
+        "title": "test-vcluster pipeline: sequence",
+        "subtitle": "The calls each of the five tasks makes, in the order the "
+        "tasks run.",
+        "xs": (380, 640, 880, 1120),
     },
     "deprovision": {
         "title": "deprovision pipeline: sequence",
