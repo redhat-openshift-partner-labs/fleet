@@ -11,6 +11,7 @@ import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
+from fleet.tasks import _iam_cleanup as iam
 from fleet.tasks._log import configure, error, info
 
 
@@ -36,6 +37,31 @@ def _sign_jwt(pem_bytes: bytes, app_id: str, now: float) -> str:
     return (signing_input + b"." + sig_b64).decode()
 
 
+def _deployment_payload(args: argparse.Namespace) -> dict:
+    payload = {
+        "cluster_name": args.cluster_name,
+        "pipeline_run_id": args.pipeline_run_id,
+    }
+    if not args.include_iam_cleanup_report:
+        return payload
+
+    try:
+        report = iam.load_report(args.cluster_name)
+    except (iam.CleanupError, ValueError, KeyError, TypeError) as exc:
+        error(f"Could not read IAM cleanup report for {args.cluster_name}: {exc}")
+        sys.exit(1)
+
+    payload["iam_cleanup_pending"] = bool(report["items"])
+    if report["items"]:
+        payload["iam_cleanup_report"] = report
+        info(
+            f"IAM follow-up is retained in ConfigMaps in {iam.PIPELINE_NAMESPACE} "
+            f"with {iam.REPORT_LABEL}={args.cluster_name}. "
+            f"Archive destination: archive/{args.cluster_name}/{iam.REPORT_FILE}"
+        )
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -44,6 +70,7 @@ def main() -> None:
     parser.add_argument("--github-app-id", required=True)
     parser.add_argument("--github-app-installation-id", required=True)
     parser.add_argument("--github-app-key-secret", required=True)
+    parser.add_argument("--include-iam-cleanup-report", action="store_true")
     args = parser.parse_args()
 
     configure("create-deployment-status")
@@ -57,6 +84,7 @@ def main() -> None:
     info(f"  github-app-installation-id={args.github_app_installation_id}")
     info(f"  github-app-key-secret={args.github_app_key_secret}")
 
+    payload = _deployment_payload(args)
     result = subprocess.run(
         [
             "oc",
@@ -119,10 +147,7 @@ def main() -> None:
             "environment": "deprovision",
             "auto_merge": False,
             "required_contexts": [],
-            "payload": {
-                "cluster_name": args.cluster_name,
-                "pipeline_run_id": args.pipeline_run_id,
-            },
+            "payload": payload,
         },
         timeout=30,
     )

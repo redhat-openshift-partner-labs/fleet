@@ -58,11 +58,10 @@ The EventListener has two triggers:
 
 ## Archive Workflow
 
-After the deprovision pipeline completes, `create-deployment-status` posts a GitHub deployment status with `environment: deprovision` and `state: success`. A GitHub Action in fleet-clusters reacts to this event to archive the cluster:
+After hub verification, `create-deployment-status` posts a GitHub deployment status with `environment: deprovision` and `state: success`. The archive workflow uses this event to make one commit.
 
-1. `git mv provision/<cluster-name> archive/<cluster-name>`
-2. `rm deprovision/<cluster-name>-archive`
-3. Opens a PR and enables auto-merge
+1. Move `provision/<cluster-name>` to `archive/<cluster-name>`.
+2. Include `iam.cleanup.json` if the deployment payload reports pending IAM cleanup.
+3. Remove the `deprovision/<cluster-name>-archive` sentinel.
 
-See [`docs/examples/fleet-clusters-archive-workflow.yml`](examples/fleet-clusters-archive-workflow.yml) for a reference workflow.
-
+[Archive workflow](https://github.com/redhat-openshift-partner-labs/fleet-clusters/blob/main/.github/workflows/archive-cluster.yaml)

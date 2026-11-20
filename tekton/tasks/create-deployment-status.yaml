@@ -27,6 +27,7 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         fleet-create-deployment-status \
+          --include-iam-cleanup-report \
           --cluster-name "$(params.cluster-name)" \
           --pipeline-run-id "$(params.pipeline-run-id)" \
           --repo "$(params.clusters-repo)" \

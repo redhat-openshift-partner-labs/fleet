@@ -7,45 +7,37 @@ Exits 1 if any resources remain or the IAM check cannot run.
 """
 
 import argparse
-import subprocess
 import sys
 
-from fleet.tasks._aws_components import all_iam_targets
+from fleet.tasks._aws_components import DiscoveryError, all_iam_targets
+from fleet.tasks._iam_cleanup import CleanupError, oc
 from fleet.tasks._log import configure, info, warn
 
 
 def _check_gone(resource_type: str, name: str, namespace: str | None = None) -> bool:
-    """Check that a resource is gone. Returns True if gone, False if exists."""
-    if namespace:
-        result = subprocess.run(
-            ["oc", "get", resource_type, name, "-n", namespace],
-            capture_output=True,
-            text=True,
-        )
-    else:
-        result = subprocess.run(
-            ["oc", "get", resource_type, name],
-            capture_output=True,
-            text=True,
-        )
-    if result.returncode == 0:
-        warn(f"  {resource_type}/{name} in ns {namespace or 'cluster'}: still exists")
+    """Require a successful lookup with no matching resource."""
+    target = f"{resource_type}/{name}"
+    scope = ("-n", namespace) if namespace else ()
+    try:
+        exists = oc("get", target, *scope, "--ignore-not-found", "-o", "name").strip()
+    except CleanupError as exc:
+        warn(f"  Could not check {target}: {exc}")
         return False
-    info(f"  {resource_type}/{name} in ns {namespace or 'cluster'}: gone")
+    if exists:
+        warn(f"  {target} in ns {namespace or 'cluster'}: still exists")
+        return False
+    info(f"  {target} in ns {namespace or 'cluster'}: gone")
     return True
 
 
 def _iam_remaining(cluster: str) -> list[str] | None:
-    """IAM resources still present, or None if oc failed (nothing proven gone)."""
-    result = subprocess.run(
-        ["oc", "get", *all_iam_targets(cluster), "--ignore-not-found", "-o", "name"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        warn(f"  Could not check IAM resources: {result.stderr.strip()}")
+    """IAM resources still present, or None if the lookup failed."""
+    try:
+        targets = all_iam_targets(cluster)
+        return oc("get", *targets, "--ignore-not-found", "-o", "name").split()
+    except (CleanupError, DiscoveryError) as exc:
+        warn(f"  Could not check IAM resources: {exc}")
         return None
-    return result.stdout.split()
 
 
 def main() -> None:
@@ -93,4 +85,4 @@ def main() -> None:
     if errors > 0:
         warn(f"{errors} resources still present. Manual cleanup may be needed.")
         sys.exit(1)
-    info("Deprovision verified: all resources cleaned up")
+    info("Deprovision verified: hub resources cleaned up")
