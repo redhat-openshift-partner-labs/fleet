@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1398" width="1262" height="1398" role="img" aria-labelledby="title desc">
+  <title id="title">provision pipeline</title>
+  <desc id="desc">The provision pipeline has 11 tasks. Inputs: load-config (reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks); git-clone (clones fleet-clusters into the shared workspace); read-cluster-metadata (reads provision/NAME/metadata.yaml; its results are parameters of post-provision). Install: apply-cluster-crs (applies the hive overlay: ClusterDeployment, MachinePool, ManagedCluster and related CRs); wait-for-hive-ready (waits for condition Provisioned on the ClusterDeployment; timeout 1h15m). Fleet membership: wait-for-managed-cluster (waits for condition ManagedClusterJoined on the ManagedCluster); extract-spoke-kubeconfig (extracts the admin kubeconfig from the Hive Secret into the workspace); read-cluster-tier (reads the tier label of the ManagedCluster: base, virt, ai or coco); label-for-post-provision (labels the ManagedCluster provisioned=true). scoped mode: scope-aws-credentials (binds the IAM policies and roles to the installed cluster's infra ID and VPC). Handover: trigger-post-provision (creates the PipelineRun of the post-provision pipeline with the tier and the metadata values; run timeout 5h). read-cluster-metadata runs after git-clone. apply-cluster-crs runs after git-clone. wait-for-hive-ready runs after apply-cluster-crs. scope-aws-credentials runs after wait-for-hive-ready. scope-aws-credentials runs after read-cluster-metadata. wait-for-managed-cluster runs after wait-for-hive-ready. extract-spoke-kubeconfig runs after wait-for-managed-cluster. read-cluster-tier runs after wait-for-managed-cluster. label-for-post-provision runs after extract-spoke-kubeconfig. trigger-post-provision runs after label-for-post-provision. trigger-post-provision runs after read-cluster-tier. trigger-post-provision runs after read-cluster-metadata. trigger-post-provision runs after scope-aws-credentials. Constraints: Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun. Start: load-config and git-clone have no runAfter and start first. Credential mode: scope-aws-credentials is skipped unless metadata.yaml sets aws-credentials-mode: scoped. Failure: a failed task stops the run; trigger-post-provision does not run.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1397" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">provision pipeline</text>
+  <text class="m b" x="40" y="68">Eleven tasks apply the cluster resources, wait for the install and the ACM join, then start the post-provision pipeline.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="138" rx="12"/>
+  <text class="t b k" x="56" y="124">Trigger</text>
+  <text class="m b" x="188" y="124">the trigger-provision task of the pre-provision pipeline creates the PipelineRun</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Start</text>
+  <text class="m b" x="188" y="156">load-config and git-clone have no runAfter and start first</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Credential mode</text>
+  <text class="m b" x="188" y="188">scope-aws-credentials is skipped unless metadata.yaml sets aws-credentials-mode: scoped</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Failure</text>
+  <text class="m b" x="188" y="220">a failed task stops the run; trigger-post-provision does not run</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="270" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="260" width="75" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="274">INPUTS</text>
+  <rect class="frame" x="24" y="462" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="452" width="84" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="466">INSTALL</text>
+  <rect class="frame" x="24" y="654" width="788" height="464" rx="14"/>
+  <rect class="bg" x="40" y="644" width="160" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="658">FLEET MEMBERSHIP</text>
+  <rect class="frame" x="876" y="654" width="362" height="140" rx="14"/>
+  <rect class="bg" x="892" y="644" width="118" height="20" rx="10"/>
+  <text class="m lbl" x="904" y="658">SCOPED MODE</text>
+  <rect class="frame" x="24" y="1170" width="1214" height="122" rx="14"/>
+  <rect class="bg" x="40" y="1160" width="92" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="1174">HANDOVER</text>
+
+  <!-- ===== Cards ===== -->
+  <rect class="src" x="40" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="58" cy="316" r="10"/><text class="badge-t" x="58" y="320" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="321">load-config</text>
+  <line class="rule" x1="52" y1="336" x2="358" y2="336"/>
+  <text class="m s" x="52" y="358">reads ConfigMap fleet-pipeline-config; its results</text>
+  <text class="m s" x="52" y="376">are parameters of the later tasks</text>
+  <rect class="src" x="466" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="484" cy="316" r="10"/><text class="badge-t" x="484" y="320" text-anchor="middle">2</text>
+  <text class="t h2" x="500" y="321">git-clone</text>
+  <line class="rule" x1="478" y1="336" x2="784" y2="336"/>
+  <text class="m s" x="478" y="358">clones fleet-clusters into the</text>
+  <text class="m s" x="478" y="376">shared workspace</text>
+  <rect class="src" x="892" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="910" cy="316" r="10"/><text class="badge-t" x="910" y="320" text-anchor="middle">3</text>
+  <text class="t h2" x="926" y="321">read-cluster-metadata</text>
+  <line class="rule" x1="904" y1="336" x2="1210" y2="336"/>
+  <text class="m s" x="904" y="358">reads provision/NAME/metadata.yaml; its results</text>
+  <text class="m s" x="904" y="376">are parameters of post-provision</text>
+  <rect class="core" x="40" y="488" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="508" r="10"/><text class="badge-t" x="58" y="512" text-anchor="middle">4</text>
+  <text class="t h2" x="74" y="513">apply-cluster-crs</text>
+  <line class="rule" x1="52" y1="528" x2="358" y2="528"/>
+  <text class="m s" x="52" y="550">applies the hive overlay: ClusterDeployment,</text>
+  <text class="m s" x="52" y="568">MachinePool, ManagedCluster and related CRs</text>
+  <rect class="core" x="466" y="488" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="508" r="10"/><text class="badge-t" x="484" y="512" text-anchor="middle">5</text>
+  <text class="t h2" x="500" y="513">wait-for-hive-ready</text>
+  <line class="rule" x1="478" y1="528" x2="784" y2="528"/>
+  <text class="m s" x="478" y="550">waits for condition Provisioned on the</text>
+  <text class="m s" x="478" y="568">ClusterDeployment; timeout 1h15m</text>
+  <rect class="core" x="466" y="680" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="700" r="10"/><text class="badge-t" x="484" y="704" text-anchor="middle">6</text>
+  <text class="t h2" x="500" y="705">wait-for-managed-cluster</text>
+  <line class="rule" x1="478" y1="720" x2="784" y2="720"/>
+  <text class="m s" x="478" y="742">waits for condition ManagedClusterJoined</text>
+  <text class="m s" x="478" y="760">on the ManagedCluster</text>
+  <rect class="gate" x="892" y="680" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="910" cy="700" r="10"/><text class="badge-t" x="910" y="704" text-anchor="middle">7</text>
+  <text class="t h2" x="926" y="705">scope-aws-credentials</text>
+  <line class="rule" x1="904" y1="720" x2="1210" y2="720"/>
+  <text class="m s" x="904" y="742">binds the IAM policies and roles to the</text>
+  <text class="m s" x="904" y="760">installed cluster's infra ID and VPC</text>
+  <rect class="core" x="40" y="850" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="870" r="10"/><text class="badge-t" x="58" y="874" text-anchor="middle">8</text>
+  <text class="t h2" x="74" y="875">extract-spoke-kubeconfig</text>
+  <line class="rule" x1="52" y1="890" x2="358" y2="890"/>
+  <text class="m s" x="52" y="912">extracts the admin kubeconfig from the</text>
+  <text class="m s" x="52" y="930">Hive Secret into the workspace</text>
+  <rect class="core" x="466" y="850" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="870" r="10"/><text class="badge-t" x="484" y="874" text-anchor="middle">9</text>
+  <text class="t h2" x="500" y="875">read-cluster-tier</text>
+  <line class="rule" x1="478" y1="890" x2="784" y2="890"/>
+  <text class="m s" x="478" y="912">reads the tier label of the ManagedCluster:</text>
+  <text class="m s" x="478" y="930">base, virt, ai or coco</text>
+  <rect class="core" x="40" y="1004" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="1024" r="10"/><text class="badge-t" x="58" y="1028" text-anchor="middle">10</text>
+  <text class="t h2" x="74" y="1029">label-for-post-provision</text>
+  <line class="rule" x1="52" y1="1044" x2="358" y2="1044"/>
+  <text class="m s" x="52" y="1066">labels the ManagedCluster</text>
+  <text class="m s" x="52" y="1084">provisioned=true</text>
+  <rect class="core" x="40" y="1196" width="1182" height="80" rx="12"/>
+  <circle class="badge-core" cx="58" cy="1216" r="10"/><text class="badge-t" x="58" y="1220" text-anchor="middle">11</text>
+  <text class="t h2" x="74" y="1221">trigger-post-provision</text>
+  <line class="rule" x1="52" y1="1236" x2="1210" y2="1236"/>
+  <text class="m s" x="52" y="1258">creates the PipelineRun of the post-provision pipeline with the tier and the metadata values; run timeout 5h</text>
+
+  <!-- ===== Edges ===== -->
+  <path class="flow" d="M796 345 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 394 V436 H205 V486" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 537 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 586 V628 H1057 V678" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 394 V678" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 586 V678" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 778 V822 H205 V848" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 778 V848" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 948 V1002" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1102 V1194" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 948 V1194" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 394 V436 H844 V1194" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 778 V1194" marker-end="url(#a-flow)"/>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="1332" x2="1222" y2="1332"/>
+  <path class="flow" d="M40 1360 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1364">runs next</text>
+  <rect class="gate" x="174" y="1352" width="22" height="16" rx="4"/>
+  <text class="m s" x="204" y="1364">external endpoint</text>
+  <rect class="src" x="340" y="1352" width="22" height="16" rx="4"/>
+  <text class="m s" x="370" y="1364">workspace, git, configuration</text>
+  <rect class="core" x="578" y="1352" width="22" height="16" rx="4"/>
+  <text class="m s" x="608" y="1364">hub Kubernetes API</text>
+</svg>
