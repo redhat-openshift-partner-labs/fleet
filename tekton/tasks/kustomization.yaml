@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - config-loader.yaml
+  - check-prefix-collision.yaml
   - create-cluster-namespace.yaml
   - create-ssh-key.yaml
   - create-pull-secret.yaml
@@ -34,6 +35,8 @@ resources:
   - apply-base-workloads.yaml
   - apply-virt-workloads.yaml
   - add-baremetal-workers.yaml
+  - apply-ai-workloads.yaml
+  - add-ai-workers.yaml
   - prepare-podvm-aws.yaml
   - build-podvm-image-aws.yaml
   - apply-coco-workloads.yaml
@@ -49,3 +52,4 @@ resources:
   - delete-test-vcluster.yaml
   - run-post-provision.yaml
   - create-access-paste.yaml
+  - finalize-spoke.yaml

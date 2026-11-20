@@ -26,3 +26,10 @@ def test_task_reads_every_param_it_declares(path):
         if not re.search(rf"\$\(params\.{re.escape(param['name'])}[)\[]", body)
     ]
     assert not unused, unused
+
+
+def test_kustomization_lists_every_task_file():
+    """A task file the overlay omits is not installed by `oc apply -k tekton/`."""
+    overlay = yaml.safe_load((TASKS_DIR / "kustomization.yaml").read_text())
+    missing = sorted({path.name for path in TASK_FILES} - set(overlay["resources"]))
+    assert not missing, missing
