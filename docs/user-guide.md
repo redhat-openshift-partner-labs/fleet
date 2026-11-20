@@ -1,6 +1,6 @@
 # User Guide
 
-Operator-facing guide for provisioning, managing, and deprovisioning OpenShift clusters through the fleet control plane. For architecture rationale and design decisions, see [architecture.md](architecture.md).
+Operator-facing guide for provisioning, managing, and deprovisioning OpenShift clusters through the fleet control plane. For the components, the trust boundary and the task list of each pipeline, see [architecture.md](architecture.md).
 
 ## Prerequisites
 
@@ -276,7 +276,7 @@ tkn pipelinerun describe <pipelinerun-name> -n openshift-pipelines
 
 ## Related Documentation
 
-- [Architecture and design rationale](architecture.md)
+- [Architecture](architecture.md)
 - [Per-cluster metadata](per-cluster-metadata.md)
 - [Confidential containers tier](coco-tier.md)
 - [Image pull secret setup](image-pull-secret-setup.md)
