@@ -28,9 +28,38 @@ ROLES = {  # legend text per card role, in legend order
     "out": "spoke",
 }
 
+LANE_12 = 844  # x of the lane between columns 1 and 2
+COL_2 = 1057  # x of the centre of column 2
+
 # place: node id -> (column, row, columns spanned).
-# via: (source, target) -> x of the channel an edge takes past other rows.
+# via: (source, target) -> x of the lane an edge takes past other rows.
+# frame_cols: subgraph id -> (first column, columns spanned); default is the full width.
+# frame_rows: subgraph id -> (first row, last row); default is the rows of its members.
 FLOWS = {
+    "pre-provision": {
+        "title": "pre-provision pipeline",
+        "subtitle": "Fourteen tasks check the cluster definition, create the hub namespace, "
+        "secrets and AWS credentials, then start the provision pipeline.",
+        "place": {
+            "load_config": (0, 0, 1),
+            "git_clone": (1, 0, 1),
+            "check_prefix_collision": (2, 0, 1),
+            "read_cluster_metadata": (0, 1, 1),
+            "create_cluster_namespace": (2, 1, 1),
+            "create_ssh_key": (1, 2, 1),
+            "create_pull_secret": (2, 2, 1),
+            "apply_crossplane_credentials": (0, 3, 1),
+            "wait_for_aws_credentials": (1, 3, 1),
+            "transform_aws_credentials": (2, 3, 1),
+            "wait_for_aws_component_credentials": (0, 4, 1),
+            "build_aws_credentials_manifests": (1, 4, 1),
+            "validate_cluster_inputs": (1, 5, 1),
+            "trigger_provision": (2, 5, 1),
+        },
+        # The legacy path passes the scoped frame in column 2.
+        "via": {("transform_aws_credentials", "validate_cluster_inputs"): COL_2},
+        "frame_cols": {"Scoped": (0, 2)},
+    },
     "deprovision": {
         "title": "deprovision pipeline",
         "subtitle": "Seven tasks delete a cluster, its cloud resources and its hub "
@@ -112,8 +141,11 @@ def rows_of(src: dict, spec: dict, top: int) -> tuple[dict, dict, dict]:
             gap = FRAME_GAP if starting else ROW_GAP
             channel[row] = bottom + gap // 2
             y = bottom + gap
-        for group in starting:
-            frame_top[group["id"]] = y
+        # Frames of one depth that start on the same row share their top edge.
+        for depth in sorted({g["depth"] for g in starting}):
+            for group in starting:
+                if group["depth"] == depth:
+                    frame_top[group["id"]] = y
             y += 26
         members = [n for n, (_, r, _) in place.items() if r == row]
         lines = max(len(src["nodes"][n][1]) for n in members)
@@ -122,22 +154,28 @@ def rows_of(src: dict, spec: dict, top: int) -> tuple[dict, dict, dict]:
             col, _, span = place[node]
             boxes[node] = (COL_X[col], y, span_width(span), height)
         bottom = y + height
-        for group in reversed(ending):  # inner frames close first
+        # Inner frames close first; frames of one depth share their bottom edge.
+        for depth in sorted({g["depth"] for g in ending}, reverse=True):
             bottom += 16
-            fx, fw = 24, 1214
-            if group["id"] in spec.get("frame_cols", {}):
-                col, span = spec["frame_cols"][group["id"]]
-                fx, fw = COL_X[col] - 16, span_width(span) + 32
-            ftop = frame_top[group["id"]]
-            frames[group["id"]] = (fx, ftop, fw, bottom - ftop)
+            for group in ending:
+                if group["depth"] != depth:
+                    continue
+                fx, fw = 24, 1214
+                if group["id"] in spec.get("frame_cols", {}):
+                    col, span = spec["frame_cols"][group["id"]]
+                    fx, fw = COL_X[col] - 16, span_width(span) + 32
+                ftop = frame_top[group["id"]]
+                frames[group["id"]] = (fx, ftop, fw, bottom - ftop)
     return boxes, channel, frames
 
 
-def route(src_box, dst_box, chan: int, via) -> tuple[str, list, tuple]:
+def route(src_box, dst_box, turn: int, chan: int, via) -> tuple[str, list, tuple]:
     """Return the path, its vertical segments, and the label anchor of an edge.
 
     Same row: a horizontal line. Rows below: a vertical line where the two
-    cards overlap, otherwise an elbow through the channel above the target.
+    cards overlap, otherwise an elbow through chan, the channel above the
+    target. With via, the edge passes other rows at x = via: it turns into
+    that lane in the channel below the source (turn) and leaves it at chan.
     The label anchor is (x, y, text-anchor).
     """
     sx, sy, sw, sh = src_box
@@ -159,9 +197,21 @@ def route(src_box, dst_box, chan: int, via) -> tuple[str, list, tuple]:
     if via is None:
         path = f"M{xs} {start} V{chan} H{xt} V{end}"
         return path, [(xs, start, chan), (xt, chan, end)], (xt + 8, label_y, "")
-    turn = start + ROW_GAP // 2
-    path = f"M{xs} {start} V{turn} H{via} V{chan} H{xt} V{end}"
-    segments = [(xs, start, turn), (via, turn, chan), (xt, chan, end)]
+
+    # A lane inside a card's width is that card's exit or entry point.
+    xs = via if sx <= via <= sx + sw else xs
+    xt = via if dx <= via <= dx + dw else xt
+    path, lane_top, segments = f"M{xs} {start}", start, []
+    if xs != via:
+        path += f" V{turn} H{via}"
+        segments.append((xs, start, turn))
+        lane_top = turn
+    if xt != via:
+        path += f" V{chan} H{xt} V{end}"
+        segments += [(via, lane_top, chan), (xt, chan, end)]
+    else:
+        path += f" V{end}"
+        segments.append((via, lane_top, end))
     return path, segments, (xt + 8, label_y, "")
 
 
@@ -205,7 +255,8 @@ def render(name: str, spec: dict, head: str) -> str:
     for before, after, label in src["edges"]:
         via = spec.get("via", {}).get((before, after))
         chan = channel.get(place[after][1], 0)
-        path, segments, anchor = route(boxes[before], boxes[after], chan, via)
+        turn = channel.get(place[before][1] + 1, 0)
+        path, segments, anchor = route(boxes[before], boxes[after], turn, chan, via)
         paths.append(path)
         blocked += [(x, x, y1, y2) for x, y1, y2 in segments]
         if label:
