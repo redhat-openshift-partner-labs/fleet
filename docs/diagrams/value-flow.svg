@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1054" width="1262" height="1054" role="img" aria-labelledby="title desc">
+  <title id="title">Value flow</title>
+  <desc id="desc">How a value reaches a pipeline task. Trigger: a push event carries the repository URL, the commit SHA and the files each commit adds. It reaches the EventListener as a webhook. A CEL overlay of the EventListener writes extensions.cluster_name from the first added path. The TriggerBinding reads the extensions and the event body: cluster-name = $(extensions.cluster_name), git-revision = $(body.after). It passes them as params to the TriggerTemplate, which writes the params of the PipelineRun from $(tt.params.NAME). The PipelineRun of pre-provision gets cluster-name, git-repo-url and git-revision. Pipelines: the last task of pre-provision, trigger-provision, creates the PipelineRun of provision with cluster-name. The last task of provision, trigger-post-provision, creates the PipelineRun of post-provision with 9 params. In post-provision the tasks read $(params.NAME), and when conditions read tier, openshift-cluster and ai-accelerator. Values that tasks read: the ConfigMap fleet-pipeline-config holds values for every cluster; load-config turns each key into a result in every pipeline. metadata.yaml holds values for one cluster; read-cluster-metadata turns each key into a result. pre-provision reads aws-credentials-mode from it and provision reads all results. The ManagedCluster label tier is turned into a result by read-cluster-tier in provision. Constraints: Tekton passes no value implicitly; every hop names the value it passes. A pipeline reads the result of a task as $(tasks.TASK.results.NAME). A pipeline parameter that differs from the built-in default of load-config wins over the ConfigMap. A post-provision run started through the EventListener gets cluster-name, tier and dns-zones only.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1053" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">Value flow</text>
+  <text class="m b" x="40" y="68">Where the values of a pipeline run come from, and the object that passes each one on.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="138" rx="12"/>
+  <text class="t b k" x="56" y="124">Rule</text>
+  <text class="m b" x="160" y="124">Tekton passes no value implicitly; every hop names the value it passes</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Results</text>
+  <text class="c s" x="160" y="156">a pipeline reads the result of a task as $(tasks.TASK.results.NAME)</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Override</text>
+  <text class="m b" x="160" y="188">a pipeline parameter that differs from the built-in default of load-config wins over the ConfigMap</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Limit</text>
+  <text class="m b" x="160" y="220">a post-provision run started through the EventListener gets cluster-name, tier and dns-zones only</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="270" width="1214" height="294" rx="14"/>
+  <rect class="bg" x="40" y="260" width="84" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="274">TRIGGER</text>
+  <rect class="frame" x="24" y="616" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="560" y="606" width="100" height="20" rx="10"/>
+  <text class="m lbl" x="572" y="620">PIPELINES</text>
+  <rect class="frame" x="24" y="808" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="830" y="798" width="211" height="20" rx="10"/>
+  <text class="m lbl" x="842" y="812">VALUES THAT TASKS READ</text>
+
+  <!-- ===== Cards: trigger ===== -->
+  <rect class="gate" x="40" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="58" cy="316" r="10"/><text class="badge-t" x="58" y="320" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="321">Push event</text>
+  <line class="rule" x1="52" y1="336" x2="358" y2="336"/>
+  <text class="m s" x="52" y="358">repository URL, commit SHA,</text>
+  <text class="m s" x="52" y="376">files each commit adds</text>
+  <rect class="src" x="466" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="484" cy="316" r="10"/><text class="badge-t" x="484" y="320" text-anchor="middle">2</text>
+  <text class="t h2" x="500" y="321">EventListener</text>
+  <line class="rule" x1="478" y1="336" x2="784" y2="336"/>
+  <text class="m s" x="478" y="358">CEL overlay writes extensions.cluster_name</text>
+  <text class="m s" x="478" y="376">from the first added path</text>
+  <rect class="src" x="892" y="296" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="910" cy="316" r="10"/><text class="badge-t" x="910" y="320" text-anchor="middle">3</text>
+  <text class="t h2" x="926" y="321">TriggerBinding</text>
+  <line class="rule" x1="904" y1="336" x2="1210" y2="336"/>
+  <text class="c s" x="904" y="358">cluster-name = $(extensions.cluster_name)</text>
+  <text class="c s" x="904" y="376">git-revision = $(body.after)</text>
+  <rect class="src" x="40" y="450" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="58" cy="470" r="10"/><text class="badge-t" x="58" y="474" text-anchor="middle">4</text>
+  <text class="t h2" x="74" y="475">TriggerTemplate</text>
+  <line class="rule" x1="52" y1="490" x2="358" y2="490"/>
+  <text class="m s" x="52" y="512">writes the params of the PipelineRun</text>
+  <text class="c s" x="52" y="530">from $(tt.params.NAME)</text>
+
+  <!-- ===== Cards: pipelines ===== -->
+  <rect class="core" x="40" y="642" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="662" r="10"/><text class="badge-t" x="58" y="666" text-anchor="middle">5</text>
+  <text class="t h2" x="74" y="667">pre-provision</text>
+  <line class="rule" x1="52" y1="682" x2="358" y2="682"/>
+  <text class="m s" x="52" y="704">last task: trigger-provision creates the</text>
+  <text class="m s" x="52" y="722">PipelineRun of provision with cluster-name</text>
+  <rect class="core" x="466" y="642" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="662" r="10"/><text class="badge-t" x="484" y="666" text-anchor="middle">6</text>
+  <text class="t h2" x="500" y="667">provision</text>
+  <line class="rule" x1="478" y1="682" x2="784" y2="682"/>
+  <text class="m s" x="478" y="704">last task: trigger-post-provision creates the</text>
+  <text class="m s" x="478" y="722">PipelineRun of post-provision with 9 params</text>
+  <rect class="core" x="892" y="642" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="662" r="10"/><text class="badge-t" x="910" y="666" text-anchor="middle">7</text>
+  <text class="t h2" x="926" y="667">post-provision</text>
+  <line class="rule" x1="904" y1="682" x2="1210" y2="682"/>
+  <text class="m s" x="904" y="704">tasks read $(params.NAME); when conditions read</text>
+  <text class="m s" x="904" y="722">tier, openshift-cluster and ai-accelerator</text>
+
+  <!-- ===== Cards: values that tasks read ===== -->
+  <rect class="store" x="40" y="834" width="330" height="98" rx="12"/>
+  <circle class="badge-store" cx="58" cy="854" r="10"/><text class="badge-t" x="58" y="858" text-anchor="middle">8</text>
+  <text class="t h2" x="74" y="859">ConfigMap fleet-pipeline-config</text>
+  <line class="rule" x1="52" y1="874" x2="358" y2="874"/>
+  <text class="m s" x="52" y="896">values for every cluster; load-config</text>
+  <text class="m s" x="52" y="914">turns each key into a result</text>
+  <rect class="store" x="466" y="834" width="330" height="98" rx="12"/>
+  <circle class="badge-store" cx="484" cy="854" r="10"/><text class="badge-t" x="484" y="858" text-anchor="middle">9</text>
+  <text class="t h2" x="500" y="859">metadata.yaml</text>
+  <line class="rule" x1="478" y1="874" x2="784" y2="874"/>
+  <text class="m s" x="478" y="896">values for one cluster; read-cluster-metadata</text>
+  <text class="m s" x="478" y="914">turns each key into a result</text>
+  <rect class="store" x="892" y="834" width="330" height="98" rx="12"/>
+  <circle class="badge-store" cx="910" cy="854" r="10"/><text class="badge-t" x="910" y="858" text-anchor="middle">10</text>
+  <text class="t h2" x="926" y="859">ManagedCluster label tier</text>
+  <line class="rule" x1="904" y1="874" x2="1210" y2="874"/>
+  <text class="m s" x="904" y="896">read-cluster-tier turns it</text>
+  <text class="m s" x="904" y="914">into a result</text>
+
+  <!-- ===== Edges: trigger ===== -->
+  <path class="flow" d="M370 345 H464" marker-end="url(#a-flow)"/>
+  <text class="m s" x="418" y="338" text-anchor="middle">webhook</text>
+  <path class="flow" d="M796 345 H890" marker-end="url(#a-flow)"/>
+  <text class="m s" x="844" y="338" text-anchor="middle">extensions</text>
+  <path class="flow" d="M1057 394 V422 H205 V448" marker-end="url(#a-flow)"/>
+  <text class="m s" x="213" y="437">params</text>
+  <path class="flow" d="M205 548 V640" marker-end="url(#a-flow)"/>
+  <text class="m s" x="213" y="605">PipelineRun: cluster-name, git-repo-url, git-revision</text>
+
+  <!-- ===== Edges: pipeline to pipeline ===== -->
+  <path class="flow" d="M370 691 H464" marker-end="url(#a-flow)"/>
+  <text class="m s" x="418" y="684" text-anchor="middle">PipelineRun</text>
+  <path class="flow" d="M796 691 H890" marker-end="url(#a-flow)"/>
+  <text class="m s" x="844" y="684" text-anchor="middle">PipelineRun</text>
+
+  <!-- ===== Edges: values to pipelines ===== -->
+  <path class="flow" d="M120 834 V758" marker-end="url(#a-flow)"/>
+  <text class="m s" x="128" y="797">load-config</text>
+  <path class="flow" d="M560 834 V782 H205 V742" marker-end="url(#a-flow)"/>
+  <text class="m s" x="300" y="775">aws-credentials-mode</text>
+  <path class="flow" d="M631 834 V742" marker-end="url(#a-flow)"/>
+  <text class="m s" x="639" y="797">results</text>
+  <path class="flow" d="M1057 834 V782 H700 V742" marker-end="url(#a-flow)"/>
+  <text class="m s" x="860" y="775">tier</text>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="988" x2="1222" y2="988"/>
+  <path class="flow" d="M40 1016 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1020">passes values</text>
+  <rect class="gate" x="200" y="1008" width="22" height="16" rx="4"/>
+  <text class="m s" x="230" y="1020">event</text>
+  <rect class="src" x="300" y="1008" width="22" height="16" rx="4"/>
+  <text class="m s" x="330" y="1020">trigger objects</text>
+  <rect class="core" x="460" y="1008" width="22" height="16" rx="4"/>
+  <text class="m s" x="490" y="1020">pipelines</text>
+  <rect class="store" x="590" y="1008" width="22" height="16" rx="4"/>
+  <text class="m s" x="620" y="1020">values that tasks read</text>
+</svg>

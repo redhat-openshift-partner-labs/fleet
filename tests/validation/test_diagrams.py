@@ -33,15 +33,24 @@ def check(script: str) -> subprocess.CompletedProcess:
     )
 
 
-def test_architecture_svg_matches_layout_script():
-    result = check("layout_architecture.py")
+# Diagrams whose layout script holds every coordinate: name -> script
+HAND_LAID = {
+    "architecture": "layout_architecture.py",
+    "value-flow": "layout_value_flow.py",
+}
+
+
+@pytest.mark.parametrize("name", HAND_LAID)
+def test_hand_laid_svg_matches_layout_script(name):
+    result = check(HAND_LAID[name])
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_architecture_svg_holds_every_node_and_edge_of_the_source():
-    source = (DIAGRAMS / "architecture.mermaid").read_text(encoding="utf-8")
+@pytest.mark.parametrize("name", HAND_LAID)
+def test_hand_laid_svg_holds_every_node_and_edge_of_the_source(name):
+    source = (DIAGRAMS / f"{name}.mermaid").read_text(encoding="utf-8")
     lines = source.splitlines()
-    svg = (DIAGRAMS / "architecture.svg").read_text(encoding="utf-8")
+    svg = (DIAGRAMS / f"{name}.svg").read_text(encoding="utf-8")
     # The legend repeats one edge of each style; count the diagram only.
     diagram = svg.split("<!-- ===== Legend")[0]
 
@@ -227,7 +236,8 @@ def test_sequence_svgs_match_layout_script():
 def test_every_svg_carries_the_style_and_defs_of_the_architecture_svg():
     architecture = (DIAGRAMS / "architecture.svg").read_text(encoding="utf-8")
     expected = SHARED_HEAD.search(architecture)[0]
-    files = [f"{name}-flow.svg" for name in FLOWS]
+    files = [f"{name}.svg" for name in HAND_LAID]
+    files += [f"{name}-flow.svg" for name in FLOWS]
     files += [f"{name}-sequence.svg" for name in SEQUENCES]
     for file in files:
         svg = (DIAGRAMS / file).read_text(encoding="utf-8")

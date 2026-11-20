@@ -1,0 +1,44 @@
+%% Rule: Tekton passes no value implicitly; every hop names the value it passes
+%% Results: a pipeline reads the result of a task as $(tasks.TASK.results.NAME)
+%% Override: a pipeline parameter that differs from the built-in default of load-config wins over the ConfigMap
+%% Limit: a post-provision run started through the EventListener gets cluster-name, tier and dns-zones only
+flowchart TB
+    subgraph Trigger["Trigger"]
+        Push["Push event<br/>repository URL, commit SHA,<br/>files each commit adds"]
+        EL["EventListener<br/>CEL overlay writes extensions.cluster_name<br/>from the first added path"]
+        TB["TriggerBinding<br/>cluster-name = $(extensions.cluster_name)<br/>git-revision = $(body.after)"]
+        TT["TriggerTemplate<br/>writes the params of the PipelineRun<br/>from $(tt.params.NAME)"]
+    end
+
+    subgraph Pipelines["Pipelines"]
+        Pre["pre-provision<br/>last task: trigger-provision creates the<br/>PipelineRun of provision with cluster-name"]
+        Prov["provision<br/>last task: trigger-post-provision creates the<br/>PipelineRun of post-provision with 9 params"]
+        Post["post-provision<br/>tasks read $(params.NAME); when conditions read<br/>tier, openshift-cluster and ai-accelerator"]
+    end
+
+    subgraph Values["Values that tasks read"]
+        Config["ConfigMap fleet-pipeline-config<br/>values for every cluster; load-config<br/>turns each key into a result"]
+        Meta["metadata.yaml<br/>values for one cluster; read-cluster-metadata<br/>turns each key into a result"]
+        Label["ManagedCluster label tier<br/>read-cluster-tier turns it<br/>into a result"]
+    end
+
+    Push -->|webhook| EL
+    EL -->|extensions| TB
+    TB -->|params| TT
+    TT -->|PipelineRun: cluster-name, git-repo-url, git-revision| Pre
+    Pre -->|PipelineRun| Prov
+    Prov -->|PipelineRun| Post
+    Config -->|load-config| Pipelines
+    Meta -->|aws-credentials-mode| Pre
+    Meta -->|results| Prov
+    Label -->|tier| Prov
+
+    classDef gate fill:#fff4e0,stroke:#c27c0e,color:#000
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+    classDef store fill:#eaf7ec,stroke:#2e8b46,color:#000
+
+    class Push gate
+    class EL,TB,TT src
+    class Pre,Prov,Post core
+    class Config,Meta,Label store
