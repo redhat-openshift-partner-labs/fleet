@@ -69,6 +69,10 @@ spec:
           value: $(tasks.load-config.results.pipeline-image)
         - name: orphan-stuck-iam
           value: $(params.orphan-stuck-iam)
+        - name: pipeline-run-id
+          value: $(context.pipelineRun.name)
+        - name: infra-id
+          value: $(tasks.delete-cluster-resources.results.infra-id)
 
     - name: verify-deprovision
       taskRef:

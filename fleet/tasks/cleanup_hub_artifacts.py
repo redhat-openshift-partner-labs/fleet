@@ -1,19 +1,4 @@
-"""Clean up hub-side artifacts after cluster deprovision.
-
-CLI: fleet-cleanup-hub-artifacts --cluster-name NAME [--iam-timeout-seconds 600] [--orphan-stuck-iam]
-Deletes certificate CRs, ClusterIssuer, Crossplane IAM resources, then namespace.
-IAM resources are the installer set and the BYO node roles by name, plus everything carrying
-the cluster's ownership label (the per-operator users, keys, policies and attachments of scoped
-clusters); missing ones are ignored. A failed label lookup fails the task before any IAM delete
-and keeps the namespace. Deletes and polls use one oc call each.
-Non-critical deletions are best-effort.
-
-IAM resources still present at the timeout are reported with their AWS names and conditions,
-and the task exits 1 before deleting the namespace: removing their finalizers would leave live
-IAM users and access keys (some were on the spoke) in AWS. --orphan-stuck-iam removes the
-finalizers anyway, for when the provider can never reach AWS; the AWS names it logs must then
-be deleted by hand. Exits 1 if namespace deletion fails.
-"""
+"""Clean up hub-side artifacts after Hive completes deprovision."""
 
 import argparse
 import json
@@ -22,83 +7,121 @@ import sys
 import time
 
 from fleet.tasks._aws_components import DiscoveryError, all_iam_targets
+from fleet.tasks import _iam_cleanup as iam
 from fleet.tasks._log import configure, error, info, warn
 
 _POLL_INTERVAL = 10
 _POLL_TIMEOUT = 600
-_EXTERNAL_NAME = "crossplane.io/external-name"
 
 
 def _delete_iam_no_wait(targets: list[str]) -> None:
-    info(f"Deleting {len(targets)} IAM resource name(s) (no-wait)...")
-    result = subprocess.run(
-        ["oc", "delete", *targets, "--wait=false", "--ignore-not-found=true"],
-        capture_output=True,
-        text=True,
-    )
-    info(f"  -> IAM delete exit code {result.returncode}")
+    info(f"Deleting {len(targets)} IAM resources")
+    try:
+        iam.oc("delete", *targets, "--wait=false", "--ignore-not-found=true")
+    except iam.CleanupError as exc:
+        warn(f"{exc}. Checking which resources remain.")
 
 
-def _wait_iam_deleted(targets: list[str], timeout: int = _POLL_TIMEOUT) -> list[str]:
-    """Poll until all targets are gone; return the ones still present (or unknown) at timeout."""
-    max_attempts = timeout // _POLL_INTERVAL
+def _wait_iam_deleted(targets: list[str], timeout: int) -> list[str]:
+    deadline = time.monotonic() + timeout
     remaining = targets
-    for attempt in range(max_attempts):
-        result = subprocess.run(
-            ["oc", "get", *targets, "--ignore-not-found", "-o", "name"],
-            capture_output=True,
-            text=True,
-        )
-        # A failed get proves nothing is gone; keep every target as remaining
-        remaining = result.stdout.split() if result.returncode == 0 else targets
-        if result.returncode == 0 and not remaining:
-            info("  -> All IAM resources deleted")
-            return []
-        if attempt < max_attempts - 1:
-            time.sleep(_POLL_INTERVAL)
-    warn(f"{len(remaining)} IAM resource(s) still present after {timeout}s timeout")
+    attempts = (timeout + _POLL_INTERVAL - 1) // _POLL_INTERVAL
+    for attempt in range(attempts):
+        budget = deadline - time.monotonic()
+        if budget <= 0:
+            break
+        try:
+            output = iam.oc(
+                "get",
+                *targets,
+                "--ignore-not-found",
+                "-o",
+                "name",
+                timeout=min(30, budget),
+            )
+        except iam.CleanupError as exc:
+            warn(str(exc))
+            remaining = targets
+        else:
+            remaining = output.split()
+            if not remaining:
+                return []
+        if attempt + 1 < attempts:
+            time.sleep(max(0, min(_POLL_INTERVAL, deadline - time.monotonic())))
     return remaining
 
 
 def _describe_stuck(remaining: list[str]) -> None:
-    """Log each stuck resource's AWS name and conditions, for diagnosis or manual cleanup."""
-    result = subprocess.run(
-        ["oc", "get", *remaining, "-o", "json"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        warn(f"Could not read stuck resources: {result.stderr.strip()}")
-        for name in remaining:
-            warn(f"  {name}")
-        return
-    doc = json.loads(result.stdout)
-    for item in doc["items"] if doc.get("kind") == "List" else [doc]:
-        meta = item["metadata"]
-        external = meta.get("annotations", {}).get(_EXTERNAL_NAME, "unknown")
-        conditions = {
-            c["type"]: c.get("message") or c.get("reason", "")
-            for c in item.get("status", {}).get("conditions", [])
+    try:
+        for item in iam.read_resources(remaining).values():
+            name = (
+                item["metadata"]
+                .get("annotations", {})
+                .get("crossplane.io/external-name")
+            )
+            conditions = item.get("status", {}).get("conditions", [])
+            summary = {
+                c["type"]: c.get("message") or c.get("reason") for c in conditions
+            }
+            warn(f"{iam.resource_ref(item)} (AWS name: {name}): {summary}")
+    except iam.CleanupError as exc:
+        warn(f"{exc}. Last known targets: {', '.join(remaining)}")
+
+
+def _report_and_release(
+    args: argparse.Namespace, remaining: list[str], inventory: dict[str, dict]
+) -> None:
+    try:
+        current = iam.read_resources(remaining)
+    except iam.CleanupError as exc:
+        candidates = {
+            target.replace(".iam.aws.upbound.io/", ".iam/") for target in remaining
         }
-        warn(
-            f"  {item['kind']}/{meta['name']} (AWS name: {external}): "
-            f"Synced={conditions.get('Synced', '')!r} Ready={conditions.get('Ready', '')!r}"
-        )
+        resources = [item for ref, item in inventory.items() if ref in candidates]
+        if resources:
+            _save_report(args, resources)
+        raise iam.CleanupError(
+            "Could not confirm which Crossplane objects are pending deletion"
+        ) from exc
+
+    for ref, item in current.items():
+        if (
+            inventory.get(ref, {}).get("metadata", {}).get("uid")
+            != item["metadata"]["uid"]
+        ):
+            raise iam.CleanupError(f"IAM object changed during deletion: {ref}")
+    resources = list(current.values())
+    if resources:
+        _save_report(args, resources)
+        iam.release_finalizers(resources)
 
 
-def _force_remove_finalizers(remaining: list[str]) -> None:
-    patch_payload = json.dumps({"metadata": {"finalizers": None}})
-    for name in remaining:
-        info(f"Removing finalizers from {name}...")
-        result = subprocess.run(
-            ["oc", "patch", name, "--type=merge", f"-p={patch_payload}"],
-            capture_output=True,
-            text=True,
+def _save_report(args: argparse.Namespace, resources: list[dict]) -> None:
+    report = iam.build_report(
+        args.cluster_name, args.pipeline_run_id, args.infra_id, resources
+    )
+    if report["items"]:
+        name = iam.save_report(report)
+        warn(f"IAM cleanup follow-up saved in {iam.PIPELINE_NAMESPACE}/{name}")
+        print(json.dumps(report, indent=2))
+
+
+def _cleanup_iam(args: argparse.Namespace) -> None:
+    cluster = args.cluster_name
+    targets = all_iam_targets(cluster)
+    inventory = iam.read_resources(targets) if args.orphan_stuck_iam else {}
+    _delete_iam_no_wait(targets)
+    remaining = _wait_iam_deleted(targets, args.iam_timeout_seconds)
+    if not remaining:
+        info("All Crossplane IAM resources deleted")
+    elif args.orphan_stuck_iam:
+        _report_and_release(args, remaining, inventory)
+    else:
+        _describe_stuck(remaining)
+        raise iam.CleanupError(
+            f"{len(remaining)} IAM resources remain. Fix the Crossplane error and retry, "
+            "or rerun with orphan-stuck-iam=true to preserve a follow-up report."
         )
-        if result.returncode != 0:
-            warn(f"  -> Failed to patch {name}: {result.stderr}")
-        else:
-            info(f"  -> {name} finalizers removed")
 
 
 def main() -> None:
@@ -106,7 +129,11 @@ def main() -> None:
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--iam-timeout-seconds", type=int, default=_POLL_TIMEOUT)
     parser.add_argument("--orphan-stuck-iam", action="store_true")
+    parser.add_argument("--pipeline-run-id", default="manual")
+    parser.add_argument("--infra-id", default="")
     args = parser.parse_args()
+    if args.iam_timeout_seconds <= 0:
+        parser.error("--iam-timeout-seconds must be positive")
 
     cluster = args.cluster_name
     configure("cleanup-hub-artifacts")
@@ -163,35 +190,13 @@ def main() -> None:
     )
     info(f"  -> Secret {cluster}-cert-manager-aws deleted")
 
-    info("Deleting Crossplane IAM resources...")
     try:
-        targets = all_iam_targets(cluster)
-    except DiscoveryError as exc:
-        # Operator resources are known only by label: deleting the known names alone would
-        # strand their users and keys in AWS
+        _cleanup_iam(args)
+    except (DiscoveryError, iam.CleanupError, ValueError, KeyError) as exc:
         error(
-            f"{exc}; namespace {cluster} kept. Re-run deprovision when the hub API answers."
+            f"{exc}; namespace {cluster} kept. Re-run deprovision after fixing the error."
         )
         sys.exit(1)
-    _delete_iam_no_wait(targets)
-
-    info("Waiting for IAM resources to be fully deleted...")
-    remaining = _wait_iam_deleted(targets, args.iam_timeout_seconds)
-    if remaining:
-        warn("Stuck IAM resources:")
-        _describe_stuck(remaining)
-        if not args.orphan_stuck_iam:
-            error(
-                f"{len(remaining)} IAM resource(s) not deleted; namespace {cluster} kept. "
-                "Fix the cause above (e.g. the hub Crossplane identity's AWS access) and re-run, "
-                "or re-run with orphan-stuck-iam=true and delete the AWS names above by hand."
-            )
-            sys.exit(1)
-        warn(
-            "orphan-stuck-iam set: removing Crossplane finalizers. "
-            "The AWS resources above are NOT deleted; delete them by hand."
-        )
-        _force_remove_finalizers(remaining)
 
     info(f"Deleting CronJob {cluster} from default namespace...")
     cronjob_result = subprocess.run(

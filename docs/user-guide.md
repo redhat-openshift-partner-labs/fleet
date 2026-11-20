@@ -190,6 +190,10 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 4. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
 5. **verify-deprovision** — confirms all resources have been cleaned up
 
+If Crossplane cannot finish IAM deletion within ten minutes, the usual run stops and keeps the cluster namespace. To release the finalizers and retain a report for follow-up, rerun with `orphan-stuck-iam=true` using the `fleet-pipeline` service account in `openshift-pipelines`. The cleanup task prints the report and names its ConfigMap in that namespace.
+
+The optional `fleet-iam-read-only` Secret in `openshift-pipelines` can supply `FLEET_IAM_AWS_ACCOUNT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` for temporary credentials. Use the AWS account that owns the cluster's IAM resources and grant the reader only `iam:GetUser`, `iam:GetRole`, and `iam:GetPolicy` on eligible resources. If the reader is unavailable or a resource type cannot be checked, the report marks the item `needs_check`.
+
 ## Troubleshooting
 
 ### Pipeline fails at wait-for-aws-credentials
