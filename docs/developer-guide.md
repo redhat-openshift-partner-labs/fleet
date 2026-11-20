@@ -400,6 +400,48 @@ When the switch is not complete on 2027-05-31, a `baseurl` at
 that the Stream 8 precedent indicates. That path does not exist on 2026-11-13,
 and an archived repository receives no updates.
 
+## Diagrams
+
+`docs/diagrams/target-architecture.svg` is the diagram in the `README.md`. It
+follows `SVG-STYLE.md` of the aci-assessment repository: a 1262 px canvas,
+role-colored cards, frames for subgraphs, orthogonal edges, and light and dark
+palettes.
+
+| File | Role |
+|---|---|
+| `docs/diagrams/target-architecture.mermaid` | Content source: nodes, edges, labels, subgraphs |
+| `docs/diagrams/layout_target_architecture.py` | Coordinates and text of every card, frame and edge |
+| `docs/diagrams/target-architecture.svg` | Output of the script |
+
+mermaid-cli does not produce the SVG. After a change to the `.mermaid` file:
+
+1. Make the same change in `layout_target_architecture.py`.
+
+2. Write the SVG:
+
+   ```bash
+   python docs/diagrams/layout_target_architecture.py
+   ```
+
+3. Check the SVG with the checker of the aci-assessment repository. Run it from
+   the root of that repository. It prints `target-architecture: OK` or the
+   issues, and it writes a light and a dark PNG to the `--out` directory.
+
+   ```bash
+   node tools/svgcheck.cjs --out /tmp/svg-renders <path-to-fleet>/docs/diagrams/target-architecture.svg
+   ```
+
+4. Open both PNGs and confirm that no edge crosses a card and no label sits on
+   a line.
+
+5. Run `tox`. `tests/validation/test_target_architecture_svg.py` fails when the
+   SVG differs from the script output, and when the number of cards or edges in
+   the SVG differs from the `.mermaid` file.
+
+The script reads the `<style>` and `<defs>` blocks from the existing SVG and
+writes them back unchanged. The style guide requires these blocks to match
+`sno.svg` of the aci-assessment repository byte for byte.
+
 ## Commit Conventions
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `feat:`,
