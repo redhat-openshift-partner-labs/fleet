@@ -407,6 +407,10 @@ A refreshed document opens with one purpose sentence below its title:
 index of `README.md` holds the same text, without `This ... describes` and the
 full stop. `docs/architecture.md` and `docs/user-guide.md` follow the rule.
 
+The index has one row per document: every `docs/*.md` file and
+`hub-config/README.md`. Its columns are Document, Reader and Covers. A new
+document needs a row before `tox` passes.
+
 Content that belongs to the purpose of another document is a link to that
 document. The task of a pipeline is described once, in the task tables of
 `docs/architecture.md`.
@@ -416,6 +420,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_readme.py` | A relative link in `README.md` does not resolve |
 | | A task count in the pipelines table differs from the pipeline definition |
 | | The index row of a document differs from the purpose sentence of that document |
+| | A document has no index row or more than one, or a row lacks its reader |
+| | An entry of the repository layout block does not exist |
 | `tests/validation/test_doc_links.py` | A link or a heading anchor in `README.md`, `docs/architecture.md` or `docs/user-guide.md` does not resolve |
 | `tests/validation/test_user_guide.py` | A lifecycle pipeline has no link from the user guide to its task table |
 | | A troubleshooting row of the user guide names a task that no pipeline has |
