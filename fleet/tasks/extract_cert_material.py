@@ -1,6 +1,6 @@
 """Extract leaf certificate material from the hub cert secret.
 
-CLI: fleet-extract-cert-material --cluster-name NAME [--namespace openshift-pipelines]
+CLI: fleet-extract-cert-material --cluster-name NAME [--namespace openshift-ingress]
 Reads tls.crt/tls.key from {cluster}-wildcard-certificate, creates {cluster}-leaf-cert secret. Exits 1 on failure.
 """
 

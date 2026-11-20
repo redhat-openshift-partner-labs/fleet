@@ -1,14 +1,15 @@
 """Structured logging for fleet pipeline tasks.
 
 Log lines are prefixed with [task-name] for grep-ability in Tekton pipeline logs.
-Output goes to the correct stream: info -> stdout, error/warn -> stderr.
+info, error and warn all write to stderr. stdout stays free for a value
+that a Tekton Task reads into a result.
 
-Each message includes a wall-clock timestamp for correlating with Tekton logs.
+Each message includes the seconds of the monotonic clock.
 
 Usage (each task):
     from fleet.tasks._log import configure, error, info, warn
     configure("task-name")           # once in main()
-    info("progress message")         # stdout
+    info("progress message")         # stderr
     error("error message")           # stderr
     warn("warning message")          # stderr
 """

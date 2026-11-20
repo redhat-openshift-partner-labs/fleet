@@ -1,8 +1,10 @@
 """Apply virtualization workloads to the spoke cluster with operator sequencing.
 
 CLI: fleet-apply-virt-workloads --cluster-name NAME --source-dir DIR --spoke-kubeconfig PATH
-Applies NFD and CNV operators in sequence, waiting for each to be ready before proceeding.
-Exits 1 on failure.
+Installs the OpenShift Virtualization operator and its HyperConverged operand, waiting
+for each to be ready, and exits 1 when one of them fails. Then installs Node Feature
+Discovery when the catalog offers it. NFD is optional: the task logs a missing or
+failed NFD and exits 0.
 """
 
 import argparse

@@ -3,7 +3,7 @@
 CLI: fleet-create-cluster-issuer --cluster-name NAME --acme-email EMAIL
 
 Reads AWS credentials from the aws-credentials Secret in the cluster
-namespace, creates a Secret in openshift-ingress for cert-manager, and
+namespace, creates the Secret {cluster}-cert-manager-aws in cert-manager, and
 creates a ClusterIssuer that uses Route53 for DNS-01 validation.
 
 Exit 0 on success, 1 on failure.

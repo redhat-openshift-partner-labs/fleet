@@ -1,7 +1,8 @@
 """Wait for the SSL certificate to be ready.
 
 CLI: fleet-wait-for-ssl-ready --cluster-name NAME [--timeout 15m]
-Runs oc wait certificate/{cluster}-tls --for=condition=Ready. Exits 1 on timeout.
+Runs oc wait certificate/{cluster}-wildcard-certificate --for=condition=Ready.
+Exits 1 on timeout.
 """
 
 import argparse

@@ -1,7 +1,8 @@
 """Request an SSL certificate from the hub cert-manager ClusterIssuer.
 
 CLI: fleet-request-ssl-cert --cluster-name NAME --dns-zones ZONE1,ZONE2
-Creates a Certificate CR referencing hub-ca ClusterIssuer. Exits 1 on failure.
+Creates a Certificate CR that references the ClusterIssuer letsencrypt-{cluster}.
+Exits 1 on failure.
 """
 
 import argparse
