@@ -63,6 +63,7 @@ PURPOSE_DOCS = [
     "docs/parameter-threading.md",
     "docs/vcluster.md",
     "docs/ai-tier.md",
+    "docs/developer-guide.md",
 ]
 PURPOSE = re.compile(r"This (?:guide|document) describes (.+)\.")
 
