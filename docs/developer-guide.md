@@ -436,6 +436,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_hub_setup.py` | A directory of `hub-config/kustomization.yaml` has no row in the component table of `hub-config/README.md` |
 | | The channel of a `subscription.yaml` is not in its component row |
 | | A `make hub-*` target named in `hub-config/README.md` is not in the `Makefile` |
+| | A key in the configuration table of `docs/hub-setup.md` is not in `tekton/configmap-defaults.yaml`, or its default differs |
+| | A Secret that the code reads by a fixed name has no row in the Secrets table of `docs/hub-setup.md` |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test
