@@ -416,8 +416,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_readme.py` | A relative link in `README.md` does not resolve |
 | | A task count in the pipelines table differs from the pipeline definition |
 | | The index row of a document differs from the purpose sentence of that document |
-| `tests/validation/test_user_guide.py` | A link or a heading anchor in `docs/user-guide.md` or `docs/architecture.md` does not resolve |
-| | A lifecycle pipeline has no link from the user guide to its task table |
+| `tests/validation/test_doc_links.py` | A link or a heading anchor in `README.md`, `docs/architecture.md` or `docs/user-guide.md` does not resolve |
+| `tests/validation/test_user_guide.py` | A lifecycle pipeline has no link from the user guide to its task table |
 | | A troubleshooting row of the user guide names a task that no pipeline has |
 | | A command in the user guide uses a Crossplane API group that no task uses |
 
