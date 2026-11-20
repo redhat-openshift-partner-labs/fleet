@@ -119,7 +119,7 @@ The post-provision pipeline runs automatically after a successful provision. It 
 7. **request-ssl-cert** — requests a TLS certificate via cert-manager on the hub
 8. **wait-for-ssl-ready** — waits for the certificate to be issued
 9. **extract-cert-material** — extracts the signed cert and key
-10. **apply-base-workloads** — applies tier-specific day-2 workloads to the spoke
+10. **apply-base-workloads** — applies the `workloads/base` overlay to the spoke for every tier
 11. **configure-spoke-rbac** — sets up RBAC for partner access on the spoke
 12. **create-access-paste** — creates a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
 13. **finalize-spoke** — deletes leftover installer pods and the kubeadmin secret to prepare the cluster for handoff

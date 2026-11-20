@@ -69,7 +69,7 @@ sequenceDiagram
 
     rect rgb(230, 247, 237)
         Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
-        Pipe->>Spoke: kustomize build workloads/TIER<br/>(NetworkPolicies, monitoring)
+        Pipe->>Spoke: kustomize build workloads/base<br/>(smoke-test ConfigMap)
     end
 
     rect rgb(255, 240, 240)
