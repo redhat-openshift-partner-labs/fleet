@@ -1,67 +1,107 @@
-# fleet-clusters Repository Setup
+# fleet-clusters Setup
 
-The [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repo holds cluster lifecycle state — specs, templates, and archive records. The fleet repo's Tekton pipelines react to changes pushed here via webhooks.
+This guide describes how to connect the fleet-clusters repository to the hub: the repository layout, the triggers, the webhook, the GitHub App, and the archive workflow.
 
-## Repository Structure
+It is step 9 of the [hub setup](hub-setup.md). The EventListener and its Route must exist before the webhook is created.
 
-```
-provision/              — Active cluster specs (one directory per cluster)
-deprovision/            — Sentinel files that trigger cluster teardown
-archive/                — Completed lifecycle records (moved from provision/)
-```
+## Repository layout
 
-### Sentinel Files
+[fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) holds the definition of every cluster.
 
-**Provision**: push a directory to `provision/<cluster-name>/` containing the cluster's Kustomize overlay (kustomization.yaml, patches, etc.) and an optional `metadata.yaml` for per-cluster configuration (see [per-cluster-metadata.md](per-cluster-metadata.md)). The push event triggers the pre-provision pipeline.
+| Path | Holds |
+|---|---|
+| `provision/<name>/` | The directory of one cluster, written by `fleet-scaffold-cluster`: `kustomization.yaml`, `metadata.yaml`, `hive/` and `crossplane/` |
+| `deprovision/<name>-archive` | An empty file that requests the deprovision of `<name>` |
+| `archive/<name>/` | The directory of a deprovisioned cluster, moved there by the archive workflow |
+| `cluster-templates/` | The base templates that the cluster directories reference |
 
-**Deprovision**: push a file to `deprovision/<cluster-name>-archive`. The filename suffix `-archive` is stripped by the CEL overlay to extract the cluster name. The push event triggers the deprovision pipeline.
+The [user guide](user-guide.md) describes how an operator adds a cluster directory and a deprovision file. [per-cluster-metadata.md](per-cluster-metadata.md) describes `metadata.yaml`.
 
-## GitHub App Configuration
+## Triggers
 
-The `create-deployment-status` task uses a GitHub App to write deployment statuses back to fleet-clusters. This enables GitHub Actions in fleet-clusters to react to pipeline completion (e.g., archiving deprovisioned clusters).
+The EventListener `fleet-cluster-lifecycle` has three triggers.
 
-### Required Permissions
+| Trigger | Starts the pipeline | Condition | Cluster name |
+|---|---|---|---|
+| `pre-provision` | `pre-provision` | A GitHub push event with a valid signature, on `refs/heads/main`, in which a commit adds a file under `provision/`, and whose head commit message does not contain `[skip-provision]` | The second path segment of the first added file |
+| `deprovision` | `deprovision` | The same, for a file under `deprovision/` and the marker `[skip-deprovision]` | The file name without `-archive` |
+| `post-provision` | `post-provision` | A request whose JSON body holds `action: post-provision` | `cluster_name` of the body |
 
-- **Deployments**: Read & Write
+- A push starts one run. When a push adds files for several clusters, only the first cluster gets a run.
+- A push that only changes or deletes files starts no run.
+- The `post-provision` trigger does not check a signature. Every client that can reach the Route can start it.
 
-### Setup
+## Webhook
 
-1. Create a GitHub App (or use an existing one) with Deployments read/write permission.
-2. Install the app on the `fleet-clusters` repository.
-3. Note the **App ID** and **Installation ID**.
-4. Generate a private key and store it as a Kubernetes Secret on the hub cluster:
+1. Create the Secret that holds the webhook secret:
+
    ```bash
-   kubectl create secret generic fleet-github-app-key \
-     --namespace openshift-pipelines \
-     --from-file=private-key=/path/to/private-key.pem
-   ```
-5. Update `fleet-pipeline-config` ConfigMap with the app credentials:
-   ```yaml
-   github-app-id: "<app-id>"
-   github-app-installation-id: "<installation-id>"
-   github-app-key-secret: "fleet-github-app-key"
-   clusters-repo: "redhat-openshift-partner-labs/fleet-clusters"
+   oc create secret generic fleet-webhook-secret \
+     --from-literal=WebHookSecretKey="$(openssl rand -hex 32)" \
+     -n openshift-pipelines
    ```
 
-## Webhook Configuration
+2. Print the secret and the host name of the Route:
 
-Configure a GitHub webhook on fleet-clusters to send push events to the hub cluster's EventListener.
+   ```bash
+   oc get secret fleet-webhook-secret -n openshift-pipelines -o jsonpath='{.data.WebHookSecretKey}' | base64 -d
+   ```
 
-- **Payload URL**: `https://<hub-eventlistener-route>/`
-- **Content type**: `application/json`
-- **Secret**: must match the `fleet-webhook-secret` Kubernetes Secret
-- **Events**: Push events only
+   ```bash
+   oc get route fleet-cluster-lifecycle -n openshift-pipelines -o jsonpath='{.spec.host}'
+   ```
 
-The EventListener has two triggers:
-- **pre-provision**: fires when files are added under `provision/`
-- **deprovision**: fires when files are added under `deprovision/`
+3. In fleet-clusters, open **Settings → Webhooks → Add webhook** and set:
 
-## Archive Workflow
+   | Field | Value |
+   |---|---|
+   | Payload URL | `https://<route-host>/` |
+   | Content type | `application/json` |
+   | Secret | The value of `WebHookSecretKey` |
+   | Events | Just the push event |
 
-After hub verification, `create-deployment-status` posts a GitHub deployment status with `environment: deprovision` and `state: success`. The archive workflow uses this event to make one commit.
+## GitHub App
 
-1. Move `provision/<cluster-name>` to `archive/<cluster-name>`.
-2. Include `iam.cleanup.json` if the deployment payload reports pending IAM cleanup.
-3. Remove the `deprovision/<cluster-name>-archive` sentinel.
+`create-deployment-status`, the last task of `deprovision`, creates a GitHub deployment in fleet-clusters. It authenticates as a GitHub App.
 
-[Archive workflow](https://github.com/redhat-openshift-partner-labs/fleet-clusters/blob/main/.github/workflows/archive-cluster.yaml)
+1. Create a GitHub App with the repository permission **Deployments: Read and write**.
+2. Install the App on fleet-clusters.
+3. Note the App ID and the installation ID.
+4. Generate a private key for the App and store it on the hub:
+
+   ```bash
+   oc create secret generic fleet-github-app-key \
+     --from-file=private-key=<private-key.pem> \
+     -n openshift-pipelines
+   ```
+
+5. Set these keys of the ConfigMap `fleet-pipeline-config`, as step 6 of the [hub setup](hub-setup.md#6-set-the-pipeline-configuration) describes:
+
+   | Key | Value |
+   |---|---|
+   | `github-app-id` | The App ID |
+   | `github-app-installation-id` | The installation ID |
+   | `github-app-key-secret` | `fleet-github-app-key`, the default |
+   | `clusters-repo` | `redhat-openshift-partner-labs/fleet-clusters`, the default |
+
+## Deployment status
+
+After `verify-deprovision` succeeds, `create-deployment-status` creates a deployment on the ref `main` with the environment `deprovision`, then sets its status to `success`. The deployment carries this payload:
+
+| Field | Value |
+|---|---|
+| `cluster_name` | The cluster name |
+| `pipeline_run_id` | The name of the `deprovision` PipelineRun |
+| `iam_cleanup_pending` | `true` when IAM resources were left in AWS |
+| `iam_cleanup_report` | The report of those resources; present only when `iam_cleanup_pending` is `true` |
+
+## Archive workflow
+
+The workflow [archive-cluster.yaml](https://github.com/redhat-openshift-partner-labs/fleet-clusters/blob/main/.github/workflows/archive-cluster.yaml) of fleet-clusters runs on a deployment status with the environment `deprovision` and the state `success`. It reads `cluster_name` from the payload and commits to `main`:
+
+1. Moves `provision/<name>` to `archive/<name>`.
+2. Removes `deprovision/<name>-archive`.
+
+When `iam_cleanup_pending` is `true`, the workflow must also write `iam_cleanup_report` to `archive/<name>/iam.cleanup.json`. The [user guide](user-guide.md#iam-resources-that-remain) directs the operator to that file.
+
+[examples/fleet-clusters-archive-workflow.yml](examples/fleet-clusters-archive-workflow.yml) is an example of the workflow. It makes the two changes through a pull request and does not write `iam.cleanup.json`.

@@ -429,7 +429,7 @@ document. The task of a pipeline is described once, in the task tables of
 | | The index row of a document differs from the purpose sentence of that document |
 | | A document has no index row or more than one, or a row lacks its reader |
 | | An entry of the repository layout block does not exist |
-| `tests/validation/test_doc_links.py` | A link or a heading anchor in `README.md`, `docs/architecture.md` or `docs/user-guide.md` does not resolve |
+| `tests/validation/test_doc_links.py` | A link or a heading anchor in a refreshed document does not resolve. `DOCUMENTS` in the test lists them. |
 | `tests/validation/test_user_guide.py` | A lifecycle pipeline has no link from the user guide to its task table |
 | | A troubleshooting row of the user guide names a task that no pipeline has |
 | | A command in the user guide uses a Crossplane API group that no task uses |
@@ -438,6 +438,7 @@ document. The task of a pipeline is described once, in the task tables of
 | | A `make hub-*` target named in `hub-config/README.md` is not in the `Makefile` |
 | | A key in the configuration table of `docs/hub-setup.md` is not in `tekton/configmap-defaults.yaml`, or its default differs |
 | | A Secret that the code reads by a fixed name has no row in the Secrets table of `docs/hub-setup.md` |
+| | The trigger table of `docs/fleet-clusters-setup.md` differs from the triggers of the EventListener |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

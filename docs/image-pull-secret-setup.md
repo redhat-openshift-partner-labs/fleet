@@ -1,86 +1,82 @@
 # Image Pull Secret Setup
 
-The fleet Tekton pipelines use a custom container image (`quay.io/rhopl/fleet-pipeline`) for all task steps. This image is hosted in a private quay.io repository and requires authentication to pull.
+This guide describes how to create, verify and rotate the pull secret of the pipeline image.
+
+It is step 4 of the [hub setup](hub-setup.md). Every task step of every pipeline runs in the image `quay.io/rhopl/fleet-pipeline`, and quay.io requires authentication to pull it.
 
 ## How it works
 
-- A `kubernetes.io/dockerconfigjson` Secret named `fleet-pipeline-pull-secret` is deployed to the `openshift-pipelines` namespace via kustomize (`tekton/rbac/quay-pull-secret.yaml`).
-- The `fleet-pipeline` ServiceAccount references this secret in its `imagePullSecrets` field.
-- When Tekton creates TaskRun pods, the kubelet uses these credentials to authenticate against quay.io.
+- `oc apply -k tekton/` creates the Secret `fleet-pipeline-pull-secret` in `openshift-pipelines` from [tekton/rbac/quay-pull-secret.yaml](../tekton/rbac/quay-pull-secret.yaml). The manifest holds a placeholder, so the Secret in git cannot pull the image.
+- The ServiceAccount `fleet-pipeline` lists the Secret in `imagePullSecrets`. Every pipeline run uses this ServiceAccount.
+- The administrator replaces the placeholder on the hub with the credentials of a quay.io robot account.
 
-The manifest in git contains a placeholder value. Real credentials must be populated on the hub cluster out-of-band.
+Every `oc apply -k tekton/` writes the placeholder again. Repeat step 2 after it.
 
-## Setup procedure
+These files name the Secret. Change all of them to rename it.
+
+| File | Use |
+|---|---|
+| `tekton/rbac/quay-pull-secret.yaml` | The Secret |
+| `tekton/rbac/serviceaccount.yaml` | `imagePullSecrets` of `fleet-pipeline` |
+| `tekton/triggers/triggertemplate-pre-provision.yaml`, `tekton/triggers/triggertemplate-post-provision.yaml` | Pod template of the runs the EventListener starts |
+| `fleet/tasks/trigger_provision.py`, `fleet/tasks/trigger_post_provision.py`, `fleet/tasks/run_post_provision.py` | Pod template of the runs these tasks start |
+| `tekton/pod-template.yaml` | A pod template file. No manifest references it. |
+
+## Setup
 
 ### 1. Create a quay.io robot account
 
-1. Log in to [quay.io](https://quay.io) and navigate to the `rhopl` organization.
-2. Go to **Robot Accounts** and create a robot account (e.g., `rhopl+fleet_pipeline_pull`).
-3. Grant the robot account **Read** permission on the `rhopl/fleet-pipeline` repository.
-4. Copy the robot account credentials (username and token).
+1. Log in to [quay.io](https://quay.io) and open the organization `rhopl`.
+2. Open **Robot Accounts** and create a robot account, for example `rhopl+fleet_pipeline_pull`.
+3. Give the robot account the permission **Read** on the repository `rhopl/fleet-pipeline`.
+4. Copy the user name and the token of the robot account.
 
-### 2. Populate the secret on the hub cluster
-
-Generate the base64-encoded auth string and apply the secret:
+### 2. Store the credentials on the hub
 
 ```bash
-# Build the auth string (username:token, base64-encoded)
-AUTH=$(echo -n 'rhopl+fleet_pipeline_pull:TOKEN_HERE' | base64)
-
-# Create the secret directly (overrides the placeholder from git)
 oc create secret docker-registry fleet-pipeline-pull-secret \
   --docker-server=quay.io \
-  --docker-username='rhopl+fleet_pipeline_pull' \
-  --docker-password='TOKEN_HERE' \
+  --docker-username='<robot-account>' \
+  --docker-password='<token>' \
   -n openshift-pipelines \
   --dry-run=client -o yaml | oc apply -f -
 ```
 
 ### 3. Verify
 
-Confirm the ServiceAccount has the pull secret linked:
+Check that the ServiceAccount lists the Secret:
 
 ```bash
-oc get serviceaccount fleet-pipeline -n openshift-pipelines -o yaml | grep -A2 imagePullSecrets
+oc get serviceaccount fleet-pipeline -n openshift-pipelines -o jsonpath='{.imagePullSecrets[*].name}'
 ```
 
-Test that a pod can pull the image:
+The output is `fleet-pipeline-pull-secret`.
+
+Start a pod that pulls the image as the ServiceAccount:
 
 ```bash
 oc run test-pull --image=quay.io/rhopl/fleet-pipeline:latest \
   --restart=Never \
-  --serviceaccount=fleet-pipeline \
+  --overrides='{"spec":{"serviceAccountName":"fleet-pipeline"}}' \
   -n openshift-pipelines \
   --command -- echo "pull succeeded"
+```
 
-# Check status
+```bash
 oc get pod test-pull -n openshift-pipelines
+```
 
-# Cleanup
+`STATUS` shows `Completed`. `ErrImagePull` or `ImagePullBackOff` means the credentials are wrong or the robot account cannot read the repository.
+
+Delete the pod:
+
+```bash
 oc delete pod test-pull -n openshift-pipelines
 ```
 
-## Credential rotation
+## Rotate the token
 
-When rotating the quay.io robot account token:
+1. Generate a new token for the robot account in quay.io.
+2. Run the command of step 2 with the new token.
 
-1. Generate a new token in the quay.io UI.
-2. Re-run the `oc create secret docker-registry` command from step 2 with the new token.
-3. Existing running pipelines are unaffected; new TaskRun pods will use the updated credentials.
-
-## Sealed Secrets alternative
-
-If the hub cluster runs Sealed Secrets, you can encrypt the real credentials and commit the SealedSecret to git instead of using the placeholder:
-
-```bash
-# Create the real secret, pipe through kubeseal
-oc create secret docker-registry fleet-pipeline-pull-secret \
-  --docker-server=quay.io \
-  --docker-username='rhopl+fleet_pipeline_pull' \
-  --docker-password='TOKEN_HERE' \
-  -n openshift-pipelines \
-  --dry-run=client -o yaml | \
-  kubeseal --format yaml > tekton/rbac/quay-pull-secret-sealed.yaml
-```
-
-Then replace `quay-pull-secret.yaml` with the sealed version in `tekton/rbac/kustomization.yaml`.
+Pods that already run are not affected. Pods that start after the change use the new token.

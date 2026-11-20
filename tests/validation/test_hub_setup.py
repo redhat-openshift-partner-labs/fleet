@@ -103,3 +103,13 @@ def test_secrets_table_lists_every_secret_the_code_reads_by_name():
     used = "\n".join(path.read_text(encoding="utf-8") for path in sources)
     unknown = [name for name in REQUIRED_SECRETS if name not in used]
     assert not unknown, unknown
+
+
+def test_trigger_table_lists_the_triggers_of_the_eventlistener():
+    path = ROOT / "tekton" / "triggers" / "eventlistener.yaml"
+    listener = yaml.safe_load(path.read_text(encoding="utf-8"))
+    triggers = {trigger["name"] for trigger in listener["spec"]["triggers"]}
+
+    setup = ROOT / "docs" / "fleet-clusters-setup.md"
+    rows = rows_by_first_cell(setup, "## Triggers")
+    assert {name for name in rows if name != "Trigger"} == triggers

@@ -6,7 +6,15 @@ from tests.validation._markdown import ROOT, headings, links
 
 # Documents that have been checked against the repository. Add a document
 # here when it is refreshed.
-DOCUMENTS = ["README.md", "docs/architecture.md", "docs/user-guide.md"]
+DOCUMENTS = [
+    "README.md",
+    "docs/architecture.md",
+    "docs/user-guide.md",
+    "docs/hub-setup.md",
+    "hub-config/README.md",
+    "docs/fleet-clusters-setup.md",
+    "docs/image-pull-secret-setup.md",
+]
 
 
 @pytest.mark.parametrize("document", DOCUMENTS)
