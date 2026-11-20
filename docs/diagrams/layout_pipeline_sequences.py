@@ -48,6 +48,12 @@ SEQUENCES = {
         "pipeline allows.",
         "xs": (380, 640, 810, 980, 1150),
     },
+    "provision": {
+        "title": "provision pipeline: sequence",
+        "subtitle": "The calls each of the eleven tasks makes, in an order the "
+        "pipeline allows.",
+        "xs": (380, 620, 770, 910, 1050, 1170),
+    },
     "deprovision": {
         "title": "deprovision pipeline: sequence",
         "subtitle": "The calls each of the seven tasks makes, in the order the tasks run.",
