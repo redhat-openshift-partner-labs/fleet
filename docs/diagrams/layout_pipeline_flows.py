@@ -11,6 +11,7 @@ title, the subtitle and the grid position of every task.
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 from drawing import DIAGRAMS, Drawing, emit, pill_width, shared_head
@@ -59,6 +60,28 @@ FLOWS = {
         # The legacy path passes the scoped frame in column 2.
         "via": {("transform_aws_credentials", "validate_cluster_inputs"): COL_2},
         "frame_cols": {"Scoped": (0, 2)},
+    },
+    "provision": {
+        "title": "provision pipeline",
+        "subtitle": "Eleven tasks apply the cluster resources, wait for the install and "
+        "the ACM join, then start the post-provision pipeline.",
+        "place": {
+            "load_config": (0, 0, 1),
+            "git_clone": (1, 0, 1),
+            "read_cluster_metadata": (2, 0, 1),
+            "apply_cluster_crs": (0, 1, 1),
+            "wait_for_hive_ready": (1, 1, 1),
+            "wait_for_managed_cluster": (1, 2, 1),
+            "scope_aws_credentials": (2, 2, 1),
+            "extract_spoke_kubeconfig": (0, 3, 1),
+            "read_cluster_tier": (1, 3, 1),
+            "label_for_post_provision": (0, 4, 1),
+            "trigger_post_provision": (0, 5, 3),
+        },
+        # The metadata edge passes scope-aws-credentials between columns 1 and 2.
+        # It crosses the edge from wait-for-hive-ready to scope-aws-credentials.
+        "via": {("read_cluster_metadata", "trigger_post_provision"): LANE_12},
+        "frame_cols": {"Membership": (0, 2), "Scoped": (2, 1)},
     },
     "deprovision": {
         "title": "deprovision pipeline",
@@ -223,6 +246,8 @@ def pill_x(frame, name: str, blocked: list) -> int:
     for lo, hi, y1, y2 in sorted(blocked):
         if y1 <= fy + 10 and y2 >= fy - 10 and px < hi + 8 and px + width > lo - 8:
             px = hi + 10
+    if px + width > fx + frame[2] - 16:
+        sys.exit(f"frame '{name}': no room for its pill; shorten the subgraph title")
     return px
 
 

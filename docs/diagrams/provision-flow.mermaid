@@ -1,0 +1,53 @@
+%% Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun
+%% Start: load-config and git-clone have no runAfter and start first
+%% Credential mode: scope-aws-credentials is skipped unless metadata.yaml sets aws-credentials-mode: scoped
+%% Failure: a failed task stops the run; trigger-post-provision does not run
+flowchart TB
+    subgraph Inputs["Inputs"]
+        load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its results<br/>are parameters of the later tasks"]
+        git_clone["git-clone<br/>clones fleet-clusters into the<br/>shared workspace"]
+        read_cluster_metadata["read-cluster-metadata<br/>reads provision/NAME/metadata.yaml; its results<br/>are parameters of post-provision"]
+    end
+
+    subgraph Install["Install"]
+        apply_cluster_crs["apply-cluster-crs<br/>applies the hive overlay: ClusterDeployment,<br/>MachinePool, ManagedCluster and related CRs"]
+        wait_for_hive_ready["wait-for-hive-ready<br/>waits for condition Provisioned on the<br/>ClusterDeployment; timeout 1h15m"]
+    end
+
+    subgraph Membership["Fleet membership"]
+        wait_for_managed_cluster["wait-for-managed-cluster<br/>waits for condition ManagedClusterJoined<br/>on the ManagedCluster"]
+        extract_spoke_kubeconfig["extract-spoke-kubeconfig<br/>extracts the admin kubeconfig from the<br/>Hive Secret into the workspace"]
+        read_cluster_tier["read-cluster-tier<br/>reads the tier label of the ManagedCluster:<br/>base, virt, ai or coco"]
+        label_for_post_provision["label-for-post-provision<br/>labels the ManagedCluster<br/>provisioned=true"]
+    end
+
+    subgraph Scoped["scoped mode"]
+        scope_aws_credentials["scope-aws-credentials<br/>binds the IAM policies and roles to the<br/>installed cluster's infra ID and VPC"]
+    end
+
+    subgraph Handover["Handover"]
+        trigger_post_provision["trigger-post-provision<br/>creates the PipelineRun of the post-provision pipeline with the tier and the metadata values; run timeout 5h"]
+    end
+
+    git_clone --> read_cluster_metadata
+    git_clone --> apply_cluster_crs
+    apply_cluster_crs --> wait_for_hive_ready
+    wait_for_hive_ready --> scope_aws_credentials
+    read_cluster_metadata --> scope_aws_credentials
+    wait_for_hive_ready --> wait_for_managed_cluster
+    wait_for_managed_cluster --> extract_spoke_kubeconfig
+    wait_for_managed_cluster --> read_cluster_tier
+    extract_spoke_kubeconfig --> label_for_post_provision
+    label_for_post_provision --> trigger_post_provision
+    read_cluster_tier --> trigger_post_provision
+    read_cluster_metadata --> trigger_post_provision
+    scope_aws_credentials --> trigger_post_provision
+
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+    classDef gate fill:#fff4e0,stroke:#c27c0e,color:#000
+
+    class load_config,git_clone,read_cluster_metadata src
+    class apply_cluster_crs,wait_for_hive_ready,wait_for_managed_cluster core
+    class extract_spoke_kubeconfig,read_cluster_tier,label_for_post_provision,trigger_post_provision core
+    class scope_aws_credentials gate
