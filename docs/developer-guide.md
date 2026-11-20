@@ -446,11 +446,14 @@ and an archived repository receives no updates.
 
 ## Documents
 
-A refreshed document opens with one purpose sentence below its title:
-`This guide describes ...` or `This document describes ...`. The documentation
-index of `README.md` holds the same text, without `This ... describes` and the
-full stop. `PURPOSE_DOCS` in `tests/validation/test_readme.py` lists the
-documents that follow the rule.
+Every document under `docs/`, and `hub-config/README.md`, opens with one
+purpose sentence below its title: `This guide describes ...` or
+`This document describes ...`. The documentation index of `README.md` holds
+the same text, without `This ... describes` and the full stop.
+
+A new document needs three entries before `tox` passes: a row in the index,
+its path in `PURPOSE_DOCS` of `tests/validation/test_readme.py`, and its path
+in `DOCUMENTS` of `tests/validation/test_doc_links.py`.
 
 The index has one row per document: every `docs/*.md` file and
 `hub-config/README.md`. Its columns are Document, Reader and Covers. A new
@@ -467,7 +470,7 @@ document. The task of a pipeline is described once, in the task tables of
 | | The index row of a document differs from the purpose sentence of that document |
 | | A document has no index row or more than one, or a row lacks its reader |
 | | An entry of the repository layout block does not exist |
-| `tests/validation/test_doc_links.py` | A link or a heading anchor in a refreshed document does not resolve. `DOCUMENTS` in the test lists them. |
+| `tests/validation/test_doc_links.py` | A link or a heading anchor in a document does not resolve, or a document is not in `DOCUMENTS` |
 | `tests/validation/test_user_guide.py` | A lifecycle pipeline has no link from the user guide to its task table |
 | | A troubleshooting row of the user guide names a task that no pipeline has |
 | | A command in the user guide uses a Crossplane API group that no task uses |
@@ -489,6 +492,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_developer_guide.py` | The environment table of this guide differs from the environments of `tox.ini` |
 | | The CI table differs from the jobs of `.github/workflows/ci.yml`, or lacks one of their `tox` commands |
 | | A package of the runtime stage of the `Dockerfile` is not named in "Container Image" |
+| `tests/validation/test_coco_tier_doc.py` | A failure message of `docs/coco-tier.md` is in none of the modules of the `coco` tier |
+| | Its failure table names a task that no pipeline has |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

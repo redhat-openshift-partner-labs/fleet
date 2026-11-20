@@ -19,6 +19,7 @@ DOCUMENTS = [
     "docs/vcluster.md",
     "docs/ai-tier.md",
     "docs/developer-guide.md",
+    "docs/coco-tier.md",
 ]
 
 
@@ -34,3 +35,9 @@ def test_links_and_anchors_resolve(document):
         assert file.exists(), f"{document} links to the missing path {path}"
         if anchor and file.suffix == ".md":
             assert anchor in headings(file), f"{document}: no heading for {target}"
+
+
+def test_every_document_is_in_the_list():
+    documents = {f"docs/{path.name}" for path in (ROOT / "docs").glob("*.md")}
+    documents |= {"README.md", "hub-config/README.md"}
+    assert set(DOCUMENTS) == documents
