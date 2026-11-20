@@ -14,6 +14,8 @@ PIPELINES = ROOT / "tekton" / "pipelines"
 
 # Pipelines that have a task flowchart: <pipeline>-flow.mermaid and .svg
 FLOWS = ["deprovision"]
+# Pipelines that have a sequence diagram: <pipeline>-sequence.mermaid and .svg
+SEQUENCES = ["deprovision"]
 
 SHARED_HEAD = re.compile(r"  <style>[\s\S]*?</defs>")
 SUBGRAPH = re.compile(r'\s*subgraph \w+\["(.+)"\]')
@@ -138,9 +140,61 @@ def test_flow_svgs_match_layout_script():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def parse_sequence(name: str) -> dict:
+    """Return the counts and the task names of <name>-sequence.mermaid."""
+    seq: dict = {"notes": 0, "participants": 0, "tasks": [], "calls": 0, "results": 0}
+    path = DIAGRAMS / f"{name}-sequence.mermaid"
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("%% "):
+            seq["notes"] += 1
+        elif re.fullmatch(r"\s*participant \w+( as .+)?", line):
+            seq["participants"] += 1
+        elif match := re.fullmatch(r"\s*Note over \w+,\w+: (.+)", line):
+            # The note of a rect names the task whose messages follow.
+            seq["tasks"].append(match[1])
+        elif match := re.fullmatch(r"\s*\w+(-->>|->>)\w+: .+", line):
+            seq["calls" if match[1] == "->>" else "results"] += 1
+    return seq
+
+
+@pytest.mark.parametrize("name", SEQUENCES)
+def test_sequence_source_holds_the_tasks_of_the_pipeline_in_run_order(name):
+    shown = parse_sequence(name)["tasks"]
+    tasks = pipeline_tasks(name)
+
+    assert sorted(shown) == sorted(task["name"] for task in tasks)
+    for task in tasks:
+        for before in task.get("runAfter", []):
+            assert shown.index(before) < shown.index(
+                task["name"]
+            ), f"{task['name']} is shown before {before}"
+
+
+@pytest.mark.parametrize("name", SEQUENCES)
+def test_sequence_svg_holds_every_participant_task_message_and_note(name):
+    seq = parse_sequence(name)
+    svg = (DIAGRAMS / f"{name}-sequence.svg").read_text(encoding="utf-8")
+    diagram = svg.split("<!-- ===== Legend")[0]
+
+    # A participant title is the only centred h2 text.
+    titles = re.findall(r'class="t h2"[^>]*text-anchor="middle"', diagram)
+    assert len(titles) == seq["participants"]
+    assert diagram.count('class="badge-t"') == len(seq["tasks"])
+    assert diagram.count('<path class="flow"') == seq["calls"]
+    assert diagram.count('<path class="ctl"') == seq["results"]
+    assert diagram.count('class="t b k"') == seq["notes"]
+
+
+def test_sequence_svgs_match_layout_script():
+    result = check("layout_pipeline_sequences.py")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_every_svg_carries_the_style_and_defs_of_the_architecture_svg():
     architecture = (DIAGRAMS / "architecture.svg").read_text(encoding="utf-8")
     expected = SHARED_HEAD.search(architecture)[0]
-    for name in FLOWS:
-        svg = (DIAGRAMS / f"{name}-flow.svg").read_text(encoding="utf-8")
-        assert SHARED_HEAD.search(svg)[0] == expected, f"{name}-flow.svg"
+    files = [f"{name}-flow.svg" for name in FLOWS]
+    files += [f"{name}-sequence.svg" for name in SEQUENCES]
+    for file in files:
+        svg = (DIAGRAMS / file).read_text(encoding="utf-8")
+        assert SHARED_HEAD.search(svg)[0] == expected, file
