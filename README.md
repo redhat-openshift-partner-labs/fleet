@@ -1,32 +1,37 @@
 # fleet
 
-> **Status:** 🚧 Early development. Architecture agreed; implementation in progress.
+[![CI](https://github.com/redhat-openshift-partner-labs/fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/redhat-openshift-partner-labs/fleet/actions/workflows/ci.yml)
+[![Image build](https://github.com/redhat-openshift-partner-labs/fleet/actions/workflows/build-image.yml/badge.svg)](https://github.com/redhat-openshift-partner-labs/fleet/actions/workflows/build-image.yml)
+[![Release](https://img.shields.io/github/v/release/redhat-openshift-partner-labs/fleet)](https://github.com/redhat-openshift-partner-labs/fleet/releases/latest)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
 fleet is the control plane for the Red Hat OpenShift Partner Labs cluster fleet. It is for the lab operators who provision, configure and deprovision the OpenShift clusters delivered to partners.
 
-## What lives here
+**Status:** Early development. Architecture agreed; implementation in progress.
 
-This repository holds:
+## Architecture
 
-- the Tekton pipelines, tasks and triggers that run the cluster lifecycle
-- the Python CLI tools that implement the Tekton tasks, built into one pipeline image
-- the hub cluster configuration (operators, Crossplane, ArgoCD bootstrap)
-- the tier workload overlays that the post-provision pipeline applies to a spoke
+![Target architecture](docs/diagrams/target-architecture.svg)
 
-It does **not** hold cluster definitions or tenant application manifests. Cluster definitions live in [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters); a push to that repository triggers the pipelines defined here.
+Diagram source: [docs/diagrams/target-architecture.mermaid](docs/diagrams/target-architecture.mermaid). Rationale and migration plan: [docs/architecture.md](docs/architecture.md).
 
-## Architecture at a glance
+| Component | Role |
+|---|---|
+| Git | Source of truth: pipelines and hub configuration in this repo, cluster definitions in fleet-clusters |
+| Tekton (OpenShift Pipelines) | Workflow engine for pre-provision, provision, post-provision, and deprovision |
+| ArgoCD (OpenShift GitOps) | Manifest delivery to the hub; day-2 workload delivery to spokes via `ApplicationSet` is planned |
+| ACM + Hive | Fleet membership and cluster provisioning |
+| cert-manager | Hub-side TLS certificate management; spokes receive only derived artifacts |
+| Crossplane | Per-cluster IAM user generation; installed by `hub-config/crossplane/` |
 
-- **Git** — source of truth: pipelines and hub configuration in this repo, cluster definitions in fleet-clusters
-- **Tekton** (OpenShift Pipelines) — workflow engine for pre-provision, provision, post-provision, and deprovision
-- **ArgoCD** (OpenShift GitOps) — manifest delivery to the hub; day-2 workload delivery to spokes via `ApplicationSet` is planned
-- **ACM + Hive** — fleet membership and cluster provisioning
-- **cert-manager** — hub-side TLS certificate management; spokes receive only derived artifacts
-- **Crossplane** — per-cluster IAM user generation; installed by `hub-config/crossplane/`
+## What this repository holds
 
-The guiding rule: *ArgoCD reconciles declarative state. Tekton runs ordered workflows. ACM/Hive controls cluster lifecycle.* Each tool does one job.
+- The Tekton pipelines, tasks and triggers that run the cluster lifecycle
+- The Python CLI tools that implement the Tekton tasks, built into one pipeline image
+- The hub cluster configuration (operators, Crossplane, ArgoCD bootstrap)
+- The tier workload overlays that the post-provision pipeline applies to a spoke
 
-For day-to-day operations (provisioning, deprovisioning, troubleshooting), see the [User Guide](docs/user-guide.md).
+It does not hold cluster definitions or tenant application manifests. Cluster definitions live in [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters); a push to that repository triggers the pipelines defined here.
 
 ## Pipelines
 
@@ -44,12 +49,12 @@ The `tier` label on a ManagedCluster selects what the post-provision pipeline in
 
 | Tier | Overlay | Installs |
 |---|---|---|
-| `base` | `workloads/base/` | Core configuration: OAuth, TLS certificate, RBAC, and the base overlay |
-| `virt` | `workloads/virt/` | OpenShift Virtualization; Node Feature Discovery when the catalog provides it |
-| `ai` | `workloads/ai/` | OpenShift AI 2.x or 3.x, for CPU or GPU |
-| `coco` | `workloads/coco/` | OpenShift sandboxed containers with peer pods on AWS |
+| `base` | [`workloads/base/`](workloads/base) | Core configuration: OAuth, TLS certificate, RBAC, and the base overlay |
+| `virt` | [`workloads/virt/`](workloads/virt) | OpenShift Virtualization; Node Feature Discovery when the catalog provides it |
+| `ai` | [`workloads/ai/`](workloads/ai) | OpenShift AI 2.x or 3.x, for CPU or GPU |
+| `coco` | [`workloads/coco/`](workloads/coco) | OpenShift sandboxed containers with peer pods on AWS |
 
-## Repo layout
+## Repository layout
 
 ```
 .
@@ -62,28 +67,53 @@ The `tier` label on a ManagedCluster selects what the post-provision pipeline in
 └── docs/               # Architecture, runbooks, diagrams
 ```
 
+## Documentation
+
+| Guide | Covers |
+|---|---|
+| [User guide](docs/user-guide.md) | Provisioning, managing and deprovisioning clusters; troubleshooting |
+| [Developer guide](docs/developer-guide.md) | Local setup, checks, adding a Tekton task, the pipeline image |
+| [Architecture](docs/architecture.md) | Current state, target architecture, migration plan |
+| [Hub cluster setup](hub-config/README.md) | Installing, verifying and uninstalling the hub operators |
+| [fleet-clusters setup](docs/fleet-clusters-setup.md) | Repository structure, GitHub App, webhook and archive workflow |
+| [Image pull secret setup](docs/image-pull-secret-setup.md) | Credentials for pulling the pipeline image from quay.io |
+| [Per-cluster metadata](docs/per-cluster-metadata.md) | The `metadata.yaml` keys and how their values reach the tasks |
+| [Parameter threading](docs/parameter-threading.md) | How a parameter passes from a trigger to a task |
+| [Confidential containers tier](docs/coco-tier.md) | Prerequisites, limits and operation of `coco` clusters |
+| [OpenShift AI operator mapping](docs/openshift-ai-operator-and-component-mapping.md) | Operators and components for OpenShift AI 2.x and 3.x |
+| [vCluster test infrastructure](docs/vcluster.md) | Testing `post-provision` against a temporary vCluster |
+
+## Development
+
+Prerequisites: Python 3.11 or later and [Poetry](https://python-poetry.org/). The [developer guide](docs/developer-guide.md) lists the remaining tools.
+
+```bash
+poetry install
+tox
+```
+
+`tox` runs the unit tests, which require 100% line coverage of `fleet/`, and the linters. CI does not run `tox -e validate-kustomize`; run it locally.
+
 ## Status
 
 | Area | State |
 |---|---|
-| Architecture direction | ✅ Agreed |
-| Repo structure | ✅ Done |
-| Hub bootstrap (Tekton, cert-manager, Crossplane) | ✅ Done (manifests ready, not yet applied) |
-| Development tooling (yamllint, tox, pytest) | ✅ Done |
-| CI (GitHub Actions: gitleaks, tox, tekton-lint) | ✅ Done |
-| Container image build (multi-arch, quay.io/rhopl) | ✅ Done |
-| Pre-provision and provision pipelines | ✅ Done |
-| Post-provision pipeline (base, virt, ai, coco tiers) | ✅ Done |
-| Deprovision pipeline | ✅ Done |
-| Tekton triggers (pre-provision, post-provision, deprovision) | ✅ Done |
-| ApplicationSet day-2 delivery | ⏳ Planned |
-| Migration from `labargocd` | ⏳ Planned |
-
-CI does not run `tox -e validate-kustomize`; run it locally.
+| Architecture direction | Agreed |
+| Repo structure | Done |
+| Hub bootstrap (Tekton, cert-manager, Crossplane) | Done (manifests ready, not yet applied) |
+| Development tooling (yamllint, tox, pytest) | Done |
+| CI (GitHub Actions: gitleaks, tox, tekton-lint) | Done |
+| Container image build (multi-arch, quay.io/rhopl) | Done |
+| Pre-provision and provision pipelines | Done |
+| Post-provision pipeline (base, virt, ai, coco tiers) | Done |
+| Deprovision pipeline | Done |
+| Tekton triggers (pre-provision, post-provision, deprovision) | Done |
+| ApplicationSet day-2 delivery | Planned |
+| Migration from `labargocd` | Planned |
 
 ## Background
 
-This repo supersedes the cluster-lifecycle portions of [`labargocd`](https://github.com/redhat-openshift-partner-labs/labargocd). Architecture rationale and migration plan are in [`docs/architecture.md`](./docs/architecture.md).
+This repo supersedes the cluster-lifecycle portions of [`labargocd`](https://github.com/redhat-openshift-partner-labs/labargocd).
 
 ## Contributing
 
