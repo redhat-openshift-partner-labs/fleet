@@ -47,3 +47,25 @@ def test_image_section_lists_the_packages_of_the_runtime_stage():
     section = text.split("\n## Container Image\n", 1)[1].split("\n## ", 1)[0]
     missing = [package for package in packages if f"`{package}`" not in section]
     assert not missing, f"docs/developer-guide.md does not list {missing}"
+
+
+BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "build-image.yml"
+
+
+def build_steps() -> list[dict]:
+    workflow = yaml.safe_load(BUILD_WORKFLOW.read_text(encoding="utf-8"))
+    return workflow["jobs"]["build-push"]["steps"]
+
+
+def test_documents_name_the_platforms_of_the_image_build():
+    platforms = {
+        platform
+        for step in build_steps()
+        for platform in step.get("with", {}).get("platforms", "").split(",")
+        if platform
+    }
+    assert platforms
+
+    for path in (GUIDE, ROOT / "README.md"):
+        named = set(re.findall(r"linux/[a-z0-9]+", path.read_text("utf-8")))
+        assert named == platforms, f"{path.name} names {sorted(named)}"

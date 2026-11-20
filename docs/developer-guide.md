@@ -252,7 +252,7 @@ podman build -t fleet-pipeline:dev .
 ```
 
 A tag that starts with `v` runs `.github/workflows/build-image.yml`. The
-workflow builds the image for `linux/amd64` and `linux/arm64`, pushes it to
+workflow builds the image for `linux/amd64`, pushes it to
 `quay.io/rhopl/fleet-pipeline` with the version and `latest` as tags, and
 creates the GitHub release.
 
@@ -313,13 +313,11 @@ Update the pin:
    sha256sum /tmp/centos-key.asc
    ```
 
-5. Build the image for both platforms of `build-image.yml` and run `qemu-img`.
+5. Build the image for the platform of `build-image.yml` and run `qemu-img`.
 
    ```bash
    podman build --platform linux/amd64 -t fleet-pipeline:dev-amd64 .
-   podman build --platform linux/arm64 -t fleet-pipeline:dev-arm64 .
    podman run --rm fleet-pipeline:dev-amd64 qemu-img --version
-   podman run --rm fleet-pipeline:dev-arm64 qemu-img --version
    ```
 
 6. Update the table in this section. `.gitleaks.toml` allowlists the line
@@ -403,15 +401,13 @@ Switch the image to RHEL:
      rhsm_activationkey=${{ secrets.RHSM_ACTIVATION_KEY }}
    ```
 
-5. Build the image for both platforms and run `qemu-img`. `org.txt` holds the
-   organization ID and `key.txt` the activation key; keep both files outside
-   the repository checkout or delete them after the build.
+5. Build the image for the platform of `build-image.yml` and run `qemu-img`.
+   `org.txt` holds the organization ID and `key.txt` the activation key; keep
+   both files outside the repository checkout or delete them after the build.
 
    ```bash
    podman build --platform linux/amd64 --secret id=rhsm_org,src=org.txt --secret id=rhsm_activationkey,src=key.txt -t fleet-pipeline:dev-amd64 .
-   podman build --platform linux/arm64 --secret id=rhsm_org,src=org.txt --secret id=rhsm_activationkey,src=key.txt -t fleet-pipeline:dev-arm64 .
    podman run --rm fleet-pipeline:dev-amd64 qemu-img --version
-   podman run --rm fleet-pipeline:dev-arm64 qemu-img --version
    ```
 
 6. Remove what the CentOS source needed: the section "Maintenance: CentOS
@@ -494,6 +490,7 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_developer_guide.py` | The environment table of this guide differs from the environments of `tox.ini` |
 | | The CI table differs from the jobs of `.github/workflows/ci.yml`, or lacks one of their `tox` commands |
 | | A package of the runtime stage of the `Dockerfile` is not named in "Container Image" |
+| | The platforms named in this guide or in `README.md` differ from the platforms of `.github/workflows/build-image.yml` |
 | `tests/validation/test_coco_tier_doc.py` | A failure message of `docs/coco-tier.md` is in none of the modules of the `coco` tier |
 | | Its failure table names a task that no pipeline has |
 
