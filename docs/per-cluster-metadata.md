@@ -1,188 +1,103 @@
 # Per-Cluster Metadata
 
-Per-cluster metadata provides a way to configure cluster-specific values that vary between clusters and are not appropriate for the global `fleet-pipeline-config` ConfigMap. Values are defined in a `metadata.yaml` file within each cluster's directory in fleet-clusters and threaded through the pipeline system.
+This document describes the keys of `metadata.yaml`: the default, the accepted values and the effect of each.
 
-## metadata.yaml
+`metadata.yaml` holds the values that differ between clusters. Values that are the same for every cluster are in the ConfigMap `fleet-pipeline-config`; see [hub-setup.md](hub-setup.md#6-set-the-pipeline-configuration). [parameter-threading.md](parameter-threading.md) describes how a value of the file reaches a task, and how to add a key.
 
-Each cluster directory can contain a `metadata.yaml` file:
+## The file
 
 ```
-provision/<cluster-name>/
-  ├── kustomization.yaml
-  ├── metadata.yaml              ← per-cluster configuration
-  ├── hive/
-  │   └── ...
-  └── crossplane/
-      └── ...
+provision/<name>/
+├── kustomization.yaml
+├── metadata.yaml
+├── hive/
+└── crossplane/
 ```
 
-The file is a flat YAML map of key-value pairs:
+The file is a flat YAML map:
 
 ```yaml
-# provision/eager-falcon/metadata.yaml
-htpasswd-provider-name: "PartnerIDP"
+platform: aws
+aws-credentials-mode: scoped
+htpasswd-provider-name: "Partner IDP"
 ```
 
-If the file is missing or empty, all values fall back to their defaults. This makes metadata.yaml optional — existing clusters without one continue to work unchanged.
+`fleet-scaffold-cluster` writes the file with `platform` and, for AWS, `aws-credentials-mode`. Its arguments `--htpasswd-provider-name` and `--ai-accelerator` add those keys. Edit the file to set the other keys.
+
+The file is optional. A missing or empty file gives every key its default.
 
 ## Supported keys
 
-| Key | Default | Used by | Description |
-|-----|---------|---------|-------------|
-| `htpasswd-provider-name` | `htpasswd` | `configure-spoke-oauth` | Display name for the htpasswd identity provider in the spoke's OAuth configuration |
-| `openshift-ai-version` | `v3` | `apply-ai-workloads` | OpenShift AI version (`v2` or `v3`); controls prerequisite operator stack |
-| `ai-accelerator` | `nvidia-gpu` | `apply-ai-workloads`, `add-ai-workers` | Hardware profile for `tier=ai` (`none` or `nvidia-gpu`) |
-| `timezone` | `America/Chicago` | `create-cluster-cronjob` | IANA timezone for the hub-side recurring cluster job |
-| `schedule` | `00 08 * * 1-5` | `create-cluster-cronjob` | Five-field cron schedule for the hub-side recurring cluster job |
-| `podvm-instance-type` | none | `apply-coco-workloads` | EC2 instance type of peer pod VMs for `tier=coco`; written by `fleet-cluster-scaffold --tier coco` |
+| Key | Default | Accepted values | Read by | Effect |
+|---|---|---|---|---|
+| `htpasswd-provider-name` | `htpasswd` | Any text | `configure-spoke-oauth` | Display name of the htpasswd identity provider on the spoke |
+| `openshift-ai-version` | `v3` | `v2`, `v3` | `apply-ai-workloads` | OpenShift AI version of an `ai` cluster and its prerequisite operators |
+| `ai-accelerator` | `nvidia-gpu` | `none`, `nvidia-gpu` | `apply-ai-workloads`, and the condition of `add-ai-workers` | Hardware profile of an `ai` cluster; see [AI accelerator](#ai-accelerator) |
+| `platform` | `aws` | `aws`, `azure` | No task | Cloud platform of the cluster |
+| `aws-credentials-mode` | `legacy` | `scoped`; every other value counts as `legacy` | The conditions of `wait-for-aws-component-credentials`, `build-aws-credentials-manifests` and `scope-aws-credentials` | How the spoke gets its AWS credentials; see [AWS credential mode](#aws-credential-mode) |
+| `timezone` | `America/Chicago` | An IANA timezone name | `create-cluster-cronjob` | Timezone of the cluster job on the hub |
+| `schedule` | `00 08 * * 1-5` | A five-field cron expression | `create-cluster-cronjob` | Schedule of the cluster job on the hub |
+| `podvm-instance-type` | Empty | One EC2 instance type, `<family>.<size>` | `apply-coco-workloads` | Instance type of the peer pod VMs of a `coco` cluster |
+
+## Validation
+
+`read-cluster-metadata` reads the file in `pre-provision` and again in `provision`. It checks four keys, whatever the tier of the cluster, and fails the run on an invalid value:
+
+| Key | Message |
+|---|---|
+| The file is not a map | `metadata.yaml must contain a YAML object` |
+| `ai-accelerator` | `Invalid ai-accelerator value: <value>; expected one of ['none', 'nvidia-gpu']` |
+| `timezone` | `Invalid timezone value: <value>; expected an IANA timezone name` |
+| `schedule` | `Invalid schedule value: <value>; expected a five-field cron expression` |
+| `podvm-instance-type` | `Invalid podvm-instance-type value: <value>` |
+
+`openshift-ai-version` is checked later: `apply-ai-workloads` rejects a value other than `v2` and `v3`. The other keys are not checked.
+
+## Key details
 
 ### AI accelerator
 
-`ai-accelerator` selects the hardware profile for `tier=ai`:
+`ai-accelerator` applies to `tier=ai`. The other tiers do not use it.
 
 | Value | Effect |
 |---|---|
-| `none` | Installs CPU-only OpenShift AI and skips NFD, the NVIDIA GPU Operator, the GPU ClusterPolicy, and the AI worker MachinePool |
-| `nvidia-gpu` | Requires NFD and the NVIDIA GPU Operator in the spoke catalog, installs the GPU-backed OpenShift AI stack, and creates the AI worker MachinePool |
+| `none` | Installs CPU-only OpenShift AI. Skips Node Feature Discovery, the NVIDIA GPU Operator, the GPU ClusterPolicy and the AI worker MachinePool. |
+| `nvidia-gpu` | Requires Node Feature Discovery and the NVIDIA GPU Operator in the spoke catalog, installs the GPU-backed OpenShift AI stack, and creates the AI worker MachinePool. |
 
-The key is ignored for `base`, `virt` and `coco`.
+Before it applies a Subscription, `apply-ai-workloads` checks that the spoke catalog offers every operator that the selected `openshift-ai-version` and `ai-accelerator` need. A CPU-only cluster is not checked for Node Feature Discovery or the NVIDIA GPU Operator.
 
-`apply-ai-workloads` preflights every required operator for the selected `openshift-ai-version` and `ai-accelerator` before applying subscriptions. CPU-only clusters do not preflight or install NFD or the NVIDIA GPU Operator.
+### AWS credential mode
 
-### Hub-side recurring cluster job
+`aws-credentials-mode: scoped` gives the spoke one AWS credential per operator, limited to the cluster. Without the key the cluster is `legacy`. [architecture.md](architecture.md#aws-credential-modes) describes both modes.
 
-`timezone` and `schedule` control the hub CronJob named after the cluster. The CronJob is created in the `default` namespace and uses the pre-provisioned `ecoeng` service account. The handler image is `quay.io/rhopl/osplc:v0.0.2`.
+### Cluster job
 
-The task pulls the configured pipeline image on every run so the `latest` tag cannot resolve to an older cached image.
-
-`timezone` must be an IANA timezone name. `schedule` must be a five-field cron expression. Missing keys fall back to `America/Chicago` and `00 08 * * 1-5`, so existing cluster definitions continue to work.
+`create-cluster-cronjob` creates a CronJob named after the cluster in the namespace `default` of the hub. `timezone` and `schedule` set when it runs.
 
 ```yaml
 timezone: America/Chicago
 schedule: "00 08 * * 1-5"
 ```
 
-Deprovision deletes the CronJob from the `default` namespace before deleting the cluster namespace. Namespace deletion alone cannot remove the CronJob because the object is outside the cluster namespace.
+- The CronJob runs as the ServiceAccount `ecoeng`, which must exist; see [hub-setup.md](hub-setup.md#10-check-the-account-of-the-cluster-job).
+- The CronJob runs the image `quay.io/rhopl/osplc:v0.0.2`.
+- The task pulls the pipeline image on every run, so the tag `latest` cannot resolve to an older cached image.
+- `deprovision` deletes the CronJob before it deletes the cluster namespace. The CronJob is outside that namespace, so deleting the namespace does not remove it.
 
 ### Pod VM instance type
 
-`podvm-instance-type` is the EC2 instance type of the peer pod VMs of a `tier=coco` cluster (see [coco-tier.md](coco-tier.md)). `fleet-cluster-scaffold --tier coco` writes it and checks it against the instance types that support AMD SEV-SNP.
+`podvm-instance-type` is the EC2 instance type of the peer pod VMs of a `coco` cluster; see [coco-tier.md](coco-tier.md). `fleet-scaffold-cluster` writes it for that tier and checks it against the instance types that support AMD SEV-SNP.
 
 ```yaml
 podvm-instance-type: m6a.large
 ```
 
-- fleet has no default. `read-cluster-metadata` returns the empty string when the key is absent.
-- When the key is present, `read-cluster-metadata` accepts one instance type name (`<family>.<size>`, lowercase letters, digits and hyphens). Any other value fails the task with `Invalid podvm-instance-type value: <value>`.
+- fleet has no default for the key.
 - For `tier=coco`, `apply-coco-workloads` fails on an empty value with `podvm-instance-type is empty for <name>; regenerate the overlay with the current fleet-cluster-scaffold`.
-- The other tiers do not read the value.
+- The other tiers do not use the value.
 
-## How values flow through the pipeline
+## Limit
 
-Metadata follows the same threading pattern as `tier` — read during provision, forwarded through `trigger-post-provision`, and consumed in post-provision:
+A `post-provision` run that the EventListener starts for a request with `action: post-provision` receives no value of `metadata.yaml`. It runs with the defaults of the table. For an `ai` cluster that means `v3` and `nvidia-gpu`; for a `coco` cluster the run fails at `apply-coco-workloads`, because `podvm-instance-type` is empty.
 
-```
-provision pipeline
-  │
-  ├─ git-clone (clones fleet-clusters to workspace)
-  │
-  ├─ read-cluster-metadata
-  │    reads: provision/<cluster-name>/metadata.yaml
-   │    returns: per-cluster metadata values as Tekton results
-  │
-  └─ trigger-post-provision
-       receives: metadata results from read-cluster-metadata
-       embeds it in the PipelineRun YAML for post-provision
-            │
-            ▼
-post-provision pipeline
-  │
-  ├─ create-cluster-cronjob
-  │    receives: timezone and schedule as pipeline params
-  │    creates: CronJob/<cluster-name> in the hub default namespace
-  │
-  ├─ configure-spoke-oauth
-  │    receives: htpasswd-provider-name as pipeline param
-  │    uses it in the OAuth CR's htpasswd identity provider name
-  │
-  └─ apply-coco-workloads (tier=coco)
-       receives: podvm-instance-type as pipeline param
-       writes it to PODVM_INSTANCE_TYPE and PODVM_INSTANCE_TYPES in the spoke's peer-pods-cm
-```
-
-### Where defaults are applied
-
-Defaults live in the Tekton Task YAML (`read-cluster-metadata.yaml`), not in the Python CLI tool. The CLI outputs raw JSON from `metadata.yaml`; the bash stub uses `jq` with a fallback:
-
-```bash
-echo "$META" | jq -r '.["htpasswd-provider-name"] // "htpasswd"'
-```
-
-This keeps the Python CLI generic while centralizing default logic in one place per value.
-
-## Adding a new per-cluster value
-
-When you need a new cluster-specific configuration value:
-
-### 1. Add a result to the read-cluster-metadata Task
-
-In `tekton/tasks/read-cluster-metadata.yaml`, add a new result and a `jq` extraction line:
-
-```yaml
-results:
-  - name: htpasswd-provider-name
-  - name: my-new-value              # add result
-steps:
-  - script: |
-      # ... existing extractions ...
-      echo "$META" | jq -r '.["my-new-value"] // "default-value"' \
-        | tee "$(results.my-new-value.path)"
-```
-
-### 2. Forward through trigger-post-provision
-
-Add an argparse argument to `fleet/tasks/trigger_post_provision.py`:
-
-```python
-parser.add_argument("--my-new-value", default="default-value")
-```
-
-Include it in the PipelineRun YAML template and in the Tekton Task YAML (`tekton/tasks/trigger-post-provision.yaml`).
-
-### 3. Add the pipeline param to post-provision
-
-In `tekton/pipelines/post-provision.yaml`, add a param with the same default and wire it to the consuming task.
-
-### 4. Wire the provision pipeline
-
-In `tekton/pipelines/provision.yaml`, pass the new result from `read-cluster-metadata` to `trigger-post-provision`.
-
-### 5. Add the argparse argument to the consuming Python CLI
-
-Add the corresponding `--my-new-value` argument and use it in the task logic.
-
-### 6. Update this document
-
-Add the new key to the "Supported keys" table above.
-
-## Relationship to fleet-pipeline-config
-
-The `fleet-pipeline-config` ConfigMap holds **global defaults** — values that are the same across all clusters (Keycloak URL, base domain, pipeline image, etc.). The `config-loader` Task resolves these at pipeline start.
-
-`metadata.yaml` holds **per-cluster overrides** — values that differ between clusters. The distinction:
-
-| Scope | Source | Example |
-|-------|--------|---------|
-| All clusters | `fleet-pipeline-config` ConfigMap | `keycloak-url`, `pipeline-image`, `provider-name` |
-| Per cluster | `metadata.yaml` in fleet-clusters | `htpasswd-provider-name` |
-
-## CLI reference
-
-The `fleet-read-cluster-metadata` CLI tool reads `metadata.yaml` and outputs JSON:
-
-```bash
-fleet-read-cluster-metadata --cluster-dir /path/to/provision/cluster-name
-# Output: {"htpasswd-provider-name": "PartnerIDP"}
-```
-
-If `metadata.yaml` is missing or empty, it outputs `{}`. If the directory does not exist, it exits with code 1.
+To run `post-provision` again with the values of the file, start it with the parameters of an earlier run; see the [user guide](user-guide.md#run-a-pipeline-again).

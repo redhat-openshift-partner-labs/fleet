@@ -439,6 +439,8 @@ document. The task of a pipeline is described once, in the task tables of
 | | A key in the configuration table of `docs/hub-setup.md` is not in `tekton/configmap-defaults.yaml`, or its default differs |
 | | A Secret that the code reads by a fixed name has no row in the Secrets table of `docs/hub-setup.md` |
 | | The trigger table of `docs/fleet-clusters-setup.md` differs from the triggers of the EventListener |
+| `tests/validation/test_pipeline_values.py` | The key table of `docs/per-cluster-metadata.md` differs from the results of `read-cluster-metadata`, or a default differs from the fallback in the Task |
+| | A task named as reader of a key is in no pipeline |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

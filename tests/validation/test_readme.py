@@ -59,6 +59,7 @@ PURPOSE_DOCS = [
     "docs/hub-setup.md",
     "docs/fleet-clusters-setup.md",
     "docs/image-pull-secret-setup.md",
+    "docs/per-cluster-metadata.md",
 ]
 PURPOSE = re.compile(r"This (?:guide|document) describes (.+)\.")
 
