@@ -17,7 +17,7 @@ sequenceDiagram
 
     rect rgb(246, 248, 250)
         Note over Pipe,GH: terminate-pod-vms
-        Pipe->>Hub: read tier label; for coco:<br/>delete the peer-pods AccessKey
+        Pipe->>Hub: read the tier label, and for coco<br/>delete the peer-pods AccessKey
         Pipe->>AWS: for coco: terminate pod VMs, delete the pod VM image and its snapshots
         AWS-->>Pipe: no pod VMs left
     end

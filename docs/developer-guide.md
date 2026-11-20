@@ -442,6 +442,8 @@ and dark palettes.
 3. Edit `<pipeline>-sequence.mermaid`. Add a `rect` whose note is the task
    name, below every task it runs after. Put it in an `opt` block that states
    every `when` value.
+   Write no semicolon in a message: mermaid ends the statement there and the
+   file no longer parses.
 
 4. Write the SVGs:
 
@@ -502,6 +504,7 @@ and dark palettes.
 | | The nodes of a flowchart differ from the tasks of the pipeline, or its edges from the `runAfter` entries |
 | | The tasks of a sequence diagram differ from the tasks of the pipeline, or a task is shown above a task it runs after |
 | | A `when` value of a task is missing from the flowchart or from the sequence diagram |
+| | A message of a sequence diagram contains a semicolon |
 | | The `<style>` and `<defs>` blocks of an SVG differ from `architecture.svg` |
 | `tests/validation/test_architecture_doc.py` | A relative link in `docs/architecture.md` does not resolve |
 | | A diagram in the document has no link to its `.mermaid` file |
