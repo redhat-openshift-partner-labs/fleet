@@ -52,7 +52,7 @@ def test_relative_links_resolve():
 
 # Documents that open with a purpose sentence. The documentation index of
 # README.md holds the same text.
-PURPOSE_DOCS = ["docs/architecture.md", "docs/user-guide.md"]
+PURPOSE_DOCS = ["docs/architecture.md", "docs/user-guide.md", "hub-config/README.md"]
 PURPOSE = re.compile(r"This (?:guide|document) describes (.+)\.")
 
 
