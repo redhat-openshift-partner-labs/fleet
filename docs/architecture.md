@@ -264,7 +264,7 @@ The task does not remove finalizers by default: that would leave live IAM users 
 When the provider cannot reach AWS, run:
 
 ```bash
-tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true
+tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true --serviceaccount fleet-pipeline -n openshift-pipelines
 ```
 
 `verify-deprovision` must pass before `create-deployment-status` posts the status. The archive workflow copies the IAM cleanup report into the archived cluster directory. [user-guide.md](user-guide.md#retry-report-delivery) describes how to deliver the report again.
