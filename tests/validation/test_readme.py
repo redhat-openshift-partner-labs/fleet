@@ -64,6 +64,7 @@ PURPOSE_DOCS = [
     "docs/vcluster.md",
     "docs/ai-tier.md",
     "docs/developer-guide.md",
+    "docs/coco-tier.md",
 ]
 PURPOSE = re.compile(r"This (?:guide|document) describes (.+)\.")
 
@@ -119,3 +120,9 @@ def test_repository_layout_lists_existing_paths():
     assert entries
     missing = [entry for entry in entries if not (ROOT / entry).exists()]
     assert not missing, f"README.md lists paths that do not exist: {missing}"
+
+
+def test_every_document_opens_with_a_purpose_sentence():
+    documents = {f"docs/{path.name}" for path in (ROOT / "docs").glob("*.md")}
+    documents.add("hub-config/README.md")
+    assert set(PURPOSE_DOCS) == documents

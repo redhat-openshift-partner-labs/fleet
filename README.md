@@ -63,7 +63,7 @@ Operators start with the user guide. Hub administrators start with the hub setup
 | [User guide](docs/user-guide.md) | Operators | The tasks an operator performs: provision a cluster, hand over access, monitor a run, deprovision a cluster, and recover from a failed task |
 | [Architecture](docs/architecture.md) | Operators and contributors | The components of the system, the trust boundary, the trigger chain, the tasks of each pipeline, and the AWS credential modes |
 | [Per-cluster metadata](docs/per-cluster-metadata.md) | Operators | The keys of `metadata.yaml`: the default, the accepted values and the effect of each |
-| [Confidential containers tier](docs/coco-tier.md) | Operators | Prerequisites, limits and operation of `coco` clusters |
+| [Confidential containers tier](docs/coco-tier.md) | Operators | The `coco` tier: its prerequisites, what each pipeline does for a `coco` cluster, the values it writes, the failure messages and the limits |
 | [AI tier](docs/ai-tier.md) | Operators | What an operator sets for an `ai` cluster, what the pipelines install, in which order, and the messages of a failed task |
 | [Hub setup](docs/hub-setup.md) | Hub administrators | The one-time setup of the hub cluster, in order: the operators, the pipelines, their configuration and Secrets, and the connection to fleet-clusters |
 | [Hub operators](hub-config/README.md) | Hub administrators | How to install, verify, change and uninstall the hub operators that `hub-config/` defines |
