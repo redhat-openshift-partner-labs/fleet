@@ -2,8 +2,9 @@
 
 CLI: fleet-configure-spoke-oauth --cluster-name NAME --spoke-kubeconfig PATH
      --keycloak-issuer-url URL --provider-name NAME
-Reads the keycloak-client secret from the hub, pushes it to the spoke, then
-applies htpasswd Secret + OAuth CR to spoke. Exits 1 on failure.
+Reads the keycloak-client secret from the hub, applies the htpasswd Secret to
+the spoke, pushes the keycloak-client secret to the spoke, then applies the
+OAuth CR. Exits 1 on failure.
 """
 
 import argparse
