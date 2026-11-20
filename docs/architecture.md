@@ -291,4 +291,5 @@ tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true -
 | [fleet-clusters-setup.md](fleet-clusters-setup.md) | Repository structure, GitHub App, webhook, archive workflow |
 | [per-cluster-metadata.md](per-cluster-metadata.md) | The `metadata.yaml` keys |
 | [parameter-threading.md](parameter-threading.md) | How a parameter passes from a trigger to a task |
-| [hub-config/README.md](../hub-config/README.md) | Installing and verifying the hub operators |
+| [hub-setup.md](hub-setup.md) | The one-time setup of the hub cluster |
+| [hub-config/README.md](../hub-config/README.md) | Installing, verifying and uninstalling the hub operators |

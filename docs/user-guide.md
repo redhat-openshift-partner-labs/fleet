@@ -2,7 +2,7 @@
 
 This guide describes the tasks an operator performs: provision a cluster, hand over access, monitor a run, deprovision a cluster, and recover from a failed task.
 
-[architecture.md](architecture.md) lists every task of every pipeline. The setup of the hub is in [hub-config/README.md](../hub-config/README.md), [fleet-clusters-setup.md](fleet-clusters-setup.md) and [image-pull-secret-setup.md](image-pull-secret-setup.md).
+[architecture.md](architecture.md) lists every task of every pipeline. The setup of the hub is in [hub-setup.md](hub-setup.md).
 
 In every command, `<name>` is the cluster name. The pipelines run in the namespace `openshift-pipelines` on the hub.
 
@@ -15,7 +15,7 @@ In every command, `<name>` is the cluster name. The pipelines run in the namespa
 | `tkn` | [Tekton CLI](https://tekton.dev/docs/cli/) |
 | `fleet-scaffold-cluster` | Installed from [fleet-cluster-scaffold](https://github.com/redhat-openshift-partner-labs/fleet-cluster-scaffold) with `pip install .`. It needs `kustomize`, and `oc` with network access to `quay.io`. |
 
-The hub must be set up. Each command below prints the named resource when that part is in place.
+The hub must be set up as [hub-setup.md](hub-setup.md) describes. Each command below prints the named resource when that part is in place.
 
 | Part | Check |
 |---|---|
@@ -358,4 +358,4 @@ The tasks of the `coco` tier are in [coco-tier.md](coco-tier.md#failure-messages
 | [coco-tier.md](coco-tier.md) | Prerequisites, limits and failure messages of the `coco` tier |
 | [openshift-ai-operator-and-component-mapping.md](openshift-ai-operator-and-component-mapping.md) | Operators and components of OpenShift AI 2.x and 3.x |
 | [fleet-clusters-setup.md](fleet-clusters-setup.md) | Repository structure, GitHub App, webhook, archive workflow |
-| [hub-config/README.md](../hub-config/README.md) | Installing and verifying the hub operators |
+| [hub-setup.md](hub-setup.md) | The one-time setup of the hub cluster |
