@@ -1,0 +1,45 @@
+%% Purpose: runs post-provision against a temporary vCluster on the hub
+%% Order: every task runs after the task before it; a failed task stops the run
+%% Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay
+sequenceDiagram
+    participant Pipe as test-vcluster
+    participant Hub as Hub API
+    participant VC as vCluster
+    participant PP as post-provision
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,PP: load-config
+        Pipe->>Hub: get ConfigMap fleet-pipeline-config
+        Hub-->>Pipe: pipeline-image
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,PP: create-test-vcluster
+        Pipe->>VC: vcluster create NAME in the namespace, with the given or the generated values
+        Pipe->>Hub: after 30 seconds, read Secret vc-NAME
+        Hub-->>Pipe: kubeconfig in the workspace
+        Pipe->>Hub: create a passthrough Route when<br/>route-san is set
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,PP: seed-test-vcluster
+        Pipe->>Hub: create namespace NAME
+        Pipe->>Hub: create Secrets NAME-admin-kubeconfig<br/>and auto-import-secret
+        Pipe->>Hub: create ManagedCluster NAME with the labels tier, cloud=vcluster, vendor=Kubernetes
+        Pipe->>Hub: create a placeholder Secret aws-credentials when create-aws-creds is true
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,PP: run-post-provision
+        Pipe->>Hub: create the PipelineRun of post-provision with openshift-cluster=false
+        Hub->>PP: Tekton starts the run
+        PP->>VC: apply the workloads of the tier with the kubeconfig
+        Pipe->>Hub: read the state of the run every 30 seconds, up to the timeout
+        Hub-->>Pipe: Succeeded
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,PP: delete-test-vcluster
+        Pipe->>Hub: delete ManagedCluster NAME and wait<br/>up to 300 seconds for it to be gone
+        Pipe->>VC: vcluster delete NAME, or delete the namespace when that fails
+    end

@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1226" width="1262" height="1226" role="img" aria-labelledby="title desc">
+  <title id="title">test-vcluster pipeline: sequence</title>
+  <desc id="desc">Sequence of the test-vcluster pipeline between test-vcluster, Hub API, vCluster, post-provision. load-config: test-vcluster to Hub API: get ConfigMap fleet-pipeline-config; Hub API to test-vcluster: pipeline-image. create-test-vcluster: test-vcluster to vCluster: vcluster create NAME in the namespace, with the given or the generated values; test-vcluster to Hub API: after 30 seconds, read Secret vc-NAME; Hub API to test-vcluster: kubeconfig in the workspace; test-vcluster to Hub API: create a passthrough Route when route-san is set. seed-test-vcluster: test-vcluster to Hub API: create namespace NAME; test-vcluster to Hub API: create Secrets NAME-admin-kubeconfig and auto-import-secret; test-vcluster to Hub API: create ManagedCluster NAME with the labels tier, cloud=vcluster, vendor=Kubernetes; test-vcluster to Hub API: create a placeholder Secret aws-credentials when create-aws-creds is true. run-post-provision: test-vcluster to Hub API: create the PipelineRun of post-provision with openshift-cluster=false; Hub API to post-provision: Tekton starts the run; post-provision to vCluster: apply the workloads of the tier with the kubeconfig; test-vcluster to Hub API: read the state of the run every 30 seconds, up to the timeout; Hub API to test-vcluster: Succeeded. delete-test-vcluster: test-vcluster to Hub API: delete ManagedCluster NAME and wait up to 300 seconds for it to be gone; test-vcluster to vCluster: vcluster delete NAME, or delete the namespace when that fails. Constraints: Purpose: runs post-provision against a temporary vCluster on the hub. Order: every task runs after the task before it; a failed task stops the run. Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1225" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">test-vcluster pipeline: sequence</text>
+  <text class="m b" x="40" y="68">The calls each of the five tasks makes, in the order the tasks run.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="106" rx="12"/>
+  <text class="t b k" x="56" y="124">Purpose</text>
+  <text class="m b" x="160" y="124">runs post-provision against a temporary vCluster on the hub</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Order</text>
+  <text class="m b" x="160" y="156">every task runs after the task before it; a failed task stops the run</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Cleanup</text>
+  <text class="m b" x="160" y="188">delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay</text>
+
+  <!-- ===== Frames: one per task ===== -->
+  <rect class="frame" x="24" y="292" width="1214" height="80" rx="14"/>
+  <rect class="frame" x="24" y="382" width="1214" height="168" rx="14"/>
+  <rect class="frame" x="24" y="560" width="1214" height="210" rx="14"/>
+  <rect class="frame" x="24" y="780" width="1214" height="212" rx="14"/>
+  <rect class="frame" x="24" y="1002" width="1214" height="108" rx="14"/>
+
+  <!-- ===== Participants and lifelines ===== -->
+  <rect class="src" x="313" y="232" width="135" height="40" rx="12"/>
+  <text class="t h2" x="380" y="257" text-anchor="middle">test-vcluster</text>
+  <line class="rule" x1="380" y1="272" x2="380" y2="1120"/>
+  <text class="m lbl" x="40" y="257">TASK</text>
+  <rect class="core" x="598" y="232" width="85" height="40" rx="12"/>
+  <text class="t h2" x="640" y="257" text-anchor="middle">Hub API</text>
+  <line class="rule" x1="640" y1="272" x2="640" y2="1120"/>
+  <rect class="out" x="833" y="232" width="94" height="40" rx="12"/>
+  <text class="t h2" x="880" y="257" text-anchor="middle">vCluster</text>
+  <line class="rule" x1="880" y1="272" x2="880" y2="1120"/>
+  <rect class="src" x="1049" y="232" width="143" height="40" rx="12"/>
+  <text class="t h2" x="1120" y="257" text-anchor="middle">post-provision</text>
+  <line class="rule" x1="1120" y1="272" x2="1120" y2="1120"/>
+
+  <!-- ===== Tasks ===== -->
+  <circle class="badge-src" cx="58" cy="314" r="10"/><text class="badge-t" x="58" y="318" text-anchor="middle">1</text>
+  <text class="c b" x="76" y="318">load-config</text>
+  <circle class="badge-src" cx="58" cy="404" r="10"/><text class="badge-t" x="58" y="408" text-anchor="middle">2</text>
+  <text class="c b" x="76" y="408">create-test-vcluster</text>
+  <circle class="badge-src" cx="58" cy="582" r="10"/><text class="badge-t" x="58" y="586" text-anchor="middle">3</text>
+  <text class="c b" x="76" y="586">seed-test-vcluster</text>
+  <circle class="badge-src" cx="58" cy="802" r="10"/><text class="badge-t" x="58" y="806" text-anchor="middle">4</text>
+  <text class="c b" x="76" y="806">run-post-provision</text>
+  <circle class="badge-src" cx="58" cy="1024" r="10"/><text class="badge-t" x="58" y="1028" text-anchor="middle">5</text>
+  <text class="c b" x="76" y="1028">delete-test-vcluster</text>
+
+  <!-- ===== Messages ===== -->
+  <path class="flow" d="M380 324 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="317">get ConfigMap fleet-pipeline-config</text>
+  <path class="ctl" d="M640 354 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="347">pipeline-image</text>
+  <path class="flow" d="M380 428 H878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="407">vcluster create NAME in the namespace,</text>
+  <text class="m s" x="388" y="421">with the given or the generated values</text>
+  <path class="flow" d="M380 458 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="451">after 30 seconds, read Secret vc-NAME</text>
+  <path class="ctl" d="M640 488 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="481">kubeconfig in the workspace</text>
+  <path class="flow" d="M380 532 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="511">create a passthrough Route when</text>
+  <text class="m s" x="388" y="525">route-san is set</text>
+  <path class="flow" d="M380 592 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="585">create namespace NAME</text>
+  <path class="flow" d="M380 636 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="615">create Secrets NAME-admin-kubeconfig and</text>
+  <text class="m s" x="388" y="629">auto-import-secret</text>
+  <path class="flow" d="M380 694 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="659">create ManagedCluster NAME with the</text>
+  <text class="m s" x="388" y="673">labels tier, cloud=vcluster,</text>
+  <text class="m s" x="388" y="687">vendor=Kubernetes</text>
+  <path class="flow" d="M380 752 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="717">create a placeholder Secret</text>
+  <text class="m s" x="388" y="731">aws-credentials when create-aws-creds is</text>
+  <text class="m s" x="388" y="745">true</text>
+  <path class="flow" d="M380 826 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="805">create the PipelineRun of post-provision</text>
+  <text class="m s" x="388" y="819">with openshift-cluster=false</text>
+  <path class="flow" d="M640 856 H1118" marker-end="url(#a-flow)"/>
+  <text class="m s" x="648" y="849">Tekton starts the run</text>
+  <path class="flow" d="M1120 900 H882" marker-end="url(#a-flow)"/>
+  <text class="m s" x="888" y="879">apply the workloads of the tier with</text>
+  <text class="m s" x="888" y="893">the kubeconfig</text>
+  <path class="flow" d="M380 944 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="923">read the state of the run every 30</text>
+  <text class="m s" x="388" y="937">seconds, up to the timeout</text>
+  <path class="ctl" d="M640 974 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="967">Succeeded</text>
+  <path class="flow" d="M380 1048 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1027">delete ManagedCluster NAME and wait up</text>
+  <text class="m s" x="388" y="1041">to 300 seconds for it to be gone</text>
+  <path class="flow" d="M380 1092 H878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1071">vcluster delete NAME, or delete the</text>
+  <text class="m s" x="388" y="1085">namespace when that fails</text>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="1160" x2="1222" y2="1160"/>
+  <path class="flow" d="M40 1188 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1192">call</text>
+  <path class="ctl" d="M144 1188 H180" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="190" y="1192">result or event</text>
+  <rect class="src" x="314" y="1180" width="22" height="16" rx="4"/>
+  <text class="m s" x="344" y="1192">pipeline and hub operators</text>
+  <rect class="core" x="534" y="1180" width="22" height="16" rx="4"/>
+  <text class="m s" x="564" y="1192">hub cluster control</text>
+  <rect class="out" x="712" y="1180" width="22" height="16" rx="4"/>
+  <text class="m s" x="742" y="1192">spoke</text>
+</svg>

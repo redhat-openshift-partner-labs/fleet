@@ -1,0 +1,29 @@
+%% Purpose: runs post-provision against a temporary vCluster on the hub
+%% Parameters: cluster-name and namespace are required; tier defaults to base
+%% Order: every task runs after the task before it; a failed task stops the run
+%% Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay
+flowchart TB
+    subgraph Config["Configuration"]
+        load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its result pipeline-image is the image of the later tasks"]
+    end
+
+    subgraph Test["vCluster test"]
+        create_test_vcluster["create-test-vcluster<br/>runs vcluster create in the given namespace<br/>and writes the kubeconfig to the workspace"]
+        seed_test_vcluster["seed-test-vcluster<br/>creates namespace NAME, two kubeconfig Secrets<br/>and the ManagedCluster with the tier label"]
+        run_post_provision["run-post-provision<br/>creates a post-provision PipelineRun with<br/>openshift-cluster=false and waits for it"]
+    end
+
+    subgraph Cleanup["Cleanup"]
+        delete_test_vcluster["delete-test-vcluster<br/>deletes the ManagedCluster, then the vCluster<br/>with vcluster delete"]
+    end
+
+    load_config --> create_test_vcluster
+    create_test_vcluster --> seed_test_vcluster
+    seed_test_vcluster --> run_post_provision
+    run_post_provision --> delete_test_vcluster
+
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+
+    class load_config src
+    class create_test_vcluster,seed_test_vcluster,run_post_provision,delete_test_vcluster core
