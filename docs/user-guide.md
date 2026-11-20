@@ -11,7 +11,7 @@ Before operating the fleet control plane you need:
 - **Git access** — push access to this repository
 - **Hub-side secrets populated:**
   - quay.io pull secret for the pipeline image (see [image-pull-secret-setup.md](image-pull-secret-setup.md))
-  - Crossplane AWS provider credentials (pre-installed)
+  - Crossplane AWS provider credentials (Secret `aws-credentials` in `crossplane-system`; see "Credentials Setup" in [hub-config/README.md](../hub-config/README.md))
   - Keycloak admin credentials (Secret referenced by post-provision pipeline)
   - cert-manager ClusterIssuer configured for your DNS zone
 

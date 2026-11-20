@@ -86,7 +86,7 @@ We have effectively re-implemented a workflow engine on top of a reconciler, usi
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **ArgoCD** delivers *static* manifests to the hub (ACM install, Tekton pipelines, cert-manager config, baseline operators). It is no longer responsible for ordering the cluster lifecycle. **Crossplane** is a pre-installed prerequisite for per-cluster IAM user generation but is not managed by this repo.
+- **ArgoCD** delivers *static* manifests to the hub (ACM install, Tekton pipelines, cert-manager config, baseline operators). It is no longer responsible for ordering the cluster lifecycle. **Crossplane** generates the per-cluster IAM users; `hub-config/crossplane/` installs it.
 - **ArgoCD `ApplicationSet`** with the ACM cluster generator delivers *day-2 workloads* to spokes once Tekton has labeled them `bootstrapped=true`.
 - **Tekton** owns three workflows: **provision**, **post-provision** (SSL, OAuth/IDP, RBAC), and **deprovision**. Each is a single auditable `PipelineRun` per cluster operation.
 - **ACM / Hive** continues to provision clusters and manage fleet membership. No change to its role.
@@ -196,7 +196,7 @@ Spokes are third-party accessible. PII and proprietary material must stay on the
 - **Hub holds** the CA/signing authority, IDP client secrets, pull secrets of record, PII-laden config.
 - **Spoke holds** only derived artifacts: the leaf TLS cert and its private key, the OIDC config referencing a pre-issued client secret, tier-specific operators.
 - **No hub Secret data or PII** is ever committed to git or written to the spoke directly as-is.
-- **Crossplane** is pre-installed on the hub as a prerequisite (not managed by this repo). It handles per-cluster IAM user generation.
+- **Crossplane** is installed on the hub by `hub-config/crossplane/`. It handles per-cluster IAM user generation.
 
 This is why a Tekton task owns the derive-and-push step. ArgoCD cannot express "read hub Secret, extract subset, push to spoke" with a trust boundary in the middle — not without external controllers bolted on. A Tekton task executing with a hub ServiceAccount can.
 
@@ -606,7 +606,7 @@ The surgical change is: **stop asking ArgoCD to do workflow orchestration**. Let
 
 Recommended sequence (each step delivers value and is reversible if needed):
 
-1. **Install Tekton + cert-manager on hub** via a new ArgoCD `Application`. Crossplane is a pre-installed prerequisite (not managed by this repo). Hub-config delivery path is unchanged.
+1. **Install Tekton + cert-manager on hub** via a new ArgoCD `Application`. `hub-config/crossplane/` installs Crossplane. Hub-config delivery path is unchanged.
 2. **Build the provision pipeline** for the `base` tier only. Prove it on one test spoke end-to-end. Do not migrate real clusters yet.
 3. **Add the deprovision pipeline**. Migrate one test cluster through its full lifecycle (provision → deprovision) via Tekton. Validate that deprovision finishes cleanly without the CronJob.
 4. **Add tier branching** (`virt`, then `ai`) to the post-provision pipeline.
