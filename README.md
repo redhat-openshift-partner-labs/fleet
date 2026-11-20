@@ -70,7 +70,7 @@ Operators start with the user guide. Hub administrators start with the hub setup
 | [fleet-clusters setup](docs/fleet-clusters-setup.md) | Hub administrators | How to connect the fleet-clusters repository to the hub: the repository layout, the triggers, the webhook, the GitHub App, and the archive workflow |
 | [Image pull secret setup](docs/image-pull-secret-setup.md) | Hub administrators | How to create, verify and rotate the pull secret of the pipeline image |
 | [Developer guide](docs/developer-guide.md) | Contributors | Local setup, checks, adding a Tekton task, the pipeline image, documents and diagrams |
-| [Parameter threading](docs/parameter-threading.md) | Contributors | How a parameter passes from a trigger to a task |
+| [Parameter threading](docs/parameter-threading.md) | Contributors | Where the values of a pipeline run come from and how each one reaches the task that uses it |
 | [vCluster test infrastructure](docs/vcluster.md) | Contributors | Testing `post-provision` against a temporary vCluster |
 
 ## Development

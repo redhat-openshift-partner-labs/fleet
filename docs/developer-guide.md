@@ -441,6 +441,8 @@ document. The task of a pipeline is described once, in the task tables of
 | | The trigger table of `docs/fleet-clusters-setup.md` differs from the triggers of the EventListener |
 | `tests/validation/test_pipeline_values.py` | The key table of `docs/per-cluster-metadata.md` differs from the results of `read-cluster-metadata`, or a default differs from the fallback in the Task |
 | | A task named as reader of a key is in no pipeline |
+| | An expression in the trace table of `docs/parameter-threading.md` is not in the file its row names |
+| | A file named in "Add a per-cluster value" does not exist |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

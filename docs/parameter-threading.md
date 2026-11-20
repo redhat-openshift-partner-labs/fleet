@@ -1,275 +1,111 @@
-# Parameter Threading in Tekton Pipelines
+# Parameter Threading
 
-## What is parameter threading?
+This document describes where the values of a pipeline run come from and how each one reaches the task that uses it.
 
-Parameter threading is the practice of declaring a value at one level of the Tekton object hierarchy and explicitly passing it down through each successive level until it reaches the code that uses it. Tekton has no implicit inheritance — every parameter must be declared, mapped, and forwarded at each boundary. The "thread" is the chain of explicit `$(...)` references that carry a value from its origin to its destination.
+Tekton passes no value implicitly. Every object on the way declares the value and names the object it reads it from. [per-cluster-metadata.md](per-cluster-metadata.md) lists the keys of `metadata.yaml`, and [hub-setup.md](hub-setup.md#6-set-the-pipeline-configuration) lists the keys of the ConfigMap.
 
-In this project, a single value like `cluster-name` passes through five objects before it reaches the bash script that acts on it.
+## Sources
 
-## Layers and syntax
+| Source | Holds | Enters a run through |
+|---|---|---|
+| Push event of fleet-clusters | The SSH URL of the repository, the commit SHA, the files each commit adds | The EventListener, the TriggerBinding and the TriggerTemplate, as parameters of the `pre-provision` PipelineRun |
+| ConfigMap `fleet-pipeline-config` | Values that are the same for every cluster | `load-config`, the first task of every pipeline |
+| `metadata.yaml` of the cluster | Values of one cluster | `read-cluster-metadata`, in `pre-provision` and in `provision` |
+| Resources on the hub | The `tier` label of the ManagedCluster, the infra ID of the ClusterDeployment | The task that reads the resource, as a task result |
+| Pipeline definition | The default of a pipeline parameter | The `params` of the pipeline |
 
-Each layer in the Tekton trigger-to-task chain has its own substitution syntax:
+![Value flow](diagrams/value-flow.svg)
 
-| Layer | Object | Syntax | Example |
-|-------|--------|--------|---------|
-| Event extraction | EventListener | CEL expressions | `body.commits.map(c, ...)` |
-| Binding | TriggerBinding | `$(body.X)`, `$(extensions.X)` | `$(extensions.cluster_name)` |
-| Template | TriggerTemplate | `$(tt.params.X)` | `$(tt.params.cluster-name)` |
-| Pipeline | Pipeline → Task | `$(params.X)` | `$(params.cluster-name)` |
-| Task step | Task script | `$(params.X)` | `--cluster-name "$(params.cluster-name)"` |
+Diagram source: [diagrams/value-flow.mermaid](diagrams/value-flow.mermaid)
 
-Task results add a return path between tasks within a pipeline:
+## Syntax of each hop
 
-| Direction | Syntax | Example |
-|-----------|--------|---------|
-| Task writes result | `$(results.X.path)` | `tee "$(results.tier.path)"` |
-| Pipeline reads result | `$(tasks.TASKNAME.results.X)` | `$(tasks.read-cluster-tier.results.tier)` |
+| Hop | Object | Syntax | Example |
+|---|---|---|---|
+| Event to extension | EventListener, CEL overlay | A CEL expression on `body` | `body.commits.map(...)` |
+| Event to parameter | TriggerBinding | `$(body.NAME)`, `$(extensions.NAME)` | `$(extensions.cluster_name)` |
+| Parameter to PipelineRun | TriggerTemplate | `$(tt.params.NAME)` | `$(tt.params.cluster-name)` |
+| Pipeline to task | Pipeline | `$(params.NAME)` | `$(params.cluster-name)` |
+| Task to script | Task | `$(params.NAME)` | `--cluster-name "$(params.cluster-name)"` |
+| Script to pipeline | Task result | The script writes the file `$(results.NAME.path)` | `$(results.tier.path)` |
+| Task to later task | Pipeline | `$(tasks.TASK.results.NAME)` | `$(tasks.read-cluster-tier.results.tier)` |
+| Pipeline to pipeline | `trigger-provision`, `trigger-post-provision` | The CLI writes a PipelineRun and creates it with `oc create` | `generateName: provision-{cluster}-` |
 
-## High-level flow
+## Trace of cluster-name
 
-```mermaid
-flowchart LR
-    subgraph "Layer 1 — Event"
-        EL[EventListener<br/>CEL interceptor]
-    end
+The cluster name passes through ten hops from the push to a task of `post-provision`. A test compares each expression with the file.
 
-    subgraph "Layer 2 — Binding"
-        TB[TriggerBinding<br/><code>$&#40;body.X&#41;</code><br/><code>$&#40;extensions.X&#41;</code>]
-    end
+| Hop | File | Expression | Effect |
+|---|---|---|---|
+| 1 | `tekton/triggers/eventlistener.yaml` | `body.commits.map(c, c.added.filter(f, f.startsWith('provision/')))` | The CEL overlay takes the second path segment of the first added file and writes `extensions.cluster_name` |
+| 2 | `tekton/triggers/triggerbinding-pre-provision.yaml` | `value: $(extensions.cluster_name)` | The binding names the value `cluster-name` |
+| 3 | `tekton/triggers/triggertemplate-pre-provision.yaml` | `value: $(tt.params.cluster-name)` | The template writes it into the PipelineRun of `pre-provision` |
+| 4 | `tekton/pipelines/pre-provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
+| 5 | `tekton/tasks/trigger-provision.yaml` | `--cluster-name "$(params.cluster-name)"` | The last task passes it to its CLI |
+| 6 | `fleet/tasks/trigger_provision.py` | `generateName: provision-{cluster}-` | The CLI writes the PipelineRun of `provision` with the parameter `cluster-name` and creates it |
+| 7 | `tekton/pipelines/provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
+| 8 | `tekton/tasks/trigger-post-provision.yaml` | `--cluster-name "$(params.cluster-name)"` | The last task passes it to its CLI |
+| 9 | `fleet/tasks/trigger_post_provision.py` | `generateName: post-provision-{cluster}-` | The CLI writes the PipelineRun of `post-provision` with nine parameters and creates it |
+| 10 | `tekton/pipelines/post-provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
 
-    subgraph "Layer 3 — Template"
-        TT[TriggerTemplate<br/><code>$&#40;tt.params.X&#41;</code>]
-    end
+The nine parameters of hop 9 are `cluster-name`, `tier`, `dns-zones`, and the six metadata values `htpasswd-provider-name`, `openshift-ai-version`, `ai-accelerator`, `timezone`, `schedule` and `podvm-instance-type`. The CLI derives `dns-zones` from the `baseDomain` of the ClusterDeployment.
 
-    subgraph "Layer 4 — Pipeline"
-        P[Pipeline<br/><code>$&#40;params.X&#41;</code>]
-    end
+## load-config
 
-    subgraph "Layer 5 — Task"
-        T[Task step / script<br/><code>$&#40;params.X&#41;</code>]
-    end
+Every pipeline starts with `load-config`, which runs the Task `config-loader`. The pipeline passes its own parameters to the task, and the task writes one result per key. For each key it applies this rule:
 
-    Webhook -->|HTTP POST| EL
-    EL -->|extensions overlay| TB
-    TB -->|params| TT
-    TT -->|PipelineRun| P
-    P -->|task params| T
+| The pipeline parameter is | The result is |
+|---|---|
+| Empty, or equal to the built-in default of `config-loader` | The value of the ConfigMap |
+| Any other value | The pipeline parameter |
+
+Later tasks read `$(tasks.load-config.results.NAME)`.
+
+Two consequences:
+
+- `git-repo-url` has the built-in default of the fleet repository. `pre-provision` and `provision` set the parameter to fleet-clusters, so they clone fleet-clusters. `post-provision` keeps the default, so it clones the repository that the ConfigMap names.
+- A parameter that equals the built-in default cannot override the ConfigMap.
+
+The built-in default of a key is written twice in [tekton/tasks/config-loader.yaml](../tekton/tasks/config-loader.yaml): as the default of the task parameter and in the line that resolves the key.
+
+## Task results
+
+| Step | How | Example |
+|---|---|---|
+| A task writes a result | The script writes the value to `$(results.NAME.path)` | `read-cluster-tier` pipes the output of its CLI to the file |
+| A pipeline reads it | `$(tasks.TASK.results.NAME)` in a parameter of a later task | `tier` of `trigger-post-provision` |
+| A condition reads it | The same expression as the `input` of a `when` | `aws-credentials-mode` gates `scope-aws-credentials` |
+| The next pipeline gets it | The task that creates the next PipelineRun receives it as a parameter | The six metadata values in `provision` |
+
+A task that reads a result runs after the task that writes it, without a `runAfter` entry.
+
+Tekton keeps a result file as it is, and a `when` condition compares the whole value. `read-cluster-metadata` therefore writes each result without a trailing newline, through the function `result` of its script. `tests/validation/test_read_cluster_metadata_task.py` fails when a result gains one.
+
+## Add a per-cluster value
+
+A new key of `metadata.yaml` passes through the same objects as the existing keys. The default of the key is written in each of them; keep the values equal.
+
+1. `fleet/tasks/read_cluster_metadata.py`: validate the value, if only some values are valid. Add the cases to `tests/unit/test_read_cluster_metadata.py`.
+2. `tekton/tasks/read-cluster-metadata.yaml`: add the result, and one `result` line with the default.
+3. `tests/validation/test_read_cluster_metadata_task.py`: add the key to the expected results.
+4. `tekton/pipelines/provision.yaml`: pass the result to `trigger-post-provision`.
+5. `tekton/tasks/trigger-post-provision.yaml`: add the parameter and the argument of the CLI.
+6. `fleet/tasks/trigger_post_provision.py`: add the argument and the parameter of the PipelineRun. Add the case to `tests/unit/test_trigger_post_provision.py`.
+7. `tekton/pipelines/post-provision.yaml`: add the pipeline parameter and pass it to the task that uses it, or read it in a `when` condition.
+8. The task that uses the value: add the parameter to its Task and the argument to its CLI.
+9. `docs/per-cluster-metadata.md`: add the row of the key. A test compares the table with the Task.
+
+A value that `pre-provision` needs is read there directly from the result of `read-cluster-metadata`, as `aws-credentials-mode` is.
+
+The CLI of step 1 prints the file as JSON:
+
+```bash
+fleet-read-cluster-metadata --cluster-dir <workspace>/provision/<name>
 ```
 
-## Task result threading
+It prints `{}` for a missing or empty file. It exits with 1 when the directory does not exist, when the file is not a map, and for an invalid value.
 
-Within a pipeline, one task can produce a result that a downstream task consumes. The pipeline acts as the intermediary — it reads the result from the producing task and maps it into the consuming task's params.
+## Limits
 
-```mermaid
-flowchart TD
-    subgraph "provision pipeline"
-        direction TB
-        GC[git-clone]
-        RCM[read-cluster-metadata]
-        WMC[wait-for-managed-cluster]
-        RCT[read-cluster-tier]
-        ESK[extract-spoke-kubeconfig]
-        LPP[label-for-post-provision]
-        TPP[trigger-post-provision]
-
-        GC --> RCM
-        WMC --> RCT
-        WMC --> ESK
-        ESK --> LPP
-        RCT -->|"$(tasks.read-cluster-tier.results.tier)"| TPP
-        RCM -->|"$(tasks.read-cluster-metadata.results.htpasswd-provider-name)"| TPP
-        LPP --> TPP
-    end
-
-    subgraph "read-cluster-metadata task"
-        direction TB
-        RCM_script["fleet-read-cluster-metadata<br/>--cluster-dir .../provision/$(params.cluster-name)<br/>→ jq extracts per-key results"]
-    end
-
-    subgraph "read-cluster-tier task"
-        direction TB
-        RT_script["fleet-read-cluster-tier<br/>--cluster-name $(params.cluster-name)<br/>| tee $(results.tier.path)"]
-    end
-
-    subgraph "trigger-post-provision task"
-        direction TB
-        TPP_script["fleet-trigger-post-provision<br/>--tier $(params.tier)<br/>--htpasswd-provider-name $(params.htpasswd-provider-name)<br/>--cluster-name $(params.cluster-name)<br/>..."]
-    end
-
-    RCM -.-> RCM_script
-    RCT -.-> RT_script
-    TPP -.-> TPP_script
-```
-
-The `read-cluster-tier` task writes the tier label value to `$(results.tier.path)`. The pipeline references it as `$(tasks.read-cluster-tier.results.tier)` and passes it to `trigger-post-provision` as the `tier` param.
-
-The `read-cluster-metadata` task reads `metadata.yaml` from the cluster directory (cloned by git-clone) and extracts per-cluster values as individual results. These are threaded to `trigger-post-provision` alongside `tier`. See [per-cluster-metadata.md](per-cluster-metadata.md) for the full list of supported keys and how to add new ones.
-
-## Cross-pipeline threading
-
-The provision pipeline does not just thread parameters within itself — it also forwards values to the post-provision pipeline by firing a webhook. The `trigger-post-provision` task sends an HTTP request with parameters in the JSON body. The post-provision EventListener trigger picks these up through a new TriggerBinding that reads `$(body.X)`.
-
-```mermaid
-flowchart LR
-    subgraph "provision pipeline"
-        RCT2[read-cluster-tier<br/>result: tier]
-        TPP2[trigger-post-provision]
-        RCT2 -->|"$(tasks...results.tier)"| TPP2
-    end
-
-    TPP2 -->|"HTTP POST<br/>{cluster_name, tier, base_domain, ...}"| EL2
-
-    subgraph "post-provision trigger"
-        EL2[EventListener<br/>filter: action == post-provision]
-        TB2[TriggerBinding<br/><code>$&#40;body.tier&#41;</code>]
-        TT2[TriggerTemplate<br/><code>$&#40;tt.params.tier&#41;</code>]
-        EL2 --> TB2 --> TT2
-    end
-
-    TT2 -->|PipelineRun| PP[post-provision pipeline<br/><code>$&#40;params.tier&#41;</code>]
-```
-
-## Concrete example — tracing `cluster-name` end to end
-
-### 1. EventListener extracts the cluster name
-
-A git push webhook arrives. The CEL interceptor in `tekton/triggers/eventlistener.yaml` parses the commit's added files to find the cluster directory name:
-
-```yaml
-# eventlistener.yaml — CEL overlay
-- key: cluster_name
-  expression: >-
-    body.commits.map(c, c.added.filter(f, f.startsWith('clusters/')))
-    .flatten()
-    .map(f, f.split('/')[1])
-    .filter(n, n != '')
-    [0]
-```
-
-If a commit adds `clusters/eager-falcon/cluster.yaml`, the overlay sets `extensions.cluster_name` to `eager-falcon`.
-
-### 2. TriggerBinding maps it to a named param
-
-`tekton/triggers/triggerbinding-pre-provision.yaml`:
-
-```yaml
-spec:
-  params:
-    - name: cluster-name
-      value: $(extensions.cluster_name)
-```
-
-### 3. TriggerTemplate forwards it to the PipelineRun
-
-`tekton/triggers/triggertemplate-pre-provision.yaml`:
-
-```yaml
-spec:
-  params:
-    - name: cluster-name
-  resourcetemplates:
-    - apiVersion: tekton.dev/v1
-      kind: PipelineRun
-      spec:
-        params:
-          - name: cluster-name
-            value: $(tt.params.cluster-name)
-```
-
-### 4. Pipeline threads it to every task
-
-`tekton/pipelines/provision.yaml`:
-
-```yaml
-spec:
-  params:
-    - name: cluster-name
-      type: string
-  tasks:
-    - name: read-cluster-tier
-      params:
-        - name: cluster-name
-          value: $(params.cluster-name)
-```
-
-Every task in the pipeline receives `cluster-name` the same way — `$(params.cluster-name)`.
-
-### 5. Task uses it in the script
-
-`tekton/tasks/read-cluster-tier.yaml`:
-
-```yaml
-spec:
-  params:
-    - name: cluster-name
-      type: string
-  results:
-    - name: tier
-  steps:
-    - name: read-tier
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        fleet-read-cluster-tier --cluster-name "$(params.cluster-name)" \
-          | tee "$(results.tier.path)"
-```
-
-At this point `cluster-name` has been threaded through five objects: EventListener → TriggerBinding → TriggerTemplate → Pipeline → Task.
-
-### 6. Result feeds the next task
-
-Back in `tekton/pipelines/provision.yaml`, the `tier` result threads into `trigger-post-provision`:
-
-```yaml
-    - name: trigger-post-provision
-      params:
-        - name: tier
-          value: $(tasks.read-cluster-tier.results.tier)
-        - name: cluster-name
-          value: $(params.cluster-name)
-```
-
-Both pipeline-level params (`cluster-name`) and task results (`tier`) are threaded to this task, which forwards them to the post-provision pipeline via webhook.
-
-## Full parameter lifecycle
-
-```mermaid
-flowchart TD
-    GH["GitHub webhook<br/>(push to clusters/eager-falcon/)"]
-
-    subgraph "Trigger layer"
-        EL3["EventListener<br/>CEL: extensions.cluster_name = eager-falcon"]
-        TB3["TriggerBinding<br/>cluster-name = $(extensions.cluster_name)"]
-        TT3["TriggerTemplate<br/>$(tt.params.cluster-name)"]
-    end
-
-    subgraph "provision pipeline"
-        P3["Pipeline params:<br/>cluster-name = eager-falcon"]
-        T_AC["apply-cluster-crs<br/>$(params.cluster-name)"]
-        T_WH["wait-for-hive-ready<br/>$(params.cluster-name)"]
-        T_WM["wait-for-managed-cluster<br/>$(params.cluster-name)"]
-        T_RM["read-cluster-metadata<br/>$(params.cluster-name)<br/>→ result: htpasswd-provider-name"]
-        T_RC["read-cluster-tier<br/>$(params.cluster-name)<br/>→ result: tier"]
-        T_ES["extract-spoke-kubeconfig<br/>$(params.cluster-name)"]
-        T_LP["label-for-post-provision<br/>$(params.cluster-name)"]
-        T_TP["trigger-post-provision<br/>$(params.cluster-name)<br/>$(tasks.read-cluster-tier.results.tier)<br/>$(tasks.read-cluster-metadata.results.htpasswd-provider-name)"]
-    end
-
-    subgraph "post-provision trigger"
-        EL4["EventListener"]
-        TB4["TriggerBinding<br/>$(body.cluster_name), $(body.tier)"]
-        TT4["TriggerTemplate"]
-    end
-
-    PP4["post-provision pipeline<br/>cluster-name passed to the tasks<br/>tier selects tasks in when conditions"]
-
-    GH --> EL3 --> TB3 --> TT3 --> P3
-    P3 --> T_AC --> T_WH --> T_WM
-    P3 --> T_RM
-    T_WM --> T_RC
-    T_WM --> T_ES --> T_LP
-    T_RC --> T_TP
-    T_RM --> T_TP
-    T_LP --> T_TP
-    T_TP -->|"HTTP POST"| EL4 --> TB4 --> TT4 --> PP4
-```
+- A `post-provision` run that the EventListener starts gets `cluster_name`, `tier` and `dns_zones` from the request body. It receives no metadata value and runs with the defaults of the pipeline parameters.
+- `pre-provision` clones fleet-clusters at the pushed commit. `provision` receives only `cluster-name`, so it clones the branch `main`.
