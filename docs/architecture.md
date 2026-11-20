@@ -121,7 +121,7 @@ flowchart TB
         subgraph Tekton["Tekton (workflow engine)"]
             EL["EventListener<br/>(git webhook)"]
             ProvisionPipeline["Provision Pipeline"]
-            PostProvisionPipeline["Post-Provision Pipeline<br/>(tier: virt / ai / base)"]
+            PostProvisionPipeline["Post-Provision Pipeline<br/>(tier: base / virt / ai / coco)"]
             DeprovisionPipeline["Deprovision Pipeline"]
         end
 
@@ -129,7 +129,7 @@ flowchart TB
             CertMgr["cert-manager<br/>(ClusterIssuer: internal-ca)"]
         end
 
-        subgraph Crossplane["Crossplane (pre-installed)"]
+        subgraph Crossplane["Crossplane"]
             IAMGen["AWS IAM user generation<br/>(per-cluster credentials)"]
         end
     end
@@ -137,7 +137,7 @@ flowchart TB
     subgraph Spoke["SPOKE (third-party accessible)"]
         direction TB
         SpokeLeaf["Leaf cert + key only<br/>(no CA material)"]
-        SpokeBaseline["Baseline operators<br/>(by tier: CNV | GPU+OAI | base)"]
+        SpokeBaseline["Baseline operators<br/>(by tier: CNV | GPU+OAI | sandboxed containers | base)"]
         SpokeIDP["IDP config<br/>(no hub client secret)"]
         SpokeWorkloads["Day-2 workloads<br/>(via ArgoCD ApplicationSet)"]
     end
