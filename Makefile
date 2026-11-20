@@ -1,4 +1,4 @@
-.PHONY: lint lint-yaml lint-tekton validate hub-install hub-uninstall hub-channels hub-status hub-check
+.PHONY: lint lint-yaml lint-tekton validate hub-install hub-uninstall hub-status hub-check
 
 # Existing linting targets
 lint:
@@ -21,20 +21,6 @@ hub-install: ## Install all hub cluster operators with automated sequencing
 hub-uninstall: ## Gracefully remove all hub cluster operators and resources
 	@echo "🗑️ Starting hub cluster operator uninstallation..."
 	@cd hub-config && KUBECONFIG="$$KUBECONFIG" ./uninstall-hub-config.sh
-
-hub-channels: ## Generate and update dynamic operator channels
-	@echo "📡 Updating operator channels..."
-	@if ! command -v oc >/dev/null 2>&1; then \
-		echo "❌ Error: oc command not found. Please install OpenShift CLI."; \
-		exit 1; \
-	fi
-	@if [ -z "$$KUBECONFIG" ] && ! oc cluster-info >/dev/null 2>&1; then \
-		echo "❌ Error: Not connected to OpenShift cluster."; \
-		echo "   Set KUBECONFIG environment variable or run 'oc login' first."; \
-		echo "   Example: export KUBECONFIG=/Users/yoza/Projects/fleet/yash-hub-cluster-kubeconfig.yaml"; \
-		exit 1; \
-	fi
-	@cd hub-config && KUBECONFIG="$$KUBECONFIG" ./generate-channels.sh
 
 hub-status: ## Check status of hub cluster operators
 	@echo "📊 Hub Cluster Operator Status"
@@ -93,12 +79,6 @@ hub-check: ## Check hub-config prerequisites and cluster connection
 	else \
 		echo "  ❌ Not connected to OpenShift cluster"; \
 		echo "     Run 'oc login <cluster-url>' first"; \
-		exit 1; \
-	fi
-	@if [ -f "hub-config/generate-channels.sh" ] && [ -x "hub-config/generate-channels.sh" ]; then \
-		echo "  ✅ generate-channels.sh is executable"; \
-	else \
-		echo "  ❌ hub-config/generate-channels.sh not found or not executable"; \
 		exit 1; \
 	fi
 	@if [ -f "hub-config/install-hub-config.sh" ] && [ -x "hub-config/install-hub-config.sh" ]; then \
