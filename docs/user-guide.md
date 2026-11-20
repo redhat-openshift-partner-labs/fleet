@@ -188,11 +188,31 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 2. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
 3. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure. A failed hub API lookup stops deprovision and preserves the installer credentials for a retry.
 4. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
-5. **verify-deprovision** — confirms all resources have been cleaned up
+5. **verify-deprovision** — confirms the cluster's hub resources and Crossplane objects are gone
+6. **create-deployment-status** — publishes deprovision success and any pending IAM follow-up to the archive workflow
 
 If Crossplane cannot finish IAM deletion within ten minutes, the usual run stops and keeps the cluster namespace. To release the finalizers and retain a report for follow-up, rerun with `orphan-stuck-iam=true` using the `fleet-pipeline` service account in `openshift-pipelines`. The cleanup task prints the report and names its ConfigMap in that namespace.
 
 The optional `fleet-iam-read-only` Secret in `openshift-pipelines` can supply `FLEET_IAM_AWS_ACCOUNT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` for temporary credentials. Use the AWS account that owns the cluster's IAM resources and grant the reader only `iam:GetUser`, `iam:GetRole`, and `iam:GetPolicy` on eligible resources. If the reader is unavailable or a resource type cannot be checked, the report marks the item `needs_check`.
+
+The archive workflow writes pending items to `archive/<cluster-name>/iam.cleanup.json` in `fleet-clusters`. A `confirmed_present` entry records an AWS observation at the reported time. Recheck current AWS state before manual cleanup. Clean deprovision runs produce no cleanup file.
+
+### Retry report delivery
+
+If `verify-deprovision` succeeded and `create-deployment-status` failed, rerun only the `create-deployment-status` Task in `openshift-pipelines` with the original parameters and the `fleet-pipeline` service account. The task reads the retained reports by cluster name. If GitHub accepted the deployment and the archive job failed, rerun the archive job. Keep the ConfigMaps until the archive commit contains the report.
+
+```bash
+CLUSTER_NAME=my-cluster
+oc -n openshift-pipelines get configmaps \
+  -l "openshiftpartnerlabs.com/iam-cleanup-cluster=${CLUSTER_NAME}"
+```
+
+If GitHub rejects a report because of payload size, export the full report from an environment with the Fleet package and hub access. Follow the manual archive procedure in the `fleet-clusters` README with that file.
+
+```bash
+python3 -c 'import json, sys; from fleet.tasks._iam_cleanup import load_report; print(json.dumps(load_report(sys.argv[1]), indent=2))' \
+  "$CLUSTER_NAME" > iam.cleanup.json
+```
 
 ## Troubleshooting
 

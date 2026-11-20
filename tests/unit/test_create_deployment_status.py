@@ -237,3 +237,79 @@ def test_missing_required_args():
     with mock.patch("sys.argv", ["prog"]):
         with pytest.raises(SystemExit, match="2"):
             main()
+
+
+@pytest.mark.parametrize("deployment_accepted", [True, False])
+@mock.patch("fleet.tasks.create_deployment_status._sign_jwt")
+@mock.patch("fleet.tasks.create_deployment_status.requests")
+@mock.patch("fleet.tasks.create_deployment_status.subprocess.run")
+def test_publish_pending_report_from_previous_run(
+    mock_run, mock_requests, mock_sign, deployment_accepted, capsys
+):
+    report = {
+        "schema_version": 1,
+        "cluster_name": "test-cluster",
+        "items": [
+            {
+                "resource": "role.iam/test-cluster-role",
+                "uid": "123",
+                "state": "needs_check",
+                "observed_at": "2026-01-01T00:00:00+00:00",
+                "pipeline_run_id": "previous-run",
+            }
+        ],
+    }
+    configmaps = {"items": [{"data": {"iam.cleanup.json": json.dumps(report)}}]}
+    mock_run.side_effect = [
+        subprocess.CompletedProcess([], 0, json.dumps(configmaps), ""),
+        _mock_oc_secret_success(),
+    ]
+    mock_sign.return_value = "fake.jwt.token"
+    mock_requests.post.side_effect = [
+        _mock_token_resp(),
+        _mock_deployment_resp() if deployment_accepted else _mock_fail_resp(422),
+        _mock_status_resp(),
+    ]
+    with mock.patch("sys.argv", [*BASE_ARGV, "--include-iam-cleanup-report"]):
+        if deployment_accepted:
+            main()
+        else:
+            with pytest.raises(SystemExit, match="1"):
+                main()
+    payload = mock_requests.post.call_args_list[1].kwargs["json"]["payload"]
+    assert payload["iam_cleanup_pending"] is True
+    assert payload["iam_cleanup_report"] == report
+    assert mock_requests.post.call_count == (3 if deployment_accepted else 2)
+    assert not [call for call in mock_run.call_args_list if "delete" in call.args[0]]
+
+
+@mock.patch(
+    "fleet.tasks.create_deployment_status._sign_jwt", return_value="fake.jwt.token"
+)
+@mock.patch("fleet.tasks.create_deployment_status.requests")
+@mock.patch("fleet.tasks.create_deployment_status.subprocess.run")
+def test_no_report_publishes_success(mock_run, mock_requests, mock_sign):
+    mock_run.side_effect = [
+        subprocess.CompletedProcess([], 0, '{"items":[]}', ""),
+        _mock_oc_secret_success(),
+    ]
+    mock_requests.post.side_effect = [
+        _mock_token_resp(),
+        _mock_deployment_resp(),
+        _mock_status_resp(),
+    ]
+    with mock.patch("sys.argv", [*BASE_ARGV, "--include-iam-cleanup-report"]):
+        main()
+    payload = mock_requests.post.call_args_list[1].kwargs["json"]["payload"]
+    assert payload["iam_cleanup_pending"] is False
+    assert "iam_cleanup_report" not in payload
+
+
+@mock.patch("fleet.tasks.create_deployment_status.requests")
+@mock.patch("fleet.tasks.create_deployment_status.subprocess.run")
+def test_report_lookup_failure_prevents_success(mock_run, mock_requests):
+    mock_run.return_value = _mock_oc_secret_fail()
+    with mock.patch("sys.argv", [*BASE_ARGV, "--include-iam-cleanup-report"]):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    mock_requests.post.assert_not_called()
