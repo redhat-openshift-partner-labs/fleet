@@ -1,8 +1,10 @@
 # Developer Guide
 
+This guide describes how to change the repository: setup, checks, a new Tekton task, the pipeline image, the documents and the diagrams.
+
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.11 or later. `mise.toml` selects 3.13; CI and the pipeline image use 3.11.
 - [Poetry](https://python-poetry.org/) for dependency management
 - [tox](https://tox.wiki/) for running checks
 - `oc` / `kubectl` and `kustomize` on `$PATH`
@@ -25,26 +27,46 @@ then commit.
 
 ## Running Checks
 
-`tox` is the single entry point — run it before every commit:
+`tox` is the entry point of every check. Run it before every commit:
 
 ```bash
-tox          # all environments
-tox -e test  # unit tests only (100% coverage enforced)
+tox
 ```
 
-| Environment | What it checks |
-|---|---|
-| `test` | `pytest` — unit tests with 100% line coverage on `fleet/` |
-| `yamllint` | All YAML files (180-char line limit) |
-| `tekton-lint` | Tekton Task/Pipeline/Trigger YAML via `npx tekton-lint` |
-| `validate-kustomize` | `kustomize build` on all overlay directories |
-| `black` | Python formatting |
-| `mypy` | Python type checking |
-| `pylint` | Python linting (10.00/10 required) |
-| `bandit` | Python security scanning |
+Run one environment:
 
-`tekton-lint` and `validate-kustomize` are not in the default `envlist` — run
-them explicitly with `tox -e tekton-lint` or `tox -e validate-kustomize`.
+```bash
+tox -e test
+```
+
+### Environments
+
+| Environment | Checks | In the default run |
+|---|---|---|
+| `test` | `pytest`: the unit tests in `tests/unit/` and the validation tests in `tests/validation/`, with 100% line coverage of `fleet/` | Yes |
+| `yamllint` | All YAML files; lines up to 180 characters | Yes |
+| `black` | Python formatting of `fleet/` and `tests/` | Yes |
+| `mypy` | Python types of `fleet/` | Yes |
+| `pylint` | Python lint of `fleet/`; any message fails the environment | Yes |
+| `bandit` | Python security scan of `fleet/` | Yes |
+| `tekton-lint` | Task, Pipeline and Trigger YAML with `npx tekton-lint` | No; run `tox -e tekton-lint` |
+| `validate-kustomize` | `kustomize build` of every overlay under `workloads/` | No; run `tox -e validate-kustomize` |
+
+The `Makefile` targets `lint`, `lint-yaml`, `lint-tekton` and `validate` call `tox`.
+
+### CI
+
+`.github/workflows/ci.yml` runs on a push to a branch other than `main` and on a
+pull request to `main`.
+
+| Job | Runs |
+|---|---|
+| Secret Detection | `gitleaks detect --source . --verbose` |
+| Core Checks | `poetry run tox` |
+| Extended Validation | `poetry run tox -e tekton-lint` |
+
+No job runs `tox -e validate-kustomize`. Run it locally after a change under
+`workloads/`.
 
 ## Adding a New Tekton Task
 
@@ -127,8 +149,12 @@ Key conventions:
 
 - Module docstring (required by pylint).
 - `configure("task-name")` once at the top of `main()`.
-- `info()` / `error()` for all output — never bare `print()`.
-- `subprocess.run()` with `capture_output=True, text=True`.
+- `info()`, `warn()` and `error()` for log lines. All three write to stderr.
+- `print()` only for a value that the Task reads from stdout into a Tekton
+  result, as `read-cluster-tier` does.
+- `subprocess.run()` with `capture_output=True, text=True`. For a command that
+  can fail transiently, `run_with_retry()` of `fleet/_retry.py`: three
+  attempts, five seconds apart.
 - `sys.exit(1)` on fatal errors; `return` (exit 0) on success.
 - Use `encoding="utf-8"` when calling `open()`.
 
@@ -160,12 +186,14 @@ spec:
   steps:
     - name: <step>
       image: $(params.pipeline-image)
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
         fleet-<name> --cluster-name "$(params.cluster-name)"
 ```
+
+Most task steps use `imagePullPolicy: IfNotPresent`. Some use `Always`.
 
 For optional params, use the `EXTRA_ARGS` bash array pattern:
 
@@ -193,6 +221,9 @@ tox                    # all checks pass
 tox -e tekton-lint     # Tekton YAML valid
 ```
 
+`tests/validation/test_task_params.py` also fails when the Task declares a
+parameter that none of its fields reads.
+
 ## vCluster Test
 
 The pipeline `test-vcluster` runs `post-provision` against a temporary
@@ -204,10 +235,12 @@ the four CLI tools.
 
 The pipeline image is a multi-stage build (`Dockerfile`):
 
-- **Build stage** — UBI9 + Python 3.11, installs `fleet` package via Poetry
-- **Runtime stage** — UBI9-minimal with `oc`, `kubectl`, `kustomize`,
-  `vcluster`, `privatebin`, `qemu-img`, `ca-certificates`, and all `fleet-*`
-  entry points
+- Build stage: UBI 9 with Python 3.11. It installs the `fleet` package with
+  `pip` and downloads `oc`, `kubectl`, `kustomize`, `vcluster` and
+  `privatebin`.
+- Runtime stage: UBI 9 minimal with those five tools, `qemu-img`, the packages
+  `openssh-clients`, `openssl-libs`, `ca-certificates`, `jq`, `httpd-tools`
+  and `tzdata`, and every `fleet-*` entry point.
 
 All Tekton tasks share this single image, referenced via the `pipeline-image`
 param.
@@ -217,6 +250,11 @@ To rebuild locally:
 ```bash
 podman build -t fleet-pipeline:dev .
 ```
+
+A tag that starts with `v` runs `.github/workflows/build-image.yml`. The
+workflow builds the image for `linux/amd64` and `linux/arm64`, pushes it to
+`quay.io/rhopl/fleet-pipeline` with the version and `latest` as tags, and
+creates the GitHub release.
 
 ### Maintenance: CentOS signing key
 
@@ -287,7 +325,7 @@ Update the pin:
 6. Update the table in this section. `.gitleaks.toml` allowlists the line
    pattern `CENTOS_KEY_SHA256=<64 hex digits>` and needs no change.
 
-7. Commit the change with the type `build(image)` and push a `v*` tag after the
+7. Commit the change with the type `chore(image)` and push a `v*` tag after the
    merge; `build-image.yml` publishes the image.
 
 ### Maintenance: CentOS Stream 9 end of life
@@ -381,7 +419,7 @@ Switch the image to RHEL:
    `.gitleaks.toml`, and the CentOS statements in `CLAUDE.md` and
    [coco-tier.md](coco-tier.md).
 
-7. Commit the change with the type `build(image)` and push a `v*` tag after the
+7. Commit the change with the type `chore(image)` and push a `v*` tag after the
    merge.
 
 Checked on 2026-11-13 on a host without a subscription:
@@ -448,6 +486,9 @@ document. The task of a pipeline is described once, in the task tables of
 | | An argument table differs from the arguments of its CLI tool |
 | `tests/validation/test_ai_tier_doc.py` | The operator table of `docs/ai-tier.md` differs from what `apply-ai-workloads` requires for a version and an accelerator, or from the Subscriptions under `workloads/ai/` |
 | | A failure message of the document is not in the module of its task |
+| `tests/validation/test_developer_guide.py` | The environment table of this guide differs from the environments of `tox.ini` |
+| | The CI table differs from the jobs of `.github/workflows/ci.yml`, or lacks one of their `tox` commands |
+| | A package of the runtime stage of the `Dockerfile` is not named in "Container Image" |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test
