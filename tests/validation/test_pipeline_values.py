@@ -4,27 +4,10 @@ import re
 
 import yaml
 
-from tests.validation._markdown import ROOT
+from tests.validation._markdown import ROOT, table_rows
 
 METADATA_DOC = ROOT / "docs" / "per-cluster-metadata.md"
 METADATA_TASK = ROOT / "tekton" / "tasks" / "read-cluster-metadata.yaml"
-
-
-def table_rows(path, heading: str) -> dict[str, list[str]]:
-    """Rows of the tables in one section of a document, keyed by their first cell.
-
-    The key is the first cell without backticks. A section runs from its
-    heading to the next heading of the same level.
-    """
-    text = path.read_text(encoding="utf-8")
-    level = heading.split(" ", 1)[0]
-    section = text.split(f"\n{heading}\n", 1)[1].split(f"\n{level} ", 1)[0]
-    rows = {}
-    for line in section.splitlines():
-        if line.startswith("|") and not line.startswith("|---"):
-            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-            rows[cells[0].strip("`")] = cells
-    return rows
 
 
 def pipeline_task_names() -> set[str]:

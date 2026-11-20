@@ -71,7 +71,7 @@ Operators start with the user guide. Hub administrators start with the hub setup
 | [Image pull secret setup](docs/image-pull-secret-setup.md) | Hub administrators | How to create, verify and rotate the pull secret of the pipeline image |
 | [Developer guide](docs/developer-guide.md) | Contributors | Local setup, checks, adding a Tekton task, the pipeline image, documents and diagrams |
 | [Parameter threading](docs/parameter-threading.md) | Contributors | Where the values of a pipeline run come from and how each one reaches the task that uses it |
-| [vCluster test infrastructure](docs/vcluster.md) | Contributors | Testing `post-provision` against a temporary vCluster |
+| [vCluster test](docs/vcluster.md) | Contributors | How the `test-vcluster` pipeline tests `post-provision` against a temporary vCluster on the hub, and what the test covers |
 
 ## Development
 

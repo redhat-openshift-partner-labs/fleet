@@ -28,3 +28,21 @@ def links(path: Path) -> list[str]:
     """Targets of the links and images of a markdown file, without external URLs."""
     text = path.read_text(encoding="utf-8")
     return [t for t in LINK_TARGET.findall(text) if not t.startswith(EXTERNAL_PREFIXES)]
+
+
+def table_rows(path: Path, heading: str) -> dict[str, list[str]]:
+    """Rows of the tables in one section of a document, keyed by their first cell.
+
+    The key is the first cell without backticks. A section runs from its
+    heading to the next heading of the same or a higher level.
+    """
+    text = path.read_text(encoding="utf-8")
+    depth = len(heading.split(" ", 1)[0])
+    rest = text.split(f"\n{heading}\n", 1)[1]
+    section = re.split(rf"\n#{{1,{depth}}} ", rest, maxsplit=1)[0]
+    rows = {}
+    for line in section.splitlines():
+        if line.startswith("|") and not line.startswith("|---"):
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            rows[cells[0].strip("`")] = cells
+    return rows

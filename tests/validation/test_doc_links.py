@@ -16,6 +16,7 @@ DOCUMENTS = [
     "docs/image-pull-secret-setup.md",
     "docs/per-cluster-metadata.md",
     "docs/parameter-threading.md",
+    "docs/vcluster.md",
 ]
 
 
