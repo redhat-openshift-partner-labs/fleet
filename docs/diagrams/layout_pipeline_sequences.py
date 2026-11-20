@@ -27,6 +27,10 @@ ROLES = {  # card role per participant; the pipeline itself is "src"
     "Crossplane": "src",
     "AWS": "gate",
     "GitHub": "gate",
+    "Keycloak": "gate",
+    "PrivateBin": "gate",
+    "Git": "store",
+    "Spoke API": "out",
 }
 LEGEND = {  # legend text per card role, in legend order
     "gate": "external endpoint",
@@ -38,6 +42,12 @@ LEGEND = {  # legend text per card role, in legend order
 
 # xs: x of each lifeline, in the order of the participants in the source.
 SEQUENCES = {
+    "pre-provision": {
+        "title": "pre-provision pipeline: sequence",
+        "subtitle": "The calls each of the fourteen tasks makes, in an order the "
+        "pipeline allows.",
+        "xs": (380, 640, 810, 980, 1150),
+    },
     "deprovision": {
         "title": "deprovision pipeline: sequence",
         "subtitle": "The calls each of the seven tasks makes, in the order the tasks run.",
@@ -47,31 +57,45 @@ SEQUENCES = {
 
 NOTE = re.compile(r"%% ([^:]+): (.+)")
 PARTICIPANT = re.compile(r"\s*participant (\w+)(?: as (.+))?")
+OPT = re.compile(r"\s*opt (.+)")
 TASK = re.compile(r"\s*Note over \w+,\w+: (.+)")
 MESSAGE = re.compile(r"\s*(\w+)(-->>|->>)(\w+): (.+)")
 
 
 def parse(path: Path) -> dict:
-    """Read notes, participants and the messages of every task from a sequence source."""
+    """Read notes, participants and the messages of every task from a sequence source.
+
+    A task is (name, condition, messages). The condition joins the texts of
+    the opt blocks that enclose the task's rect.
+    """
     src: dict = {"notes": [], "names": {}, "tasks": []}
+    blocks: list[str] = []  # open blocks: an opt's text, or "" for a rect
     for line in path.read_text(encoding="utf-8").splitlines():
         if match := NOTE.fullmatch(line):
             src["notes"].append(match.groups())
         elif match := PARTICIPANT.fullmatch(line):
             src["names"][match[1]] = match[2] or match[1]
+        elif match := OPT.fullmatch(line):
+            blocks.append(match[1])
+        elif line.strip().startswith("rect "):
+            blocks.append("")
+        elif line.strip() == "end":
+            blocks.pop()
         elif match := TASK.fullmatch(line):
-            src["tasks"].append((match[1], []))
+            condition = " and ".join(text for text in blocks if text)
+            src["tasks"].append((match[1], condition, []))
         elif match := MESSAGE.fullmatch(line):
             sender, arrow, receiver, label = match.groups()
             cls = "flow" if arrow == "->>" else "ctl"
             text = label.replace("<br/>", " ")
-            src["tasks"][-1][1].append((sender, receiver, cls, text))
+            src["tasks"][-1][2].append((sender, receiver, cls, text))
     return src
 
 
 def wrap(name: str, label: str, room: int) -> list[str]:
     """Wrap a message label to the space before the next lifeline; at most 3 lines."""
-    lines = textwrap.wrap(label, max(int(room / CHAR_S), 1))
+    # Resource names keep their hyphens on one line.
+    lines = textwrap.wrap(label, max(int(room / CHAR_S), 1), break_on_hyphens=False)
     if len(lines) > 3 or any(len(line) * CHAR_S > room for line in lines):
         sys.exit(f"{name}-sequence.mermaid: shorten the label '{label}'")
     return lines
@@ -83,9 +107,10 @@ def describe(name: str, src: dict) -> str:
     parts = [
         f"Sequence of the {name} pipeline between {', '.join(names.values())}.",
     ]
-    for task, messages in src["tasks"]:
+    for task, condition, messages in src["tasks"]:
         calls = [f"{names[a]} to {names[b]}: {text}" for a, b, _, text in messages]
-        parts.append(f"{task}: {'; '.join(calls)}.")
+        when = f" (runs when {condition})" if condition else ""
+        parts.append(f"{task}{when}: {'; '.join(calls)}.")
     parts.append("Constraints: " + " ".join(f"{k}: {v}." for k, v in src["notes"]))
     return " ".join(parts)
 
@@ -101,7 +126,7 @@ def render(name: str, spec: dict, head: str) -> str:
     # Lay out every task group: a frame, and one row per message.
     groups = []
     y = head_y + HEAD_H + 20
-    for task, messages in src["tasks"]:
+    for task, condition, messages in src["tasks"]:
         top = y
         rows = []
         for sender, receiver, cls, text in messages:
@@ -112,8 +137,9 @@ def render(name: str, spec: dict, head: str) -> str:
             y += (30 if rows else 32) + 14 * (len(lines) - 1)
             end = x2 - 2 if x2 > x1 else x2 + 2
             rows.append((cls, f"M{x1} {y} H{end}", left + 8, y - 7, lines))
-        y += 18
-        groups.append((task, top, y - top, rows))
+        # A condition is a second line below the task name.
+        y = max(y + 18, top + (64 if condition else 0))
+        groups.append((task, condition, top, y - top, rows))
         y += 10
     bottom = y
     height = bottom + 106
@@ -127,7 +153,7 @@ def render(name: str, spec: dict, head: str) -> str:
     )
 
     d.section("Frames: one per task")
-    for _, top, tall, _ in groups:
+    for _, _, top, tall, _ in groups:
         d.raw(
             f'  <rect class="frame" x="24" y="{top}" width="1214" height="{tall}" rx="14"/>'
         )
@@ -155,17 +181,19 @@ def render(name: str, spec: dict, head: str) -> str:
 
     # Tasks are numbered in the order they appear in the source.
     d.section("Tasks")
-    for number, (task, top, _, _) in enumerate(groups, 1):
+    for number, (task, condition, top, _, _) in enumerate(groups, 1):
         d.raw(
             f'  <circle class="badge-src" cx="58" cy="{top + 22}" r="10"/>'
             f'<text class="badge-t" x="58" y="{top + 26}" text-anchor="middle">'
             f"{number}</text>"
         )
         d.text("c b", 76, top + 26, task)
+        if condition:
+            d.text("m s", 76, top + 46, f"when {condition}")
 
     # Every arrow ends 2 px before its lifeline so the tip touches the line.
     d.section("Messages")
-    for _, _, _, rows in groups:
+    for _, _, _, _, rows in groups:
         for cls, path, lx, ly, lines in rows:
             d.edge(cls, path)
             for i, line in enumerate(lines):

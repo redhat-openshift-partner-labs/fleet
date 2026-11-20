@@ -15,7 +15,7 @@ PIPELINES = ROOT / "tekton" / "pipelines"
 # Pipelines that have a task flowchart: <pipeline>-flow.mermaid and .svg
 FLOWS = ["pre-provision", "provision", "post-provision", "deprovision"]
 # Pipelines that have a sequence diagram: <pipeline>-sequence.mermaid and .svg
-SEQUENCES = ["deprovision"]
+SEQUENCES = ["pre-provision", "deprovision"]
 
 SHARED_HEAD = re.compile(r"  <style>[\s\S]*?</defs>")
 SUBGRAPH = re.compile(r'\s*subgraph \w+\["(.+)"\]')
@@ -88,6 +88,16 @@ def node_id(task_name: str) -> str:
     return task_name.replace("-", "_")
 
 
+def when_tokens(task: dict) -> list[str]:
+    """Words a diagram must state for the when conditions of a pipeline task."""
+    tokens = []
+    for when in task.get("when", []):
+        param = re.search(r"([\w-]+)\)$", when["input"])[1]
+        # A true/false parameter is stated by its name, any other by its values.
+        tokens += [param if value == "true" else value for value in when["values"]]
+    return tokens
+
+
 @pytest.mark.parametrize("name", FLOWS)
 def test_flow_source_holds_the_tasks_and_order_of_the_pipeline(name):
     flow = parse_flow(name)
@@ -112,14 +122,10 @@ def test_flow_source_states_every_when_condition(name):
         node = node_id(task["name"])
         labels = " ".join(label for _, dst, label in flow["edges"] if dst == node)
         stated = f"{labels} {flow['titles'][node]}"
-        for when in task.get("when", []):
-            param = re.search(r"([\w-]+)\)$", when["input"])[1]
-            for value in when["values"]:
-                # A true/false parameter is stated by its name.
-                token = param if value == "true" else value
-                assert re.search(
-                    rf"(?<![\w-]){re.escape(token)}(?![\w-])", stated
-                ), f"{task['name']}: no incoming edge label or frame title states {token}"
+        for token in when_tokens(task):
+            assert re.search(
+                rf"(?<![\w-]){re.escape(token)}(?![\w-])", stated
+            ), f"{task['name']}: no incoming edge label or frame title states {token}"
 
 
 @pytest.mark.parametrize("name", FLOWS)
@@ -143,15 +149,24 @@ def test_flow_svgs_match_layout_script():
 def parse_sequence(name: str) -> dict:
     """Return the counts and the task names of <name>-sequence.mermaid."""
     seq: dict = {"notes": 0, "participants": 0, "tasks": [], "calls": 0, "results": 0}
+    seq["conditions"] = {}
+    blocks: list[str] = []  # open blocks: an opt's text, or "" for a rect
     path = DIAGRAMS / f"{name}-sequence.mermaid"
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("%% "):
             seq["notes"] += 1
         elif re.fullmatch(r"\s*participant \w+( as .+)?", line):
             seq["participants"] += 1
+        elif match := re.fullmatch(r"\s*opt (.+)", line):
+            blocks.append(match[1])
+        elif line.strip().startswith("rect "):
+            blocks.append("")
+        elif line.strip() == "end":
+            blocks.pop()
         elif match := re.fullmatch(r"\s*Note over \w+,\w+: (.+)", line):
             # The note of a rect names the task whose messages follow.
             seq["tasks"].append(match[1])
+            seq["conditions"][match[1]] = " ".join(blocks)
         elif match := re.fullmatch(r"\s*\w+(-->>|->>)\w+: .+", line):
             seq["calls" if match[1] == "->>" else "results"] += 1
     return seq
@@ -168,6 +183,16 @@ def test_sequence_source_holds_the_tasks_of_the_pipeline_in_run_order(name):
             assert shown.index(before) < shown.index(
                 task["name"]
             ), f"{task['name']} is shown before {before}"
+
+
+@pytest.mark.parametrize("name", SEQUENCES)
+def test_sequence_source_states_every_when_condition(name):
+    conditions = parse_sequence(name)["conditions"]
+    for task in pipeline_tasks(name):
+        for token in when_tokens(task):
+            assert re.search(
+                rf"(?<![\w-]){re.escape(token)}(?![\w-])", conditions[task["name"]]
+            ), f"{task['name']}: no enclosing opt block states {token}"
 
 
 @pytest.mark.parametrize("name", SEQUENCES)
