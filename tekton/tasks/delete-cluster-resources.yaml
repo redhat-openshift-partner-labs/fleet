@@ -9,6 +9,9 @@ spec:
       type: string
     - name: pipeline-image
       type: string
+  results:
+    - name: infra-id
+      type: string
   steps:
     - name: delete
       image: $(params.pipeline-image)
@@ -16,4 +19,6 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+        oc get clusterdeployment "$(params.cluster-name)" -n "$(params.cluster-name)" \
+          --ignore-not-found --request-timeout=30s -o 'jsonpath={.spec.clusterMetadata.infraID}' > "$(results.infra-id.path)"
         fleet-delete-cluster-resources --cluster-name "$(params.cluster-name)"

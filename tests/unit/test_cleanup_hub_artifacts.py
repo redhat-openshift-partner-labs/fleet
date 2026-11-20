@@ -9,7 +9,6 @@ from fleet.tasks._aws_components import iam_targets
 from fleet.tasks.cleanup_hub_artifacts import main
 
 TARGETS = iam_targets("test-cluster")
-PATCH_PAYLOAD = json.dumps({"metadata": {"finalizers": None}})
 
 
 def _run(args, **kwargs):
@@ -30,9 +29,11 @@ def _remaining(*names):
 def _make_side_effects(
     pre_delete_results=None,
     label_result=None,
+    inventory_result=None,
     iam_delete_result=None,
     poll_rounds=None,
     describe_result=None,
+    report_result=None,
     finalizer_results=None,
     cronjob_result=None,
     namespace_result=None,
@@ -55,10 +56,14 @@ def _make_side_effects(
     effects = []
     effects.extend(pre_delete_results or [_run([])] * 3)
     effects.append(label_result or _run([]))
+    if inventory_result is not None:
+        effects.append(inventory_result)
     effects.append(iam_delete_result or _run([]))
     effects.extend(poll_rounds or [_run([])])
     if describe_result is not None:
         effects.append(describe_result)
+    if report_result is not None:
+        effects.append(report_result)
     effects.extend(finalizer_results or [])
     effects.append(cronjob_result or _run([]))
     effects.append(namespace_result or _run([]))
@@ -260,6 +265,8 @@ def test_iam_bulk_delete_uses_specific_names(mock_run, mock_sleep):
         ["oc", "delete", *TARGETS, "--wait=false", "--ignore-not-found=true"],
         capture_output=True,
         text=True,
+        input=None,
+        timeout=30,
     )
 
 
@@ -316,6 +323,8 @@ def test_iam_poll_checks_specific_names(mock_run, mock_sleep):
         ["oc", "get", *TARGETS, "--ignore-not-found", "-o", "name"],
         capture_output=True,
         text=True,
+        input=None,
+        timeout=30,
     )
 
 
@@ -356,6 +365,9 @@ def _described(*names):
             "kind": n.split(".", 1)[0].capitalize(),
             "metadata": {
                 "name": n.split("/", 1)[1],
+                "uid": f"resource-{i}",
+                "deletionTimestamp": "2026-01-01T00:00:00Z",
+                "finalizers": ["finalizer.managedresource.crossplane.io"],
                 "annotations": {"crossplane.io/external-name": f"aws-{i}"},
             },
             "status": {
@@ -384,7 +396,11 @@ def test_default_timeout_is_ten_minutes(mock_run, mock_sleep):
     )
     with _argv(), pytest.raises(SystemExit, match="1"):
         main()
-    polls = [c for c in _calls(mock_run, "get") if "--ignore-not-found" in c[0][0]]
+    polls = [
+        c
+        for c in _calls(mock_run, "get")
+        if c.args[0][-1] == "name" and "--ignore-not-found" in c.args[0]
+    ]
     assert len(polls) == 60
 
 
@@ -402,84 +418,86 @@ def test_timeout_fails_and_keeps_namespace(mock_run, mock_sleep, mock_error, moc
     assert not _calls(mock_run, "patch")
     assert not any("namespace" in c[0][0] for c in mock_run.call_args_list)
     mock_run.assert_any_call(
-        ["oc", "get", *STUCK, "-o", "json"], capture_output=True, text=True
+        ["oc", "get", *STUCK, "--ignore-not-found", "-o", "json"],
+        capture_output=True,
+        text=True,
+        input=None,
+        timeout=30,
     )
     warned = " ".join(str(c) for c in mock_warn.call_args_list)
     assert "aws-0" in warned and "aws-1" in warned and "AccessDenied" in warned
     assert "orphan-stuck-iam" in " ".join(str(c) for c in mock_error.call_args_list)
 
 
+@pytest.mark.parametrize("report_fails", [False, True])
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_orphan_flag_patches_only_remaining(mock_run, mock_sleep):
+def test_orphan_saves_report_before_patching(
+    mock_run, mock_sleep, report_fails, capsys
+):
     mock_run.side_effect = _make_side_effects(
+        inventory_result=_described(*STUCK),
         poll_rounds=[_remaining(*STUCK)] * 2,
         describe_result=_described(*STUCK),
+        report_result=_run_fail([]) if report_fails else _run([]),
         finalizer_results=[_run([])] * 2,
     )
-    with _argv(*SHORT, "--orphan-stuck-iam"):
+    argv = (*SHORT, "--orphan-stuck-iam", "--pipeline-run-id", "run-abc")
+    if report_fails:
+        with _argv(*argv), pytest.raises(SystemExit, match="1"):
+            main()
+        assert not _calls(mock_run, "patch")
+        return
+    with _argv(*argv):
         main()
-    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 2 + 1 + 1
-    for name in STUCK:
-        mock_run.assert_any_call(
-            ["oc", "patch", name, "--type=merge", f"-p={PATCH_PAYLOAD}"],
-            capture_output=True,
-            text=True,
-        )
+    (report_call,) = _calls(mock_run, "apply")
+    patch_calls = _calls(mock_run, "patch")
+    assert mock_run.call_args_list.index(report_call) < mock_run.call_args_list.index(
+        patch_calls[0]
+    )
+    assert [call.args[0][2] for call in patch_calls] == [
+        ref.replace(".iam.aws.upbound.io/", ".iam/") for ref in STUCK
+    ]
+    report = json.loads(capsys.readouterr().out)
+    assert {item["state"] for item in report["items"]} == {"needs_check"}
+    assert {item["pipeline_run_id"] for item in report["items"]} == {"run-abc"}
 
 
-@mock.patch("fleet.tasks.cleanup_hub_artifacts.warn")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_orphan_flag_with_poll_errors_patches_all_targets(
-    mock_run, mock_sleep, mock_warn
+def test_lookup_failure_preserves_inventory_without_patching(
+    mock_run, mock_sleep, capsys
 ):
-    """If oc get keeps failing, nothing is known to be gone: patch every target."""
     mock_run.side_effect = _make_side_effects(
+        label_result=_remaining(*STUCK),
+        inventory_result=_described(*STUCK),
         poll_rounds=[_run_fail([])] * 2,
         describe_result=_run_fail([]),
-        finalizer_results=[_run([])] * len(TARGETS),
+        report_result=_run([]),
     )
-    with _argv(*SHORT, "--orphan-stuck-iam"):
+    with _argv(*SHORT, "--orphan-stuck-iam"), pytest.raises(SystemExit, match="1"):
         main()
-    assert [c[0][0][2] for c in _calls(mock_run, "patch")] == TARGETS
-    warned = " ".join(str(c) for c in mock_warn.call_args_list)
-    assert TARGETS[0] in warned
+    assert _calls(mock_run, "apply")
+    assert not _calls(mock_run, "patch")
+    assert "aws-0" in capsys.readouterr().out
 
 
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
 @mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_single_stuck_resource_description(mock_run, mock_sleep):
-    """oc get of one object returns the object itself, not a List."""
+def test_finalizer_patch_failure_keeps_namespace(mock_run, mock_sleep):
     one = _described(STUCK[0])
     one.stdout = json.dumps(json.loads(one.stdout)["items"][0])
     mock_run.side_effect = _make_side_effects(
+        inventory_result=one,
         poll_rounds=[_remaining(STUCK[0])] * 2,
         describe_result=one,
-        finalizer_results=[_run([])],
+        report_result=_run([]),
+        finalizer_results=[_run_fail([]), _remaining(STUCK[0])],
     )
-    with _argv(*SHORT, "--orphan-stuck-iam"):
+    with _argv(*SHORT, "--orphan-stuck-iam"), pytest.raises(SystemExit, match="1"):
         main()
     assert len(_calls(mock_run, "patch")) == 1
-
-
-# ---------------------------------------------------------------------------
-# Finalizer patch failure is non-fatal
-# ---------------------------------------------------------------------------
-
-
-@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
-@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
-def test_finalizer_patch_failure_non_fatal(mock_run, mock_sleep):
-    mock_run.side_effect = _make_side_effects(
-        poll_rounds=[_remaining(STUCK[0])] * 2,
-        describe_result=_described(STUCK[0]),
-        finalizer_results=[_run_fail([])],
-        namespace_result=_run([]),
-    )
-    with _argv(*SHORT, "--orphan-stuck-iam"):
-        main()
-    assert mock_run.call_count == 3 + 1 + 1 + 2 + 1 + 1 + 1 + 1
+    assert not any("namespace" in c.args[0] for c in _calls(mock_run, "delete"))
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +545,46 @@ def test_label_lookup_failure_keeps_namespace(mock_run, mock_sleep, mock_error):
     assert not any("--wait=false" in c[0][0] for c in mock_run.call_args_list)
     assert not any("namespace" in c[0][0] for c in mock_run.call_args_list)
     mock_sleep.assert_not_called()
-    assert [str(c.args[0]) for c in mock_error.call_args_list] == [
-        "IAM label lookup failed for test-cluster: error; namespace test-cluster kept. "
-        "Re-run deprovision when the hub API answers."
-    ]
+    assert (
+        "IAM label lookup failed for test-cluster: error; namespace test-cluster kept"
+        in mock_error.call_args.args[0]
+    )
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_iam_timeout_diagnostics_handle_lookup_failure(mock_run, mock_sleep):
+    mock_run.side_effect = _make_side_effects(
+        poll_rounds=[_remaining(*STUCK)] * 2, describe_result=_run_fail([])
+    )
+    with _argv(*SHORT), pytest.raises(SystemExit, match="1"):
+        main()
+    assert not _calls(mock_run, "patch")
+
+
+def test_iam_timeout_must_be_positive():
+    with _argv("--iam-timeout-seconds", "0"), pytest.raises(SystemExit, match="2"):
+        main()
+
+
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.time.sleep")
+@mock.patch("fleet.tasks.cleanup_hub_artifacts.subprocess.run")
+def test_orphan_rejects_replaced_resource(mock_run, mock_sleep):
+    replaced = json.loads(_described(*STUCK).stdout)
+    replaced["items"][0]["metadata"]["uid"] = "replacement"
+    mock_run.side_effect = _make_side_effects(
+        inventory_result=_described(*STUCK),
+        poll_rounds=[_remaining(*STUCK)] * 2,
+        describe_result=subprocess.CompletedProcess([], 0, json.dumps(replaced), ""),
+    )
+    with _argv(*SHORT, "--orphan-stuck-iam"), pytest.raises(SystemExit, match="1"):
+        main()
+    assert not _calls(mock_run, "patch")
+
+
+def test_iam_poll_stops_at_wall_clock_deadline(monkeypatch):
+    from fleet.tasks import cleanup_hub_artifacts as cleanup
+
+    monotonic = mock.Mock(side_effect=[0, 20])
+    monkeypatch.setattr(cleanup.time, "monotonic", monotonic)
+    assert cleanup._wait_iam_deleted(TARGETS, 20) == TARGETS

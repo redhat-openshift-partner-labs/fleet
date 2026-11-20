@@ -219,7 +219,16 @@ def labelled_iam_targets(cluster: str) -> list[str]:
     must not pass for an empty cluster.
     """
     result = subprocess.run(
-        ["oc", "get", _IAM_RESOURCES, "-l", f"{CLUSTER_LABEL}={cluster}", "-o", "name"],
+        [
+            "oc",
+            "get",
+            _IAM_RESOURCES,
+            "-l",
+            f"{CLUSTER_LABEL}={cluster}",
+            "-o",
+            "name",
+            "--request-timeout=30s",
+        ],
         capture_output=True,
         text=True,
     )
