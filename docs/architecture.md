@@ -1,641 +1,292 @@
-# OpenShift Cluster Lifecycle: Architecture Direction
+# Architecture
 
-> **Status:** We are moving from an **ArgoCD-only app-of-apps** model to an **ArgoCD + Tekton + ACM** model for OpenShift cluster lifecycle management on the hub.
->
-> This document explains the current state, why it is breaking down, and the target architecture we are moving toward.
+fleet runs the lifecycle of the Red Hat OpenShift Partner Labs clusters from one hub cluster. Git holds the cluster definitions, Tekton pipelines on the hub run the ordered work, and Hive with ACM installs and tracks the clusters. This document describes what the `main` branch implements.
 
----
+## Components
 
-## TL;DR
-
-| | Current | Target |
+| Component | Role | Configured in |
 |---|---|---|
-| **Orchestration** | ArgoCD app-of-apps with sync waves | Tekton pipelines |
-| **Manifest delivery (hub)** | ArgoCD | ArgoCD (unchanged) |
-| **Day-2 workload delivery (spoke)** | ArgoCD Application per cluster | ArgoCD `ApplicationSet` with ACM cluster generator |
-| **Cluster provisioning** | Hive, driven by ArgoCD-applied CRs | Hive, driven by Tekton-applied CRs |
-| **Wait for cluster ready** | PostSync `Job` polling every 30s | `oc wait --for=condition=Provisioned` inside a Tekton task |
-| **Secret protection during deprovision** | Custom finalizers + cluster-wide 5-min `CronJob` | Pipeline controls the order; no custom finalizers needed |
-| **Tier variation (virt / AI / base)** | N/A (not yet supported cleanly) | Tekton post-provision for imperative steps; tier workload delivery approach TBD (see §7) |
-| **Hub → spoke secret handoff** | Out-of-band `oc create secret` + implicit trust | Explicit Tekton task that derives and pushes the minimum |
-| **Total deprovision time** | 15–25 min (up to 5 min CronJob poll tail) | ~15–20 min, deterministic, no poll tail |
+| fleet-clusters repository | Cluster definitions under `provision/<name>/`, deprovision sentinel files, archive records | [fleet-clusters-setup.md](fleet-clusters-setup.md) |
+| fleet repository | Pipelines, tasks, triggers, tier overlays, hub configuration | `tekton/`, `workloads/`, `hub-config/`, `bootstrap/` |
+| Tekton (OpenShift Pipelines) | Runs the four lifecycle pipelines and `test-vcluster` | `tekton/`; operator in `hub-config/tekton/` |
+| ArgoCD (OpenShift GitOps) | Syncs `hub-config/` to the hub through the Application `fleet-hub-config` | `bootstrap/`, `hub-config/argocd/` |
+| Hive and ACM | Hive installs and uninstalls clusters. ACM registers each one as a ManagedCluster, which carries the `tier` label. | `hub-config/acm/` |
+| Crossplane | Creates the IAM users, access keys, roles and policies of each cluster | `hub-config/crossplane/` |
+| cert-manager | Issues one wildcard certificate per cluster with Let's Encrypt DNS-01 through Route53 | `hub-config/cert-manager/` |
+| Keycloak (RH-SSO) | Identity provider; holds one OIDC client per cluster | `hub-config/partner-labs-auth/` |
+| Pipeline image | One container image with the `fleet-*` CLI tools and the external tools every task runs | [developer-guide.md](developer-guide.md#container-image) |
 
-**Rule of thumb going forward:** *ArgoCD reconciles declarative state. Tekton runs ordered workflows. ACM/Hive controls cluster lifecycle. Each tool does one job.*
+![Architecture](diagrams/architecture.svg)
 
----
+Diagram source: [diagrams/architecture.mermaid](diagrams/architecture.mermaid)
 
-## 1. Current State
+## Trust boundary
 
-### 1.1 How it works today
+Third parties have access to a spoke. A pipeline task derives each artifact on the hub and writes only that artifact to the spoke.
 
-The predecessor repo (`bootstrap/argocd-app-of-apps.yaml` + cluster directories) implemented the app-of-apps pattern:
-
-1. A top-level ArgoCD `Application` recursed into per-cluster `argocd-application.yaml` files
-2. Each cluster directory declares a child `Application` that applies `ClusterDeployment`, `MachinePool`, `ManagedCluster`, `KlusterletAddonConfig`, and an `install-config` Secret
-3. Sync waves (`-1` → `0` → `1` → `2`) order the CR application
-4. A `PostSync` `Job` polls every 30 seconds waiting for Hive to create the `<cluster>-metadata-json` Secret, then stamps finalizers onto `aws-credentials` and `<cluster>-metadata-json`
-5. On deletion, a cluster-wide `CronJob` runs every 5 minutes, scans for labeled secrets, checks whether the Hive uninstall `Job` succeeded, and patches finalizers off so namespace deletion can complete
-
-### 1.2 What the code is actually doing (and what that reveals)
-
-Reading the workflow docs in the repo against the code:
-
-- `argocd-app-of-apps.yaml` has `ignoreDifferences` on `/status` for both `ClusterDeployment` and `ManagedCluster`. This is **necessary** because Hive owns the status subresource — but it means ArgoCD is deliberately blind to the readiness of what it just applied.
-- The `secret-persistence-workflow.md` doc describes a **13-phase** flow involving sync waves, a polling Job, custom finalizers, and a CronJob.
-- `deprovision-cleanup-cronjob.yaml` is a 195-line CronJob (bash-in-YAML) running every 5 minutes **cluster-wide**, scanning every namespace for labeled secrets, correlating them to Hive uninstall Jobs by naming convention (`CLUSTER_NAME="$NAMESPACE"`), and patching finalizers off.
-- Users create AWS credentials, pull secret, and SSH keys with `oc create secret` out-of-band *before* ArgoCD can do anything — meaning git is the source of truth for *config* but not for secrets, and cluster creation requires human imperative steps.
-
-### 1.3 Root cause: we are using a reconciler as a workflow engine
-
-Applying first-principles thinking:
-
-> **ArgoCD's purpose** is to make cluster state match git. It is a *reconciler* — it converges toward a desired state.
->
-> **Cluster provisioning** is an *ordered workflow* — each step has preconditions, produces outputs, may take 30–45 minutes, can fail in distinct ways, and depends on later steps knowing what earlier steps produced.
-
-These are different shapes of problem. Every compensator in the current repo — the polling PostSync Job, the custom finalizers, the cluster-wide CronJob, the 30-second sleep loops — exists because ArgoCD cannot natively express: *"wait for this condition to become true, then do the next thing, and if that fails, retry only that step."*
-
-We have effectively re-implemented a workflow engine on top of a reconciler, using CronJobs and finalizers as the control-flow primitives. That is the architectural smell we are fixing.
-
-### 1.4 Concrete pain points (mapped to code)
-
-| Pain | Where it shows up in the repo |
+| Stays on the hub | Written to the spoke |
 |---|---|
-| ArgoCD cannot wait for async conditions | `PostSync` Job with 30-second polling loop for `metadata-json` |
-| Sync waves are advisory, not hard gates | Cross-CR ordering issues under load |
-| Deletion races ArgoCD's own prune | Custom `openshiftpartnerlabs.com/deprovision` finalizer added after the fact |
-| Nothing is watching for "uninstall done" | 5-minute cluster-wide `CronJob` polling Hive Jobs |
-| Cluster name ↔ namespace coupling is load-bearing | `CLUSTER_NAME="$NAMESPACE"` in the CronJob script |
-| Secrets live outside git | Manual `oc create secret` before any ArgoCD sync |
-| No tier-aware provisioning (virt vs AI) | No clean branch point in a sync-wave-ordered Application |
-| Pipeline step failures force full re-sync | ArgoCD resyncs everything, not just the failed stage |
+| Certificate Secret `<name>-wildcard-certificate` and the ACME account key of ClusterIssuer `letsencrypt-<name>` | `tls.crt` and `tls.key` of the cluster's own certificate |
+| Keycloak admin Secret | Client ID and secret of the cluster's own OIDC client |
+| Installer AWS key of a `scoped` cluster | One AWS credential per operator, limited to that cluster |
+| The admin kubeconfig Secret that Hive writes, and its copy `<name>-spoke-kubeconfig` | Nothing |
 
----
+Two rules apply to every change:
 
-## 2. Target Architecture
+- No Secret data and no personal data is committed to Git.
+- A hub Secret is not copied to a spoke as it is.
 
-### 2.1 Division of responsibilities
+A `legacy` cluster is the exception to the third row: its installer key is on the spoke. See [AWS credential modes](#aws-credential-modes).
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                                                                  │
-│  Git  →  [ArgoCD: hub manifest delivery]                         │
-│          [Tekton: ordered workflows]      →  Hub (ACM, Hive,     │
-│          [ArgoCD AppSet: day-2 workloads] →  cert-manager, etc.) │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+## Trigger chain
 
-- **ArgoCD** delivers *static* manifests to the hub (ACM install, Tekton pipelines, cert-manager config, baseline operators). It is no longer responsible for ordering the cluster lifecycle. **Crossplane** generates the per-cluster IAM users; `hub-config/crossplane/` installs it.
-- **ArgoCD `ApplicationSet`** with the ACM cluster generator delivers *day-2 workloads* to spokes once Tekton has labeled them `bootstrapped=true`.
-- **Tekton** owns three workflows: **provision**, **post-provision** (SSL, OAuth/IDP, RBAC), and **deprovision**. Each is a single auditable `PipelineRun` per cluster operation.
-- **ACM / Hive** continues to provision clusters and manage fleet membership. No change to its role.
-- **Git** remains the source of truth. Tekton `EventListener` on webhooks from the repo decides which pipeline to kick off based on the path that changed.
+1. A push to `main` of fleet-clusters reaches the EventListener `fleet-cluster-lifecycle` as a GitHub webhook. The listener checks the signature against Secret `fleet-webhook-secret`.
+2. A push that adds a file under `provision/<name>/` starts `pre-provision` for `<name>`. A commit message that contains `[skip-provision]` prevents the run.
+3. The last task of `pre-provision` creates the PipelineRun of `provision`. The last task of `provision` creates the PipelineRun of `post-provision`.
+4. A push that adds `deprovision/<name>-archive` starts `deprovision` for `<name>`. A commit message that contains `[skip-deprovision]` prevents the run.
+5. The last task of `deprovision` posts a GitHub deployment status to fleet-clusters. The archive workflow of that repository moves `provision/<name>` to `archive/<name>` and removes the sentinel.
 
-### 2.2 High-level architecture
+The EventListener also starts `post-provision` for a request whose JSON body holds `action: post-provision` and the parameters of the run, among them `cluster_name`, `tier` and `dns_zones`. Such a request runs `post-provision` without the two pipelines before it.
 
-```mermaid
-%% Target architecture: Tekton + ArgoCD + ACM on the hub, spoke is third-party accessible
-flowchart TB
-    subgraph Git["Git (source of truth)"]
-        direction TB
-        GitClusters["fleet-clusters: provision/NAME/<br/>(ClusterDeployment, MachinePool,<br/>install-config, tier label)"]
-        GitPipelines["tekton/pipelines/<br/>(provision, post-provision, deprovision)"]
-        GitWorkloads["workloads/TIER/<br/>(day-2 manifests)"]
-        GitHubConfig["hub-config/<br/>(ACM, Tekton, cert-manager)"]
-    end
+Every pipeline starts with `load-config`, which reads ConfigMap `fleet-pipeline-config` ([tekton/configmap-defaults.yaml](../tekton/configmap-defaults.yaml)). [parameter-threading.md](parameter-threading.md) describes how a value reaches a task.
 
-    subgraph Hub["HUB CLUSTER (trusted)"]
-        direction TB
+## Pipelines
 
-        subgraph ArgoCD["ArgoCD (manifest delivery only)"]
-            HubApp["Application: hub-config<br/>(delivers Tekton, ACM, cert-manager)"]
-            AppSet["ApplicationSet + ACM<br/>cluster generator<br/>(day-2 workload delivery)"]
-        end
+| Pipeline | Tasks | Started by | Last task |
+|---|---|---|---|
+| [`pre-provision`](../tekton/pipelines/pre-provision.yaml) | 14 | Push that adds `provision/<name>/` | `trigger-provision` |
+| [`provision`](../tekton/pipelines/provision.yaml) | 11 | `trigger-provision` | `trigger-post-provision` |
+| [`post-provision`](../tekton/pipelines/post-provision.yaml) | 23 | `trigger-post-provision`, or a request with `action: post-provision` | `finalize-spoke` |
+| [`deprovision`](../tekton/pipelines/deprovision.yaml) | 7 | Push that adds `deprovision/<name>-archive` | `create-deployment-status` |
 
-        subgraph ACM["ACM / Hive"]
-            Hive["Hive controller<br/>(provisions via cloud API)"]
-            Placement["Placement / ManagedCluster<br/>(tier label, bootstrapped=true)"]
-        end
+A fifth pipeline, `test-vcluster`, runs `post-provision` against a temporary vCluster. See [vcluster.md](vcluster.md).
 
-        subgraph Tekton["Tekton (workflow engine)"]
-            EL["EventListener<br/>(git webhook)"]
-            ProvisionPipeline["Provision Pipeline"]
-            PostProvisionPipeline["Post-Provision Pipeline<br/>(tier: base / virt / ai / coco)"]
-            DeprovisionPipeline["Deprovision Pipeline"]
-        end
+Each section below has three views of one pipeline:
 
-        subgraph SecretAuthority["Hub-only secret authority"]
-            CertMgr["cert-manager<br/>(ClusterIssuer: internal-ca)"]
-        end
+- Task flowchart: one card per task, one arrow per `runAfter` entry.
+- Task table: what each task does, what it talks to, and when it runs. `NAME` stands for the cluster name.
+- Sequence diagram: the calls of each task, in an order the pipeline allows.
 
-        subgraph Crossplane["Crossplane"]
-            IAMGen["AWS IAM user generation<br/>(per-cluster credentials)"]
-        end
-    end
+### pre-provision
 
-    subgraph Spoke["SPOKE (third-party accessible)"]
-        direction TB
-        SpokeLeaf["Leaf cert + key only<br/>(no CA material)"]
-        SpokeBaseline["Baseline operators<br/>(by tier: CNV | GPU+OAI | sandboxed containers | base)"]
-        SpokeIDP["IDP config<br/>(no hub client secret)"]
-        SpokeWorkloads["Day-2 workloads<br/>(via ArgoCD ApplicationSet)"]
-    end
+Checks the cluster definition, creates the hub namespace, the SSH key, the pull secret and the AWS credentials, then starts `provision`.
 
-    Git -->|ArgoCD sync| HubApp
-    Git -->|webhook on commit| EL
-    Git -->|repo read during pipeline| ProvisionPipeline
+![pre-provision task flowchart](diagrams/pre-provision-flow.svg)
 
-    EL -->|trigger by path| ProvisionPipeline
-    EL -->|trigger by path| PostProvisionPipeline
-    EL -->|trigger on deletion PR| DeprovisionPipeline
+Diagram source: [diagrams/pre-provision-flow.mermaid](diagrams/pre-provision-flow.mermaid)
 
-    ProvisionPipeline -->|applies Crossplane CRs| IAMGen
-    IAMGen -->|generates AWS creds| Hive
-    ProvisionPipeline -->|applies CRs| Hive
-    ProvisionPipeline -.->|waits for ready| Hive
-    Hive -->|cloud API| Spoke
+| Task | Talks to | Action | Runs when |
+|---|---|---|---|
+| `load-config` | Hub API | Reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks | Always |
+| `git-clone` | Git | Clones fleet-clusters at the pushed revision into the shared workspace | Always |
+| `check-prefix-collision` | Hub API | Fails if another cluster in git, on the hub or in IAM labels has the same AWS infra prefix | Always |
+| `read-cluster-metadata` | Git | Reads provision/NAME/metadata.yaml; result aws-credentials-mode | Always |
+| `create-cluster-namespace` | Hub API | Creates namespace NAME on the hub | Always |
+| `create-ssh-key` | Hub API | Generates an ed25519 key pair; stores Secret NAME-ssh-key | Always |
+| `create-pull-secret` | Hub API | Copies openshift-config/pull-secret into the cluster namespace | Always |
+| `apply-crossplane-credentials` | Hub API, Crossplane, AWS | Applies the cluster's crossplane overlay: IAM users, access keys, roles, policies | Always |
+| `wait-for-aws-credentials` | Hub API, Crossplane | Waits up to 10m for Secret aws-credentials-raw, which Crossplane writes | Always |
+| `transform-aws-credentials` | Hub API | Writes Secret aws-credentials in the format Hive reads | Always |
+| `wait-for-aws-component-credentials` | Hub API, Crossplane | Waits for every operator's raw Secret and for all IAM resources of the cluster to be Ready | `aws-credentials-mode` is `scoped` |
+| `build-aws-credentials-manifests` | Hub API | Writes Secret NAME-cloud-credentials-manifests for the Hive install manifests | `aws-credentials-mode` is `scoped` |
+| `validate-cluster-inputs` | Hub API | Fails if aws-credentials, pull-secret or NAME-ssh-key is missing | Always |
+| `trigger-provision` | Hub API | Creates the PipelineRun of the provision pipeline | Always |
 
-    PostProvisionPipeline -->|requests cert on hub| CertMgr
-    PostProvisionPipeline -->|derives + pushes<br/>leaf cert + key ONLY| SpokeLeaf
-    PostProvisionPipeline -->|applies tier manifests<br/>via spoke kubeconfig| SpokeBaseline
-    PostProvisionPipeline -->|configures IDP| SpokeIDP
-    PostProvisionPipeline -->|labels spoke<br/>bootstrapped=true| Placement
+![pre-provision sequence diagram](diagrams/pre-provision-sequence.svg)
 
-    Placement -.->|cluster generator| AppSet
-    AppSet -->|delivers workloads| SpokeWorkloads
+Diagram source: [diagrams/pre-provision-sequence.mermaid](diagrams/pre-provision-sequence.mermaid)
 
-    DeprovisionPipeline -->|1. delete cluster CRs| Hive
-    DeprovisionPipeline -.->|2. wait for uninstall| Hive
-    DeprovisionPipeline -->|3. clean hub-side artifacts| CertMgr
+### provision
 
-    classDef git fill:#f4f4f4,stroke:#444,color:#000
-    classDef hub fill:#e8f0ff,stroke:#2a5db0,color:#000
-    classDef spoke fill:#fff4e8,stroke:#b05d2a,color:#000
-    classDef tekton fill:#e6f7ed,stroke:#2a8050,color:#000
-    classDef argocd fill:#ede8ff,stroke:#5d2ab0,color:#000
-    classDef acm fill:#ffe8ed,stroke:#b02a5d,color:#000
-    classDef authority fill:#fff8d8,stroke:#b0902a,color:#000
-    classDef crossplane fill:#e8fff4,stroke:#2ab06a,color:#000
+Applies the cluster resources, waits for Hive to install the cluster and for ACM to register it, then starts `post-provision`.
 
-    class GitClusters,GitPipelines,GitWorkloads,GitHubConfig git
-    class HubApp,AppSet argocd
-    class Hive,Placement acm
-    class EL,ProvisionPipeline,PostProvisionPipeline,DeprovisionPipeline tekton
-    class CertMgr authority
-    class IAMGen crossplane
-    class SpokeLeaf,SpokeBaseline,SpokeIDP,SpokeWorkloads spoke
-```
+![provision task flowchart](diagrams/provision-flow.svg)
 
-> Diagram source: [diagrams/architecture.mermaid](./diagrams/architecture.mermaid)
+Diagram source: [diagrams/provision-flow.mermaid](diagrams/provision-flow.mermaid)
 
-### 2.3 Trust boundary (why this constraint shapes the design)
+| Task | Talks to | Action | Runs when |
+|---|---|---|---|
+| `load-config` | Hub API | Reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks | Always |
+| `git-clone` | Git | Clones fleet-clusters into the shared workspace | Always |
+| `read-cluster-metadata` | Git | Reads provision/NAME/metadata.yaml; its results are parameters of post-provision | Always |
+| `apply-cluster-crs` | Hub API | Applies the hive overlay: ClusterDeployment, MachinePool, ManagedCluster and related CRs | Always |
+| `wait-for-hive-ready` | Hub API, Hive, AWS | Waits for condition Provisioned on the ClusterDeployment; timeout 1h15m | Always |
+| `scope-aws-credentials` | Hub API, AWS, Crossplane | Binds the IAM policies and roles to the installed cluster's infra ID and VPC | `aws-credentials-mode` is `scoped` |
+| `wait-for-managed-cluster` | Hub API | Waits for condition ManagedClusterJoined on the ManagedCluster | Always |
+| `extract-spoke-kubeconfig` | Hub API | Extracts the admin kubeconfig from the Hive Secret into the workspace | Always |
+| `read-cluster-tier` | Hub API | Reads the tier label of the ManagedCluster: base, virt, ai or coco | Always |
+| `label-for-post-provision` | Hub API | Labels the ManagedCluster provisioned=true | Always |
+| `trigger-post-provision` | Hub API | Creates the PipelineRun of the post-provision pipeline with the tier and the metadata values; run timeout 5h | Always |
 
-Spokes are third-party accessible. PII and proprietary material must stay on the hub. Our hard boundary:
+![provision sequence diagram](diagrams/provision-sequence.svg)
 
-- **Hub holds** the CA/signing authority, IDP client secrets, pull secrets of record, PII-laden config.
-- **Spoke holds** only derived artifacts: the leaf TLS cert and its private key, the OIDC config referencing a pre-issued client secret, tier-specific operators.
-- **No hub Secret data or PII** is ever committed to git or written to the spoke directly as-is.
-- **Crossplane** is installed on the hub by `hub-config/crossplane/`. It handles per-cluster IAM user generation.
+Diagram source: [diagrams/provision-sequence.mermaid](diagrams/provision-sequence.mermaid)
 
-This is why a Tekton task owns the derive-and-push step. ArgoCD cannot express "read hub Secret, extract subset, push to spoke" with a trust boundary in the middle — not without external controllers bolted on. A Tekton task executing with a hub ServiceAccount can.
+### post-provision
 
----
+Configures OAuth, the TLS certificate and RBAC on the spoke, applies the workloads of the cluster's tier, and publishes the access details. The run has a timeout of 5 hours.
 
-## 3. The Three Pipelines
+![post-provision task flowchart](diagrams/post-provision-flow.svg)
 
-### 3.1 Provisioning pipeline
+Diagram source: [diagrams/post-provision-flow.mermaid](diagrams/post-provision-flow.mermaid)
 
-Replaces: sync waves, `PostSync` polling Job, 30-second sleep loops, manual Crossplane credential wiring, out-of-band AWS credential transformation.
+| Task | Talks to | Action | Runs when |
+|---|---|---|---|
+| `load-config` | Hub API | Reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks | Always |
+| `git-clone` | Git | Clones the fleet repository, which holds workloads/, into the shared workspace | Always |
+| `extract-spoke-kubeconfig` | Hub API | Extracts the admin kubeconfig from the Hive Secret into the workspace | Always |
+| `save-spoke-kubeconfig` | Hub API | Stores the kubeconfig in hub Secret NAME-spoke-kubeconfig | Always |
+| `create-cluster-cronjob` | Hub API | Creates CronJob NAME in namespace default with the cluster's timezone and schedule | Always |
+| `register-keycloak-client` | Hub API, Keycloak | Creates or updates the OIDC client of the cluster in the hub Keycloak | `openshift-cluster` is `true` |
+| `configure-spoke-oauth` | Hub API, Spoke API | Writes the htpasswd and OIDC client Secrets and the OAuth CR to the spoke | `openshift-cluster` is `true` |
+| `create-cluster-issuer` | Hub API | Creates ClusterIssuer letsencrypt-NAME: Let's Encrypt DNS-01 through Route53 | `openshift-cluster` is `true` |
+| `request-ssl-cert` | Hub API | Creates Certificate NAME-wildcard-certificate in openshift-ingress on the hub | `openshift-cluster` is `true` |
+| `wait-for-ssl-ready` | Hub API, AWS | Waits for condition Ready on the Certificate; timeout 20m | `openshift-cluster` is `true` |
+| `extract-cert-material` | Hub API | Copies tls.crt and tls.key into hub Secret NAME-leaf-cert | `openshift-cluster` is `true` |
+| `configure-spoke-default-cert` | Hub API, Spoke API | Applies the leaf Secret to the spoke and sets it as the default ingress certificate | `openshift-cluster` is `true` |
+| `apply-base-workloads` | Spoke API | Runs kustomize build on workloads/base and applies the output to the spoke | `tier` is `base`, `virt`, `ai` or `coco` |
+| `apply-virt-workloads` | Spoke API | Installs Node Feature Discovery and OpenShift Virtualization on the spoke | `tier` is `virt` |
+| `add-baremetal-workers` | Hub API | Creates a bare-metal worker MachinePool on the hub | `tier` is `virt` |
+| `apply-ai-workloads` | Spoke API | Installs the OpenShift AI 2.x or 3.x operators on the spoke; GPU operators for nvidia-gpu | `tier` is `ai` |
+| `add-ai-workers` | Hub API | Creates a GPU worker MachinePool on the hub | `tier` is `ai` and `ai-accelerator` is `nvidia-gpu` |
+| `prepare-podvm-aws` | Spoke API, AWS | Reads the worker network from EC2 and opens the pod VM ports on its security groups | `tier` is `coco` |
+| `build-podvm-image-aws` | Spoke API, AWS | Builds or reuses the pod VM AMI of the cluster; timeout 2h | `tier` is `coco` |
+| `apply-coco-workloads` | Spoke API | Installs sandboxed containers with peer pods on the spoke; timeout 2h | `tier` is `coco` |
+| `configure-spoke-rbac` | Spoke API | Creates the cluster-admins group on the spoke and binds it to cluster-admin | `openshift-cluster` is `true` |
+| `create-access-paste` | Hub API, PrivateBin | Uploads console URL, kubeadmin password and kubeconfig to PrivateBin; stores the paste URL | `openshift-cluster` is `true` |
+| `finalize-spoke` | Spoke API | Deletes leftover installer pods and the kubeadmin Secret on the spoke | `openshift-cluster` is `true` |
 
-Key difference: `oc wait --for=condition=Provisioned` is a native Kubernetes primitive for waiting. A Tekton task using it is dramatically simpler, more observable, and more correct than a bash loop in a `Job`. The pipeline also handles Crossplane IAM credential generation and transformation into Hive-compatible format automatically — no manual steps.
+`openshift-cluster` is `false` in a `test-vcluster` run. The tier documents describe the tier tasks: [coco-tier.md](coco-tier.md) and [openshift-ai-operator-and-component-mapping.md](openshift-ai-operator-and-component-mapping.md).
 
-```mermaid
-%% Provision pipeline: 13 tasks
-%% Replaces app-of-apps sync-waves + PostSync polling Job
-sequenceDiagram
-    autonumber
-    participant Dev as Developer
-    participant Git
-    participant EL as Tekton EventListener
-    participant Pipe as Provision PipelineRun
-    participant K8s as Hub K8s API
-    participant XP as Crossplane
-    participant Hive as Hive Controller
-    participant ACM as ACM
-    participant AWS
+![post-provision sequence diagram](diagrams/post-provision-sequence.svg)
 
-    Note over Dev,AWS: 13-task linear pipeline replaces sync-waves + PostSync polling Job
+Diagram source: [diagrams/post-provision-sequence.mermaid](diagrams/post-provision-sequence.mermaid)
 
-    Dev->>Git: PR merged to fleet-clusters provision/NAME/
-    Git-->>EL: Webhook (path filter: provision/**)
-    EL->>Pipe: Create PipelineRun<br/>params: cluster-name, pipeline-image
+### deprovision
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
-        Pipe->>Git: git clone --depth=1
-        Git-->>Pipe: repo in shared workspace
-    end
+Deletes a cluster, its AWS resources and its hub artifacts, then reports the result to fleet-clusters. Every task runs after the task before it.
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 2: create-cluster-namespace<br/>(ensure namespace exists for cluster resources)
-        Pipe->>K8s: oc create namespace NAME
-    end
+![deprovision task flowchart](diagrams/deprovision-flow.svg)
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,XP: Task 3: apply-crossplane-credentials<br/>(trigger per-cluster IAM user generation)
-        Pipe->>K8s: Apply Crossplane IAM user CRs
-        XP->>AWS: Create IAM user + access key
-    end
+Diagram source: [diagrams/deprovision-flow.mermaid](diagrams/deprovision-flow.mermaid)
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,K8s: Task 4: wait-for-aws-credentials<br/>(wait for Crossplane to populate Secret)
-        Pipe->>K8s: oc wait for Secret aws-credentials-raw<br/>in cluster namespace
-        XP-->>K8s: Secret created with access key
-        K8s-->>Pipe: Secret available
-    end
+| Task | Talks to | Action | Runs when |
+|---|---|---|---|
+| `load-config` | Hub API | Reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks | Always |
+| `terminate-pod-vms` | Hub API, AWS | Coco tier only: deletes the peer-pods AccessKey, terminates pod VMs, deletes the pod VM image | Always |
+| `delete-cluster-resources` | Hub API | Deletes KlusterletAddonConfig, ManagedCluster, MachinePools and ClusterDeployment | Always |
+| `wait-hive-uninstall` | Hub API, Hive, AWS | Waits until Hive has uninstalled the cluster and the ClusterDeployment is gone; timeout 30m | Always |
+| `cleanup-hub-artifacts` | Hub API, Crossplane, AWS | Deletes Certificate, ClusterIssuer, CronJob, Crossplane IAM resources and the namespace | Always |
+| `verify-deprovision` | Hub API, Crossplane | Fails if the namespace, ManagedCluster, CronJob, ClusterDeployment or IAM resources remain | Always |
+| `create-deployment-status` | Hub API, GitHub | Posts deployment status success to fleet-clusters; the archive workflow runs on that event | Always |
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 5: transform-aws-credentials<br/>(reformat Crossplane output for Hive)
-        Pipe->>K8s: Read aws-credentials-raw Secret
-        Pipe->>K8s: Create aws-credentials Secret<br/>(Hive-compatible format)
-    end
+`terminate-pod-vms` runs for every tier and returns at once unless the `tier` label is `coco` and the cluster is installed.
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 6: validate-cluster-inputs<br/>(fail fast if secrets/config missing)
-        Pipe->>K8s: oc get secrets (aws-creds, pull-secret, ssh-key)
-        K8s-->>Pipe: present
-        Pipe->>Pipe: render install-config (dry-run kustomize)
-    end
+![deprovision sequence diagram](diagrams/deprovision-sequence.svg)
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 7: apply-cluster-crs<br/>(explicit order, not sync-waves)
-        Pipe->>K8s: Apply install-config Secret
-        Pipe->>K8s: Apply ClusterDeployment + MachinePool
-        Pipe->>K8s: Apply ManagedCluster
-        Pipe->>K8s: Apply KlusterletAddonConfig
-    end
+Diagram source: [diagrams/deprovision-sequence.mermaid](diagrams/deprovision-sequence.mermaid)
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,Hive: Task 8: wait-for-hive-ready<br/>(native kubectl wait, not a sleep loop)
-        Pipe->>K8s: oc wait --for=condition=Provisioned<br/>clusterdeployment/NAME --timeout=60m
-        Hive->>AWS: Create VPC, EC2, LBs, Route53
-        AWS-->>Hive: Resources created (30-45 min)
-        Hive->>K8s: Create metadata-json, admin-kubeconfig
-        Hive->>K8s: Update status: Provisioned=True
-        K8s-->>Pipe: Condition met (30-45 min)
-    end
+## AWS credential modes
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 9: wait-for-managed-cluster
-        Pipe->>K8s: oc wait --for=condition=ManagedClusterJoined<br/>managedcluster/NAME --timeout=15m
-        ACM-->>K8s: Klusterlet registered
-        K8s-->>Pipe: Joined
-    end
+`aws-credentials-mode` in the cluster's `metadata.yaml` selects how a spoke gets its AWS credentials. `fleet-cluster-scaffold` writes the key.
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 10: extract-spoke-kubeconfig<br/>(into pipeline workspace, never to git)
-        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
-        K8s-->>Pipe: kubeconfig (workspace-scoped)
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 11: read-cluster-tier<br/>(read tier label from ManagedCluster)
-        Pipe->>K8s: oc get managedcluster/NAME<br/>-o jsonpath tier label
-        K8s-->>Pipe: tier=base|virt|ai|coco (result)
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 12: label-for-post-provision
-        Pipe->>K8s: oc label managedcluster/NAME<br/>provisioned=true
-    end
-
-    rect rgb(237, 232, 255)
-        Note over Pipe,EL: Task 13: trigger-post-provision<br/>(chained pipeline, decoupled failure domain)
-        Pipe->>EL: Create PipelineRun: post-provision<br/>params: cluster-name, tier
-        Note over Pipe: Provision pipeline ends cleanly
-    end
-
-    Note over Dev,AWS: No PostSync Jobs, no sleep loops, no finalizer Jobs.<br/>Pipeline is idempotent: re-running skips completed tasks.
-```
-
-> Diagram source: [diagrams/provision-sequence.mermaid](./diagrams/provision-sequence.mermaid)
-
-#### 3.1.1 AWS credential modes
-
-The pre-provision pipeline branches on `aws-credentials-mode` in the cluster's `metadata.yaml`, which `fleet-cluster-scaffold` writes:
-
-| Mode | Spoke credentials | Pipeline tasks |
+| Mode | Spoke credentials | Tasks that run |
 |---|---|---|
-| `scoped` (default for new clusters) | `credentialsMode: Manual`; one IAM user per OpenShift operator plus BYO node roles, each limited to the cluster (instance profile, ownership tag `openshiftpartnerlabs.com/cluster`, bucket prefix, `*.apps.<name>` records). The installer key stays on the hub. | `wait-for-aws-credentials` → `transform-aws-credentials` → `wait-for-aws-component-credentials` → `build-aws-credentials-manifests` |
-| `legacy` (absent key; existing clusters) | CCO Mint mode; the account-admin installer key is stored on the spoke in `kube-system/aws-creds` | `wait-for-aws-credentials` → `transform-aws-credentials` |
+| `scoped` (default for new clusters) | `credentialsMode: Manual`. One IAM user per OpenShift operator and BYO node roles, each limited to the cluster: instance profile, ownership tag `openshiftpartnerlabs.com/cluster`, bucket prefix, `*.apps.<name>` records. The installer key stays on the hub. | `wait-for-aws-credentials`, `transform-aws-credentials`, `wait-for-aws-component-credentials`, `build-aws-credentials-manifests`, and `scope-aws-credentials` in `provision` |
+| `legacy` (key absent; existing clusters) | CCO Mint mode. The account-admin installer key is stored on the spoke in `kube-system/aws-creds`. | `wait-for-aws-credentials`, `transform-aws-credentials` |
 
-`wait-for-aws-component-credentials` and `build-aws-credentials-manifests` read the operator set from the cluster's AccessKeys on the hub. `fleet-cluster-scaffold` annotates every operator AccessKey with `openshiftpartnerlabs.com/credentials-request`, `openshiftpartnerlabs.com/target-namespace` and `openshiftpartnerlabs.com/target-secret`, and the AccessKey's `writeConnectionSecretToRef` names the raw credential Secret; the installer AccessKey carries no annotations. fleet keeps no list of operators. An overlay rendered before the annotations existed fails pre-provision with `regenerate the overlay with the current fleet-cluster-scaffold`. `wait-for-aws-component-credentials` waits until every operator's raw Secret exists and all of the cluster's Crossplane IAM resources (the installer set and BYO node roles by name, everything else by the `openshiftpartnerlabs.com/cluster=<name>` label) report `Ready`. The installer tags the node roles, so they must exist before provisioning. On timeout it logs each unready resource's Synced message, such as an AWS `AccessDenied` from the hub's Crossplane identity. `build-aws-credentials-manifests` then turns each raw Secret into a Secret manifest for the annotated target namespace and name, bundled as Secret `<name>-cloud-credentials-manifests`, which Hive installs through `ClusterDeployment.spec.provisioning.manifestsSecretRef`. Deprovision (`cleanup-hub-artifacts`) finds the IAM resources by the `openshiftpartnerlabs.com/cluster=<name>` label (the installer set and node roles also by name), deletes them and waits up to 10 minutes for them to go. A failed label lookup fails the task before any deletion and keeps the namespace; re-run deprovision when the hub API answers. If any resources remain at the timeout, it logs each one's AWS name and conditions and fails before deleting the namespace. Stripping their finalizers would leave live IAM users and access keys in AWS, and some of those keys were on the spoke. When the provider can never reach AWS, re-run with `tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true` and follow the archived IAM cleanup report.
+A human migrates or destroys existing `legacy` clusters. No pipeline changes their mode.
 
-An AccessKey can also carry the annotation `openshiftpartnerlabs.com/delivery`. Without it, the credential goes into the install manifests as described above. With the value `post-provision`, `wait-for-aws-component-credentials` still waits for the raw Secret, `build-aws-credentials-manifests` leaves the credential out of `<name>-cloud-credentials-manifests`, and a post-provision task writes the Secret to the spoke, because the target namespace does not exist at install time. Any other value fails discovery with `update the pipeline image`. The only such credential is the peer-pods credential of the `coco` tier: `apply-coco-workloads` writes it to `openshift-sandboxed-containers-operator/peer-pods-secret`, and deprovision runs `terminate-pod-vms` before `delete-cluster-resources` to delete that AccessKey and terminate the cluster's pod VMs. The pod VMs launch from an AMI that `build-podvm-image-aws` builds per cluster in post-provision with the installer credential, and that `terminate-pod-vms` deletes with its snapshots (see [coco-tier.md](coco-tier.md)).
+### Operator discovery
 
-Scaffold-rendered policies contain `INFRA_ID_PLACEHOLDER` and `VPC_ID_PLACEHOLDER`, which match nothing until install. In the provision pipeline, `scope-aws-credentials` runs after `wait-for-hive-ready` and before `trigger-post-provision`. It substitutes the installed cluster's infra ID (from the ClusterDeployment) and its VPC (looked up with the hub installer key). After that:
-- resources tagged only `kubernetes.io/cluster/<infraID>=owned` also count as owned. The cloud-controller-manager, machine-api and EBS CSI always apply that tag, so partner `LoadBalancer` Services need no annotation.
-- egress-IP ENI changes are limited to the cluster VPC.
+fleet keeps no list of operators. The tasks read the operator set from the cluster's Crossplane AccessKeys on the hub.
 
-Scoped clusters need extra IAM actions on the hub's Crossplane identity (node roles and policy versions); see `hub-config/README.md`, "Credentials Setup".
+`fleet-cluster-scaffold` puts three annotations on every operator AccessKey:
 
-Scoped clusters need a manual step on OCP minor upgrades:
-1. Diff the release's AWS CredentialsRequests against `fleet-cluster-scaffold` `aws_policies.py`.
-2. Re-apply the crossplane overlay.
+| Annotation | Value |
+|---|---|
+| `openshiftpartnerlabs.com/credentials-request` | The CredentialsRequest the credential answers |
+| `openshiftpartnerlabs.com/target-namespace` | Namespace of the Secret on the spoke |
+| `openshiftpartnerlabs.com/target-secret` | Name of the Secret on the spoke |
+
+The AccessKey's `writeConnectionSecretToRef` names the raw credential Secret. The installer AccessKey carries no annotations.
+
+An overlay rendered before the annotations existed fails `pre-provision` with the message `regenerate the overlay with the current fleet-cluster-scaffold`.
+
+### Credentials at install time
+
+1. `wait-for-aws-component-credentials` waits until every operator's raw Secret exists and every Crossplane IAM resource of the cluster reports `Ready`. It finds the installer set and the BYO node roles by name and every other resource by the label `openshiftpartnerlabs.com/cluster=<name>`. The installer tags the node roles, so they must exist before the install.
+2. On timeout the task logs the Synced message of each unready resource, for example an AWS `AccessDenied` for the hub's Crossplane identity.
+3. `build-aws-credentials-manifests` turns each raw Secret into a Secret manifest for the annotated namespace and name, and bundles the manifests as Secret `<name>-cloud-credentials-manifests`.
+4. Hive adds the bundle to the install manifests through `ClusterDeployment.spec.provisioning.manifestsSecretRef`.
+
+### Credentials delivered after the install
+
+An AccessKey can carry the annotation `openshiftpartnerlabs.com/delivery`.
+
+| Value | Effect |
+|---|---|
+| Absent | The credential goes into the install manifests. |
+| `post-provision` | `wait-for-aws-component-credentials` waits for the raw Secret. `build-aws-credentials-manifests` leaves the credential out of the bundle. A `post-provision` task writes the Secret to the spoke, because the target namespace does not exist at install time. |
+| Any other value | Discovery fails with the message `update the pipeline image`. |
+
+The peer-pods credential of the `coco` tier is the only credential delivered this way:
+
+- `apply-coco-workloads` writes it to `openshift-sandboxed-containers-operator/peer-pods-secret`.
+- `terminate-pod-vms` deletes its AccessKey and terminates the cluster's pod VMs before `delete-cluster-resources` runs.
+- `build-podvm-image-aws` builds the pod VM AMI per cluster with the installer credential. `terminate-pod-vms` deletes the AMI and its snapshots.
+
+See [coco-tier.md](coco-tier.md).
+
+### Binding to the installed cluster
+
+Policies rendered by the scaffold contain `INFRA_ID_PLACEHOLDER` and `VPC_ID_PLACEHOLDER`, which match nothing until the cluster is installed. `scope-aws-credentials` runs after `wait-for-hive-ready` and before `trigger-post-provision`. It reads the infra ID from the ClusterDeployment, looks up the cluster VPC with the hub's installer key, and substitutes both values. After that:
+
+- Resources tagged only `kubernetes.io/cluster/<infraID>=owned` count as owned. The cloud-controller-manager, machine-api and EBS CSI always apply that tag, so a partner `LoadBalancer` Service needs no annotation.
+- Changes to egress-IP network interfaces are limited to the cluster VPC.
+
+The hub's Crossplane identity needs extra IAM actions for scoped clusters (node roles and policy versions). See "Credentials Setup" in [hub-config/README.md](../hub-config/README.md).
+
+### IAM cleanup at deprovision
+
+`cleanup-hub-artifacts` deletes the cluster's Crossplane IAM resources and waits up to 10 minutes for them to be gone. It finds them by the label `openshiftpartnerlabs.com/cluster=<name>`, and the installer set and node roles also by name.
+
+| Situation | Result |
+|---|---|
+| The label lookup fails | The task fails before any deletion and keeps the namespace. Run `deprovision` again when the hub API answers. |
+| Resources remain at the timeout | The task logs the AWS name and conditions of each one and fails before it deletes the namespace. |
+| Resources remain and `orphan-stuck-iam` is `true` | The task saves the unresolved AWS identities to a ConfigMap in the pipeline namespace, then removes the Crossplane finalizers. |
+
+The task does not remove finalizers by default: that would leave live IAM users and access keys in AWS, and some of those keys were on the spoke.
+
+When the provider cannot reach AWS, run:
+
+```bash
+tkn pipeline start deprovision -p cluster-name=<name> -p orphan-stuck-iam=true
+```
+
+`verify-deprovision` must pass before `create-deployment-status` posts the status. The archive workflow copies the IAM cleanup report into the archived cluster directory. [user-guide.md](user-guide.md#retry-report-delivery) describes how to deliver the report again.
+
+### OCP minor upgrades of scoped clusters
+
+1. Compare the AWS CredentialsRequests of the release with `aws_policies.py` of `fleet-cluster-scaffold`.
+2. Apply the crossplane overlay again.
 3. Set `cloudcredential.openshift.io/upgradeable-to` on the spoke.
 
-Existing (legacy) clusters are migrated or destroyed by a human. Nothing here changes them.
+## Not implemented
 
-### 3.2 Post-provisioning pipeline
-
-Replaces: out-of-band `oc create secret` for IDP, manual SSL setup, no RBAC automation.
-
-The post-provision pipeline is a **12-task linear Tekton pipeline** triggered by the provision pipeline's final task (`trigger-post-provision`). It runs before the cluster is labeled `bootstrapped=true` and handles concerns that require imperative, ordered execution across the hub–spoke trust boundary:
-
-1. **Workspace setup** — git-clone of fleet repo, extraction and saving of spoke kubeconfig from hub Secret
-2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI entry point, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
-3. **SSL certificate** — request via cert-manager on hub, wait for signing, derive leaf-only material, push to spoke ingress
-4. **Workloads** — apply the `workloads/base` overlay via kustomize for every tier; the `virt`, `ai` and `coco` tiers then apply their own overlay under `workloads/`
-5. **RBAC** — create a local `cluster-admins` group on spoke, add per-cluster users, bind to `cluster-admin`
-6. **Access handoff** — create a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
-7. **Finalization** — delete leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
-
-Tier-specific workload delivery (CNV, GPU operators) is a separate decision — see section 7.
-
-**Per-cluster user list:** Each cluster definition (in fleet-clusters under `provision/<name>/`) specifies the htpasswd users for that cluster. These users are added to both the htpasswd identity provider and the `cluster-admins` group. This is the convention for per-cluster access control.
-
-**Keycloak client registration:** An existing idempotent Python script registers a new OIDC client in the hub Keycloak instance. Per CLAUDE.md constraints, this script is packaged as a `pyproject.toml` entry point and invoked by a thin bash stub in the Tekton Task YAML. The task produces a client ID and secret, stored in a hub-side Secret for the OAuth configuration task to consume.
-
-```mermaid
-%% Post-provision pipeline: 11 implemented tasks + 1 aspirational
-%% Aspirational tasks shown in grey (not yet implemented)
-sequenceDiagram
-    autonumber
-    participant Prov as Provision Pipeline
-    participant Pipe as Post-Provision PipelineRun
-    participant Git
-    participant K8s as Hub K8s API
-    participant CertMgr as cert-manager (hub)
-    participant KC as Keycloak (hub)
-    participant Spoke as Spoke K8s API
-    participant ACM as ACM / Placement
-
-    Note over Prov,ACM: Triggered by provision pipeline's final task (trigger-post-provision)
-
-    Prov->>Pipe: Create PipelineRun: post-provision<br/>params: cluster-name, tier
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
-        Pipe->>Git: git clone --depth=1
-        Git-->>Pipe: repo in shared workspace
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 2: extract-spoke-kubeconfig<br/>(extract admin kubeconfig from hub Secret)
-        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
-        K8s-->>Pipe: kubeconfig (workspace-scoped)
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 3: save-spoke-kubeconfig<br/>(write kubeconfig to workspace for subsequent tasks)
-        Pipe->>Pipe: Save kubeconfig to shared workspace path
-    end
-
-    rect rgb(255, 248, 220)
-        Note over Pipe,KC: Task 4: register-keycloak-client<br/>(hub-only, Python CLI entry point)
-        Pipe->>KC: fleet-register-keycloak-client<br/>(idempotent, reads cluster-name)
-        KC-->>K8s: Store client-id + client-secret<br/>in hub Secret
-    end
-
-    rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 5: configure-spoke-oauth<br/>(two identity providers on spoke)
-        Pipe->>K8s: Read htpasswd user list<br/>from cluster definition
-        Pipe->>K8s: Read OIDC client-id + secret<br/>from Keycloak registration
-        Pipe->>Spoke: Create htpasswd Secret<br/>in openshift-config
-        Pipe->>Spoke: Create OIDC client Secret<br/>in openshift-config
-        Pipe->>Spoke: Apply OAuth CR with two providers:<br/>htpasswd (per-cluster users)<br/>openid (hub Keycloak)
-    end
-
-    rect rgb(255, 248, 220)
-        Note over Pipe,K8s: Task 6: request-ssl-cert<br/>(request via cert-manager on hub)
-        Pipe->>K8s: Apply Certificate CR<br/>(ClusterIssuer, wildcard DNS)
-        CertMgr->>K8s: Sign cert, populate Secret<br/>(CA stays on hub)
-    end
-
-    rect rgb(255, 248, 220)
-        Note over Pipe,K8s: Task 7: wait-for-ssl-ready<br/>(wait for cert-manager to sign)
-        Pipe->>K8s: oc wait --for=condition=Ready<br/>certificate/NAME --timeout=20m
-        K8s-->>Pipe: Certificate ready
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 8: extract-cert-material<br/>(derive leaf-only, push to spoke)
-        Pipe->>K8s: Extract tls.crt + tls.key ONLY<br/>(no ca.crt, no signing material)
-        Pipe->>Spoke: Create Secret in openshift-ingress
-        Pipe->>Spoke: Patch IngressController default<br/>spec.defaultCertificate.name
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
-        Pipe->>Spoke: kustomize build workloads/base<br/>(smoke-test ConfigMap)
-    end
-
-    rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 10: configure-spoke-rbac<br/>(local group + ClusterRoleBinding)
-        Pipe->>Spoke: Create Group: cluster-admins
-        Pipe->>Spoke: Add per-cluster users to group
-        Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 11: finalize-spoke<br/>(cleanup before handoff)
-        Pipe->>Spoke: Delete installer pods<br/>(label app=installer, status.phase=Failed)
-        Pipe->>Spoke: Delete kubeadmin secret<br/>from kube-system
-    end
-
-    rect rgb(200, 200, 200)
-        Note over Pipe,ACM: Task 12 (not yet implemented): mark-bootstrapped
-        Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
-        ACM-->>ACM: Placement re-evaluates
-        Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin
-    end
-
-    Note over Prov,ACM: All tasks sequential. Pipeline is idempotent.<br/>No out-of-band manual steps. No sync-wave ordering.
-```
-
-> Diagram source: [diagrams/post-provision-sequence.mermaid](./diagrams/post-provision-sequence.mermaid)
-> Rendered diagram: [diagrams/post-provision-sequence.svg](./diagrams/post-provision-sequence.svg)
-
-### 3.3 Deprovisioning pipeline
-
-If the IAM deadline expires and the run uses `orphan-stuck-iam=true`, Fleet saves the unresolved AWS identities to a ConfigMap in the pipeline namespace before removing Crossplane finalizers. Hub verification gates the GitHub deployment status. The archive workflow carries the follow-up report into the archived cluster directory. See the [deprovision guide](user-guide.md#retry-report-delivery) for retry steps.
-
-Replaces: `deprovision-cleanup-cronjob.yaml` + custom finalizer + namespace-terminating dance.
-
-The key insight: **when the pipeline controls the order, finalizers become unnecessary**. The current design needs finalizers because ArgoCD prune can delete `aws-credentials` before Hive has finished using it — the pipeline prevents that by simply not doing those things in parallel.
-
-The implemented pipeline has **4 tasks** with 2 aspirational tasks not yet built (shown in grey below): draining day-2 workloads before teardown and closing the loop with a PR comment.
-
-A further task, `terminate-pod-vms`, runs before `delete-cluster-resources`. It acts only for `tier=coco`, where it terminates the pod VMs and deletes the cluster's pod VM image (see [coco-tier.md](coco-tier.md)), and is not shown in the diagram below.
-
-```mermaid
-%% Deprovision pipeline: 4 implemented tasks + 2 aspirational
-%% Aspirational tasks shown in grey (not yet implemented)
-%% Replaces the finalizer + CronJob mechanism entirely
-sequenceDiagram
-    autonumber
-    participant Dev as Developer
-    participant Git
-    participant EL as Tekton EventListener
-    participant Pipe as Deprovision PipelineRun
-    participant ACM as ACM / Placement
-    participant AppSet as ArgoCD ApplicationSet
-    participant K8s as Hub K8s API
-    participant Hive as Hive Controller
-    participant AWS
-    participant CertMgr as cert-manager
-
-    Note over Dev,CertMgr: Replaces: custom finalizers + cluster-wide 5-min CronJob + namespace-terminating dance
-
-    Dev->>Git: Push deprovision sentinel to fleet-clusters
-    Git-->>EL: Webhook (path: deprovision/**)
-    EL->>Pipe: Create PipelineRun: deprovision<br/>params: cluster-name
-
-    rect rgb(200, 200, 200)
-        Note over Pipe,AppSet: (not yet implemented) drain-day2-workloads<br/>(stop new deploys before tearing down cluster)
-        Pipe->>K8s: oc label managedcluster/NAME bootstrapped-<br/>(remove label)
-        K8s-->>ACM: Placement re-evaluates
-        ACM-->>AppSet: Cluster no longer in decisions
-        AppSet->>K8s: Delete Applications targeting spoke
-        Pipe->>K8s: oc wait --for=delete applications<br/>-l target-cluster=NAME --timeout=10m
-    end
-
-    rect rgb(255, 248, 220)
-        Note over Pipe,Hive: Task 1: delete-cluster-resources<br/>(explicit order, not sync-wave guessing)
-        Pipe->>K8s: Delete KlusterletAddonConfig
-        Pipe->>K8s: Delete ManagedCluster
-        Pipe->>K8s: oc wait --for=delete managedcluster/NAME<br/>--timeout=5m
-        Pipe->>K8s: Delete MachinePool
-        Pipe->>K8s: Delete ClusterDeployment
-    end
-
-    rect rgb(255, 240, 240)
-        Note over Pipe,AWS: Task 2: wait-hive-uninstall<br/>(direct condition wait, not CronJob polling)
-        Hive->>K8s: Create ClusterDeprovision + uninstall Job
-        Note over Hive: Reads aws-credentials + metadata-json directly<br/>(still in same ns, no finalizer gymnastics needed<br/>because pipeline controls order)
-        Hive->>AWS: Delete EC2, LBs, Route53, VPC, S3, EBS, IAM
-        AWS-->>Hive: All cloud resources deleted (10-15 min)
-        Hive->>K8s: Job status.succeeded=1
-        Hive->>K8s: Remove hive finalizer from ClusterDeployment
-        Pipe->>K8s: oc wait --for=delete clusterdeployment/NAME<br/>--timeout=30m
-        K8s-->>Pipe: ClusterDeployment gone
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,CertMgr: Task 3: cleanup-hub-artifacts
-        Pipe->>CertMgr: Delete Certificate CR for spoke-NAME
-        CertMgr->>K8s: Delete cert Secret on hub
-        Pipe->>K8s: Delete Crossplane IAM resources, wait until gone<br/>(fail if stuck unless orphan-stuck-iam=true)
-        Pipe->>K8s: Delete cluster namespace on hub<br/>(takes aws-credentials, ssh-key, pull-secret with it)
-    end
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 4: verify-deprovision
-        Pipe->>K8s: oc get all,secrets -n NAME<br/>(expect: NotFound)
-        Pipe->>K8s: oc get cluster IAM resources, by name and label<br/>(expect: none)
-    end
-
-    rect rgb(200, 200, 200)
-        Note over Pipe,Git: (not yet implemented) close-the-loop
-        Pipe->>Git: (optional) comment on originating PR:<br/>"Deprovision complete: 14m23s"
-    end
-
-    Note over Dev,CertMgr: Total time: ~15-20 min, deterministic.<br/>No CronJob poll delay. No custom finalizers.<br/>Pipeline failure at any step is visible and resumable.
-```
-
-> Diagram source: [diagrams/deprovision-sequence.mermaid](./diagrams/deprovision-sequence.mermaid)
-
----
-
-## 4. What We Keep, What We Remove, What We Add
-
-### 4.1 Keep
-
-- **Git as source of truth** for cluster definitions, tier labels, pipeline definitions, and day-2 workload manifests.
-- **ArgoCD** for delivering hub-side static manifests — the Tekton installation itself, ACM config, cert-manager `ClusterIssuer`, baseline hub operators.
-- **ArgoCD `ApplicationSet` with ACM cluster generator** for day-2 workload delivery to spokes. This is ArgoCD at its best: continuous reconciliation of ongoing state against git.
-- **ACM + Hive** for the actual cluster provisioning. They are purpose-built for this.
-- **The `provision/<name>/` folder convention** in fleet-clusters as the trigger surface — a commit under this path is what kicks off Tekton.
-
-### 4.2 Remove
-
-- `bootstrap/argocd-app-of-apps.yaml` as the orchestrator of cluster lifecycle. (A slimmer app-of-apps may remain for delivering *hub config*, but it no longer touches `ClusterDeployment` and friends.)
-- The `PostSync` Job that polls for `metadata-json`. Replaced by `oc wait --for=condition=Provisioned` in a Tekton task.
-- The custom `openshiftpartnerlabs.com/deprovision` finalizer. Unnecessary once the pipeline controls delete order.
-- `bootstrap/deprovision-cleanup-cronjob.yaml`. The CronJob is replaced by the deprovision pipeline's explicit wait tasks.
-- The implicit `CLUSTER_NAME="$NAMESPACE"` coupling. Pipelines pass `cluster-name` as a parameter, making the coupling explicit.
-- Manual `oc create secret` as a prerequisite step. Secrets are managed as hub-side Kubernetes Secrets, referenced by the pipeline.
-
-### 4.3 Add
-
-- **OpenShift Pipelines (Tekton)** on the hub.
-- **A `tekton/` directory** in this repo containing `Pipeline`, `Task`, `TriggerBinding`, `TriggerTemplate`, and `EventListener` definitions for provision, post-provision, and deprovision flows.
-- **`cert-manager`** on the hub with a `ClusterIssuer` pointing at internal PKI.
-- **A git webhook** on the fleet-clusters repo pointing at the Tekton `EventListener`. Pipeline selection is by changed path (`provision/**` vs `deprovision/**`).
-- **Tier labels** on `ManagedCluster` (`tier=virt|ai|coco|base`) read by the post-provision pipeline and by `ApplicationSet` placement.
-- **A hub-side CronJob per cluster** in `default`, using the pre-provisioned `ecoeng` service account and per-cluster `timezone` and `schedule` values.
-
----
-
-## 5. Why Tekton + ArgoCD + ACM (Not Tekton + ACM Alone)
-
-We explicitly chose to keep ArgoCD rather than replace it wholesale. Reasoning:
-
-| Dropping ArgoCD would mean | Not worth it because |
+| Item | Current behaviour |
 |---|---|
-| Hand-rolling hub-config manifest delivery | ArgoCD does this cleanly; the failure mode we have today is in *cluster lifecycle*, not hub-config delivery |
-| Losing `ApplicationSet` with ACM cluster generator for day-2 | This is genuinely well-fit; ongoing reconciliation of workloads is exactly what ArgoCD is for |
-| Losing drift detection on hub | ArgoCD's self-heal on hub-config is a safety net we keep |
+| Spoke certificate rotation | cert-manager renews the certificate on the hub. No pipeline writes the renewed leaf certificate to the spoke. |
+| Deprovision approval gate | `deprovision` starts on the push. No task waits for a manual approval. |
 
-The surgical change is: **stop asking ArgoCD to do workflow orchestration**. Let it do what it is good at.
+## Related documentation
 
----
-
-## 6. Migration Order
-
-Recommended sequence (each step delivers value and is reversible if needed):
-
-1. **Install Tekton + cert-manager on hub** via a new ArgoCD `Application`. `hub-config/crossplane/` installs Crossplane. Hub-config delivery path is unchanged.
-2. **Build the provision pipeline** for the `base` tier only. Prove it on one test spoke end-to-end. Do not migrate real clusters yet.
-3. **Add the deprovision pipeline**. Migrate one test cluster through its full lifecycle (provision → deprovision) via Tekton. Validate that deprovision finishes cleanly without the CronJob.
-4. **Add tier branching** (`virt`, then `ai`) to the post-provision pipeline.
-5. **Switch the day-2 delivery model** to `ApplicationSet` with ACM cluster generator. Existing per-cluster ArgoCD `Application`s are replaced by placement-driven generation.
-6. **Migrate existing clusters** one at a time. For each cluster: ensure it has the right tier label, let `ApplicationSet` take over, then remove its per-cluster ArgoCD `Application`.
-7. **Retire** `deprovision-cleanup-cronjob.yaml`, the `PostSync` Job, and the custom finalizer only after all clusters have moved. These stay deployed until then as a safety net.
-
----
-
-## 7. Open Questions / Future Work
-
-- **Ansible vs Tekton for post-provision imperative steps.** Tekton wins for our case (custom logic, external API integration), but if a step is naturally Ansible (e.g., registering with ServiceNow), a Tekton task can invoke an Ansible Runner. We'll decide per step.
-- **Spoke drift after bootstrap.** `ApplicationSet` catches workload drift. ACM `Policy` may be worth adding for baseline config enforcement on spokes (NetworkPolicies, baseline RBAC). TBD.
-- **Cert rotation.** cert-manager handles renewal on hub automatically. A companion "rotate-spoke-cert" pipeline triggered by renewal events will re-run the push-to-spoke task only. Not in the initial scope.
-- **Tier-specific workload delivery model.** Post-provision imperative steps (SSL, OAuth, RBAC) are Tekton tasks. For tier-specific operator installation (CNV, GPU Operator, OpenShift AI), two models remain under consideration: (a) Tekton tasks in the post-provision pipeline with tier branching, or (b) layered ArgoCD ApplicationSets with tier-specific Placement label selectors. Decision deferred until base-tier post-provision is proven end-to-end.
-- **Human approval gates.** Prod deprovision should require a human click. Tekton supports this via manual-approval tasks; wiring TBD.
-
----
-
-## 8. References
-
-- Architecture docs from predecessor repo [`labargocd`](https://github.com/redhat-openshift-partner-labs/labargocd):
-  - `secret-persistence-workflow.md`
-  - `cluster-deletion-workflow.md`
-  - `bootstrap/argocd-app-of-apps.yaml`
-  - `bootstrap/deprovision-cleanup-cronjob.yaml`
-- Target architecture diagrams are embedded inline in sections 2.2, 3.1, 3.2, and 3.3 above (mermaid format). Standalone source files live in [`docs/diagrams/`](./diagrams/).
-- External:
-  - [OpenShift Pipelines (Tekton) docs](https://docs.openshift.com/pipelines/)
-  - [OpenShift GitOps (ArgoCD) docs](https://docs.openshift.com/gitops/)
-  - [Red Hat Advanced Cluster Management docs](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/)
-  - [ArgoCD ApplicationSet with ACM cluster generator](https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Cluster-Decision-Resource/)
+| Document | Covers |
+|---|---|
+| [user-guide.md](user-guide.md) | Provisioning, deprovisioning and troubleshooting a cluster |
+| [developer-guide.md](developer-guide.md) | Local setup, checks, adding a task, updating a diagram |
+| [fleet-clusters-setup.md](fleet-clusters-setup.md) | Repository structure, GitHub App, webhook, archive workflow |
+| [per-cluster-metadata.md](per-cluster-metadata.md) | The `metadata.yaml` keys |
+| [parameter-threading.md](parameter-threading.md) | How a parameter passes from a trigger to a task |
+| [hub-config/README.md](../hub-config/README.md) | Installing and verifying the hub operators |

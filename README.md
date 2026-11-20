@@ -13,13 +13,13 @@ fleet is the control plane for the Red Hat OpenShift Partner Labs cluster fleet.
 
 ![Architecture](docs/diagrams/architecture.svg)
 
-Diagram source: [docs/diagrams/architecture.mermaid](docs/diagrams/architecture.mermaid). Rationale and migration plan: [docs/architecture.md](docs/architecture.md).
+Diagram source: [docs/diagrams/architecture.mermaid](docs/diagrams/architecture.mermaid). Components, trust boundary and pipelines: [docs/architecture.md](docs/architecture.md).
 
 | Component | Role |
 |---|---|
 | Git | Source of truth: pipelines and hub configuration in this repo, cluster definitions in fleet-clusters |
 | Tekton (OpenShift Pipelines) | Workflow engine for pre-provision, provision, post-provision, and deprovision |
-| ArgoCD (OpenShift GitOps) | Manifest delivery to the hub; day-2 workload delivery to spokes via `ApplicationSet` is planned |
+| ArgoCD (OpenShift GitOps) | Manifest delivery to the hub |
 | ACM + Hive | Fleet membership and cluster provisioning |
 | cert-manager | Hub-side TLS certificate management; spokes receive only derived artifacts |
 | Crossplane | Per-cluster IAM user generation; installed by `hub-config/crossplane/` |
@@ -73,7 +73,7 @@ The `tier` label on a ManagedCluster selects what the post-provision pipeline in
 |---|---|
 | [User guide](docs/user-guide.md) | Provisioning, managing and deprovisioning clusters; troubleshooting |
 | [Developer guide](docs/developer-guide.md) | Local setup, checks, adding a Tekton task, the pipeline image |
-| [Architecture](docs/architecture.md) | Current state, target architecture, migration plan |
+| [Architecture](docs/architecture.md) | Components, trust boundary, trigger chain, pipelines, AWS credential modes |
 | [Hub cluster setup](hub-config/README.md) | Installing, verifying and uninstalling the hub operators |
 | [fleet-clusters setup](docs/fleet-clusters-setup.md) | Repository structure, GitHub App, webhook and archive workflow |
 | [Image pull secret setup](docs/image-pull-secret-setup.md) | Credentials for pulling the pipeline image from quay.io |
@@ -108,8 +108,6 @@ tox
 | Post-provision pipeline (base, virt, ai, coco tiers) | Done |
 | Deprovision pipeline | Done |
 | Tekton triggers (pre-provision, post-provision, deprovision) | Done |
-| ApplicationSet day-2 delivery | Planned |
-| Migration from `labargocd` | Planned |
 
 ## Background
 
