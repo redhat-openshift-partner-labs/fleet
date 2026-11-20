@@ -93,16 +93,16 @@
 
   <!-- ===== Frames ===== -->
   <rect class="frame" x="24" y="238" width="1214" height="162" rx="14"/>
-  <rect class="bg" x="40" y="228" width="196" height="20" rx="10"/>
+  <rect class="bg" x="40" y="228" width="202" height="20" rx="10"/>
   <text class="m lbl" x="52" y="242">GIT · SOURCE OF TRUTH</text>
   <rect class="frame" x="24" y="456" width="1214" height="718" rx="14"/>
-  <rect class="bg" x="560" y="446" width="196" height="20" rx="10"/>
+  <rect class="bg" x="560" y="446" width="202" height="20" rx="10"/>
   <text class="m lbl" x="572" y="460">HUB CLUSTER · TRUSTED</text>
   <rect class="frame" x="24" y="1364" width="1214" height="142" rx="14"/>
-  <rect class="bg" x="496" y="1354" width="270" height="20" rx="10"/>
+  <rect class="bg" x="496" y="1354" width="279" height="20" rx="10"/>
   <text class="m lbl" x="508" y="1368">SPOKE · THIRD-PARTY ACCESSIBLE</text>
   <rect class="bg" x="68" y="490" width="1070" height="312" rx="14"/>
-  <rect class="frame" x="600" y="480" width="221" height="20" rx="10"/>
+  <rect class="frame" x="600" y="480" width="228" height="20" rx="10"/>
   <text class="m lbl" x="612" y="494">TEKTON · WORKFLOW ENGINE</text>
 
   <!-- ===== Cards: Git ===== -->

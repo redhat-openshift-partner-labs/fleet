@@ -38,6 +38,11 @@ def emit(svg: Path, text: str, check: bool, script: str) -> None:
         sys.exit(f"{svg.name} differs from the layout; run {script}")
 
 
+def pill_width(name: str) -> int:
+    """Width of a frame's tag pill: 8.5 px per spaced uppercase character plus 24 px."""
+    return round(8.5 * len(name) + 24)
+
+
 class Drawing:
     """Collects SVG lines; cards are numbered in the order they are added."""
 
@@ -129,7 +134,7 @@ class Drawing:
     ) -> None:
         """Subgraph frame with a tag pill at px on its top edge."""
         cls, pill = ("bg", "frame") if nested else ("frame", "bg")
-        pw = round(8.2 * len(name) + 24)
+        pw = pill_width(name)
         self.raw(
             f'  <rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}" rx="14"/>'
         )
