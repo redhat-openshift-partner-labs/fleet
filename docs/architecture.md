@@ -187,7 +187,7 @@ flowchart TB
     class SpokeLeaf,SpokeBaseline,SpokeIDP,SpokeWorkloads spoke
 ```
 
-> Diagram source: [diagrams/target-architecture.mermaid](./diagrams/target-architecture.mermaid)
+> Diagram source: [diagrams/architecture.mermaid](./diagrams/architecture.mermaid)
 
 ### 2.3 Trust boundary (why this constraint shapes the design)
 
