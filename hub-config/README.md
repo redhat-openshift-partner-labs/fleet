@@ -33,13 +33,12 @@ The target runs `hub-config/install-hub-config.sh`. The script does this:
 
 | Step | Action | Waits up to |
 |---|---|---|
-| 1 | Runs `generate-channels.sh`. It reads the catalog of the cluster and changes no manifest; see [Channels](#channels). | |
-| 2 | Applies the namespaces, the OperatorGroups and Subscriptions of the five operators, and the Crossplane RBAC, Helm Job and SCC binding | |
-| 3 | Waits until the five operators report `Succeeded` and the Job `crossplane-helm-installer` is complete. Exits with an error on a failed operator, a failed Job or the timeout. | 600 seconds |
-| 4 | Waits for the ACM and Crossplane CRDs, then applies the MultiClusterHub and the Provider | 120 seconds each |
-| 5 | Waits until the Provider is healthy and its CRDs exist, then applies the ProviderConfig `default` | 180 and 90 seconds |
-| 6 | Adds `gitops-plugin` and `pipelines-console-plugin` to the plugins of the web console | |
-| 7 | Prints the state of each operator, the Provider, the ProviderConfig, the MultiClusterHub and ArgoCD | |
+| 1 | Applies the namespaces, the OperatorGroups and Subscriptions of the five operators, and the Crossplane RBAC, Helm Job and SCC binding | |
+| 2 | Waits until the five operators report `Succeeded` and the Job `crossplane-helm-installer` is complete. Exits with an error on a failed operator, a failed Job or the timeout. | 600 seconds |
+| 3 | Waits for the ACM and Crossplane CRDs, then applies the MultiClusterHub and the Provider | 120 seconds each |
+| 4 | Waits until the Provider is healthy and its CRDs exist, then applies the ProviderConfig `default` | 180 and 90 seconds |
+| 5 | Adds `gitops-plugin` and `pipelines-console-plugin` to the plugins of the web console | |
+| 6 | Prints the state of each operator, the Provider, the ProviderConfig, the MultiClusterHub and ArgoCD | |
 
 The script applies every manifest with `oc apply`, so it can run again after a failure.
 
@@ -161,8 +160,6 @@ Change a channel:
    ```bash
    oc apply -f <directory>/subscription.yaml
    ```
-
-`generate-channels.sh` and `make hub-channels` replace placeholder strings such as `CERT_MANAGER_CHANNEL`. No manifest contains a placeholder, so both change nothing.
 
 ## ArgoCD Application
 

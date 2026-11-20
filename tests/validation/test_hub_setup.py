@@ -44,6 +44,27 @@ def test_make_targets_named_in_the_readme_exist():
     assert named <= targets, f"not in the Makefile: {sorted(named - targets)}"
 
 
+def test_scripts_named_for_the_hub_install_exist():
+    sources = [ROOT / "Makefile", HUB_README, *sorted(HUB.glob("*.sh"))]
+    for source in sources:
+        named = set(re.findall(r"[a-z][a-z-]*\.sh", source.read_text("utf-8")))
+        missing = sorted(name for name in named if not (HUB / name).is_file())
+        assert not missing, f"{source.name} names {missing}"
+
+
+def test_install_table_has_a_row_for_every_step_of_the_script():
+    script = (HUB / "install-hub-config.sh").read_text(encoding="utf-8")
+    steps = re.findall(r"^# Step (\d+):", script, flags=re.MULTILINE)
+    assert steps == [str(number) for number in range(1, len(steps) + 1)]
+
+    rows = table_rows(HUB_README, "## Install")
+    assert [key for key in rows if key.isdigit()] == steps
+
+    # The messages of the script carry the number of their step.
+    echoed = re.findall(r'^echo ".*Step (\d+):', script, flags=re.MULTILINE)
+    assert echoed == steps
+
+
 HUB_SETUP = ROOT / "docs" / "hub-setup.md"
 
 # Secrets the code reads by a fixed name.

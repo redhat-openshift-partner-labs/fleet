@@ -20,20 +20,8 @@ fi
 echo "✅ Connected to cluster: $(oc config current-context)"
 echo ""
 
-# Step 1: Generate dynamic channels
-echo "📡 Step 1: Generating dynamic operator channels..."
-if [[ -f "${SCRIPT_DIR}/generate-channels.sh" ]]; then
-    cd "${SCRIPT_DIR}"
-    ./generate-channels.sh
-else
-    echo "❌ generate-channels.sh not found!"
-    exit 1
-fi
-
-echo ""
-
-# Step 2: Initial apply (operators, namespaces, RBAC - but NOT dependent resources)
-echo "⚙️  Step 2: Installing operators and infrastructure..."
+# Step 1: Initial apply (operators, namespaces, RBAC - but NOT dependent resources)
+echo "⚙️  Step 1: Installing operators and infrastructure..."
 echo "   This will create namespaces, subscriptions, and RBAC..."
 
 cd "${SCRIPT_DIR}"
@@ -56,8 +44,8 @@ oc apply -f crossplane/rbac/scc-binding.yaml
 
 echo ""
 
-# Step 3: Wait for operator installations
-echo "⏱️  Step 3: Waiting for operators to install..."
+# Step 2: Wait for operator installations
+echo "⏱️  Step 2: Waiting for operators to install..."
 echo "   Monitoring ClusterServiceVersion status..."
 
 expected_csvs=("cert-manager" "gitops" "pipelines" "advanced-cluster-management" "rhsso")
@@ -124,8 +112,8 @@ fi
 
 echo ""
 
-# Step 4: Wait for CRDs and apply dependent resources
-echo "🔧 Step 4: Waiting for operator CRDs and applying dependent resources..."
+# Step 3: Wait for CRDs and apply dependent resources
+echo "🔧 Step 3: Waiting for operator CRDs and applying dependent resources..."
 
 # Wait for ACM operator CRDs
 echo "   ⏳ Waiting for ACM operator CRDs..."
@@ -173,8 +161,8 @@ fi
 
 echo ""
 
-# Step 5: Wait for Provider installation and apply ProviderConfig
-echo "🔧 Step 5: Waiting for AWS Provider installation and applying ProviderConfig..."
+# Step 4: Wait for Provider installation and apply ProviderConfig
+echo "🔧 Step 4: Waiting for AWS Provider installation and applying ProviderConfig..."
 # Wait for Provider to be installed and healthy
 echo "   ⏳ Waiting for AWS Provider to be installed..."
 provider_install_wait=180
@@ -219,8 +207,8 @@ oc apply -f crossplane/providerconfig.yaml || echo "   ProviderConfig already ex
 
 echo ""
 
-# Step 6: Enable Console Plugins
-echo "🎮 Step 6: Enabling console plugins..."
+# Step 5: Enable Console Plugins
+echo "🎮 Step 5: Enabling console plugins..."
 
 # Get current plugins
 current_plugins=$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null || echo "")
@@ -282,8 +270,8 @@ fi
 
 echo ""
 
-# Step 7: Verification
-echo "🔍 Step 7: Final verification..."
+# Step 6: Verification
+echo "🔍 Step 6: Final verification..."
 
 echo "   📊 Operator Status:"
 # Check key operators in their primary namespaces
