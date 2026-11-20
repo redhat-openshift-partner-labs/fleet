@@ -193,12 +193,12 @@ tox                    # all checks pass
 tox -e tekton-lint     # Tekton YAML valid
 ```
 
-## vCluster Test Infrastructure
+## vCluster Test
 
-The repo includes tooling for creating ephemeral vCluster instances to test the
-post-provision pipeline without real cloud infrastructure. See
-[vcluster.md](vcluster.md) for lifecycle diagrams, CLI reference, and how
-vCluster integrates with the post-provision pipeline.
+The pipeline `test-vcluster` runs `post-provision` against a temporary
+vCluster on the hub, without cloud resources. [vcluster.md](vcluster.md)
+describes what the test covers, the pipeline, the hub resources it creates and
+the four CLI tools.
 
 ## Container Image
 
@@ -443,6 +443,9 @@ document. The task of a pipeline is described once, in the task tables of
 | | A task named as reader of a key is in no pipeline |
 | | An expression in the trace table of `docs/parameter-threading.md` is not in the file its row names |
 | | A file named in "Add a per-cluster value" does not exist |
+| `tests/validation/test_vcluster_doc.py` | The skipped tasks of `docs/vcluster.md` differ from the tasks of `post-provision` that the `openshift-cluster` condition gates |
+| | Its parameter table or its task table differs from `tekton/pipelines/test-vcluster.yaml` |
+| | An argument table differs from the arguments of its CLI tool |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

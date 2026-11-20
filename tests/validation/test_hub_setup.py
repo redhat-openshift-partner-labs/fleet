@@ -4,40 +4,23 @@ import re
 
 import yaml
 
-from tests.validation._markdown import ROOT
+from tests.validation._markdown import ROOT, table_rows
 
 HUB = ROOT / "hub-config"
 HUB_README = HUB / "README.md"
 
 
-def rows_by_first_cell(path, heading: str) -> dict[str, list[str]]:
-    """Rows of the tables in one section of a document, keyed by their first cell.
-
-    The key is the first cell without backticks. A section runs from its
-    heading to the next heading of the same level.
-    """
-    text = path.read_text(encoding="utf-8")
-    level = heading.split(" ", 1)[0]
-    section = text.split(f"\n{heading}\n", 1)[1].split(f"\n{level} ", 1)[0]
-    rows = {}
-    for line in section.splitlines():
-        if line.startswith("|") and not line.startswith("|---"):
-            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-            rows[cells[0].strip("`")] = cells
-    return rows
-
-
 def test_component_table_lists_every_directory_of_the_kustomization():
     kustomization = yaml.safe_load((HUB / "kustomization.yaml").read_text("utf-8"))
     directories = [r for r in kustomization["resources"] if r.endswith("/")]
-    rows = rows_by_first_cell(HUB_README, "## Components")
+    rows = table_rows(HUB_README, "## Components")
 
     missing = [d for d in directories if d not in rows]
     assert not missing, f"hub-config/README.md has no component row for {missing}"
 
 
 def test_component_table_holds_the_channel_of_every_subscription():
-    rows = rows_by_first_cell(HUB_README, "## Components")
+    rows = table_rows(HUB_README, "## Components")
     subscriptions = sorted(HUB.glob("*/subscription.yaml"))
     assert subscriptions
 
@@ -75,7 +58,7 @@ REQUIRED_SECRETS = [
 
 
 def test_configuration_table_names_only_keys_of_the_configmap():
-    rows = rows_by_first_cell(HUB_SETUP, "### 6. Set the pipeline configuration")
+    rows = table_rows(HUB_SETUP, "### 6. Set the pipeline configuration")
     keys = [key for key in rows if key != "Key"]
     assert keys
 
@@ -92,7 +75,7 @@ def test_configuration_table_names_only_keys_of_the_configmap():
 
 
 def test_secrets_table_lists_every_secret_the_code_reads_by_name():
-    rows = rows_by_first_cell(HUB_SETUP, "## Secrets and accounts")
+    rows = table_rows(HUB_SETUP, "## Secrets and accounts")
     missing = [name for name in REQUIRED_SECRETS if name not in rows]
     assert not missing, f"docs/hub-setup.md has no row for {missing}"
 
@@ -111,5 +94,5 @@ def test_trigger_table_lists_the_triggers_of_the_eventlistener():
     triggers = {trigger["name"] for trigger in listener["spec"]["triggers"]}
 
     setup = ROOT / "docs" / "fleet-clusters-setup.md"
-    rows = rows_by_first_cell(setup, "## Triggers")
+    rows = table_rows(setup, "## Triggers")
     assert {name for name in rows if name != "Trigger"} == triggers
