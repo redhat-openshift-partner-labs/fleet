@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1470" width="1262" height="1470" role="img" aria-labelledby="title desc">
+  <title id="title">pre-provision pipeline</title>
+  <desc id="desc">The pre-provision pipeline has 14 tasks. Inputs: load-config (reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks); git-clone (clones fleet-clusters at the pushed revision into the shared workspace); check-prefix-collision (fails if another cluster in git, on the hub or in IAM labels has the same AWS infra prefix). Metadata, namespace and secrets: read-cluster-metadata (reads provision/NAME/metadata.yaml; result aws-credentials-mode); create-cluster-namespace (creates namespace NAME on the hub); create-ssh-key (generates an ed25519 key pair; stores Secret NAME-ssh-key); create-pull-secret (copies openshift-config/pull-secret into the cluster namespace). AWS credentials: apply-crossplane-credentials (applies the cluster's crossplane overlay: IAM users, access keys, roles, policies); wait-for-aws-credentials (waits up to 10m for Secret aws-credentials-raw, which Crossplane writes); transform-aws-credentials (writes Secret aws-credentials in the format Hive reads). aws-credentials-mode: scoped: wait-for-aws-component-credentials (waits for every operator's raw Secret and for all IAM resources of the cluster to be Ready); build-aws-credentials-manifests (writes Secret NAME-cloud-credentials-manifests for the Hive install manifests). Handover: validate-cluster-inputs (fails if aws-credentials, pull-secret or NAME-ssh-key is missing); trigger-provision (creates the PipelineRun of the provision pipeline). check-prefix-collision runs after git-clone. read-cluster-metadata runs after check-prefix-collision. create-cluster-namespace runs after check-prefix-collision. create-ssh-key runs after create-cluster-namespace. create-pull-secret runs after create-cluster-namespace. apply-crossplane-credentials runs after create-ssh-key. apply-crossplane-credentials runs after create-pull-secret. wait-for-aws-credentials runs after apply-crossplane-credentials. transform-aws-credentials runs after wait-for-aws-credentials. wait-for-aws-component-credentials runs after transform-aws-credentials. build-aws-credentials-manifests runs after wait-for-aws-component-credentials. validate-cluster-inputs runs after transform-aws-credentials. validate-cluster-inputs runs after build-aws-credentials-manifests. trigger-provision runs after validate-cluster-inputs. Constraints: Trigger: a push to main of fleet-clusters that adds provision/NAME/, unless the commit message contains [skip-provision]. Parameters: cluster-name, git-repo-url and git-revision come from the push event; the others from ConfigMap fleet-pipeline-config. Start: load-config and git-clone have no runAfter and start first. Credential mode: the two scoped tasks are skipped unless metadata.yaml sets aws-credentials-mode: scoped. Failure: a failed task stops the run; trigger-provision does not run.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1469" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">pre-provision pipeline</text>
+  <text class="m b" x="40" y="68">Fourteen tasks check the cluster definition, create the hub namespace, secrets and AWS credentials, then start the provision pipeline.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="170" rx="12"/>
+  <text class="t b k" x="56" y="124">Trigger</text>
+  <text class="m b" x="188" y="124">a push to main of fleet-clusters that adds provision/NAME/, unless the commit message contains [skip-provision]</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Parameters</text>
+  <text class="m b" x="188" y="156">cluster-name, git-repo-url and git-revision come from the push event; the others from ConfigMap fleet-pipeline-config</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Start</text>
+  <text class="m b" x="188" y="188">load-config and git-clone have no runAfter and start first</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Credential mode</text>
+  <text class="m b" x="188" y="220">the two scoped tasks are skipped unless metadata.yaml sets aws-credentials-mode: scoped</text>
+  <line class="rule" x1="56" y1="234" x2="1206" y2="234"/>
+  <text class="t b k" x="56" y="252">Failure</text>
+  <text class="m b" x="188" y="252">a failed task stops the run; trigger-provision does not run</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="302" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="292" width="75" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="306">INPUTS</text>
+  <rect class="frame" x="24" y="494" width="1214" height="294" rx="14"/>
+  <rect class="bg" x="215" y="484" width="288" height="20" rx="10"/>
+  <text class="m lbl" x="227" y="498">METADATA, NAMESPACE AND SECRETS</text>
+  <rect class="frame" x="24" y="840" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="830" width="152" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="844">AWS CREDENTIALS</text>
+  <rect class="frame" x="24" y="1032" width="788" height="140" rx="14"/>
+  <rect class="bg" x="215" y="1022" width="262" height="20" rx="10"/>
+  <text class="m lbl" x="227" y="1036">AWS-CREDENTIALS-MODE: SCOPED</text>
+  <rect class="frame" x="24" y="1224" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="1214" width="92" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="1228">HANDOVER</text>
+
+  <!-- ===== Cards ===== -->
+  <rect class="src" x="40" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="58" cy="348" r="10"/><text class="badge-t" x="58" y="352" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="353">load-config</text>
+  <line class="rule" x1="52" y1="368" x2="358" y2="368"/>
+  <text class="m s" x="52" y="390">reads ConfigMap fleet-pipeline-config; its results</text>
+  <text class="m s" x="52" y="408">are parameters of the later tasks</text>
+  <rect class="src" x="466" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="484" cy="348" r="10"/><text class="badge-t" x="484" y="352" text-anchor="middle">2</text>
+  <text class="t h2" x="500" y="353">git-clone</text>
+  <line class="rule" x1="478" y1="368" x2="784" y2="368"/>
+  <text class="m s" x="478" y="390">clones fleet-clusters at the pushed revision</text>
+  <text class="m s" x="478" y="408">into the shared workspace</text>
+  <rect class="core" x="892" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="348" r="10"/><text class="badge-t" x="910" y="352" text-anchor="middle">3</text>
+  <text class="t h2" x="926" y="353">check-prefix-collision</text>
+  <line class="rule" x1="904" y1="368" x2="1210" y2="368"/>
+  <text class="m s" x="904" y="390">fails if another cluster in git, on the hub or in</text>
+  <text class="m s" x="904" y="408">IAM labels has the same AWS infra prefix</text>
+  <rect class="src" x="40" y="520" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="58" cy="540" r="10"/><text class="badge-t" x="58" y="544" text-anchor="middle">4</text>
+  <text class="t h2" x="74" y="545">read-cluster-metadata</text>
+  <line class="rule" x1="52" y1="560" x2="358" y2="560"/>
+  <text class="m s" x="52" y="582">reads provision/NAME/metadata.yaml;</text>
+  <text class="m s" x="52" y="600">result aws-credentials-mode</text>
+  <rect class="core" x="892" y="520" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="540" r="10"/><text class="badge-t" x="910" y="544" text-anchor="middle">5</text>
+  <text class="t h2" x="926" y="545">create-cluster-namespace</text>
+  <line class="rule" x1="904" y1="560" x2="1210" y2="560"/>
+  <text class="m s" x="904" y="582">creates namespace NAME on the hub</text>
+  <rect class="core" x="466" y="674" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="694" r="10"/><text class="badge-t" x="484" y="698" text-anchor="middle">6</text>
+  <text class="t h2" x="500" y="699">create-ssh-key</text>
+  <line class="rule" x1="478" y1="714" x2="784" y2="714"/>
+  <text class="m s" x="478" y="736">generates an ed25519 key pair;</text>
+  <text class="m s" x="478" y="754">stores Secret NAME-ssh-key</text>
+  <rect class="core" x="892" y="674" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="694" r="10"/><text class="badge-t" x="910" y="698" text-anchor="middle">7</text>
+  <text class="t h2" x="926" y="699">create-pull-secret</text>
+  <line class="rule" x1="904" y1="714" x2="1210" y2="714"/>
+  <text class="m s" x="904" y="736">copies openshift-config/pull-secret</text>
+  <text class="m s" x="904" y="754">into the cluster namespace</text>
+  <rect class="core" x="40" y="866" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="886" r="10"/><text class="badge-t" x="58" y="890" text-anchor="middle">8</text>
+  <text class="t h2" x="74" y="891">apply-crossplane-credentials</text>
+  <line class="rule" x1="52" y1="906" x2="358" y2="906"/>
+  <text class="m s" x="52" y="928">applies the cluster's crossplane overlay:</text>
+  <text class="m s" x="52" y="946">IAM users, access keys, roles, policies</text>
+  <rect class="core" x="466" y="866" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="886" r="10"/><text class="badge-t" x="484" y="890" text-anchor="middle">9</text>
+  <text class="t h2" x="500" y="891">wait-for-aws-credentials</text>
+  <line class="rule" x1="478" y1="906" x2="784" y2="906"/>
+  <text class="m s" x="478" y="928">waits up to 10m for Secret aws-credentials-raw,</text>
+  <text class="m s" x="478" y="946">which Crossplane writes</text>
+  <rect class="core" x="892" y="866" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="886" r="10"/><text class="badge-t" x="910" y="890" text-anchor="middle">10</text>
+  <text class="t h2" x="926" y="891">transform-aws-credentials</text>
+  <line class="rule" x1="904" y1="906" x2="1210" y2="906"/>
+  <text class="m s" x="904" y="928">writes Secret aws-credentials in the</text>
+  <text class="m s" x="904" y="946">format Hive reads</text>
+  <rect class="core" x="40" y="1058" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="1078" r="10"/><text class="badge-t" x="58" y="1082" text-anchor="middle">11</text>
+  <text class="t h2" x="74" y="1083">wait-for-aws-component-credentials</text>
+  <line class="rule" x1="52" y1="1098" x2="358" y2="1098"/>
+  <text class="m s" x="52" y="1120">waits for every operator's raw Secret and for</text>
+  <text class="m s" x="52" y="1138">all IAM resources of the cluster to be Ready</text>
+  <rect class="core" x="466" y="1058" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="1078" r="10"/><text class="badge-t" x="484" y="1082" text-anchor="middle">12</text>
+  <text class="t h2" x="500" y="1083">build-aws-credentials-manifests</text>
+  <line class="rule" x1="478" y1="1098" x2="784" y2="1098"/>
+  <text class="m s" x="478" y="1120">writes Secret NAME-cloud-credentials-manifests</text>
+  <text class="m s" x="478" y="1138">for the Hive install manifests</text>
+  <rect class="core" x="466" y="1250" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="1270" r="10"/><text class="badge-t" x="484" y="1274" text-anchor="middle">13</text>
+  <text class="t h2" x="500" y="1275">validate-cluster-inputs</text>
+  <line class="rule" x1="478" y1="1290" x2="784" y2="1290"/>
+  <text class="m s" x="478" y="1312">fails if aws-credentials, pull-secret or</text>
+  <text class="m s" x="478" y="1330">NAME-ssh-key is missing</text>
+  <rect class="core" x="892" y="1250" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="1270" r="10"/><text class="badge-t" x="910" y="1274" text-anchor="middle">14</text>
+  <text class="t h2" x="926" y="1275">trigger-provision</text>
+  <line class="rule" x1="904" y1="1290" x2="1210" y2="1290"/>
+  <text class="m s" x="904" y="1312">creates the PipelineRun of the</text>
+  <text class="m s" x="904" y="1330">provision pipeline</text>
+
+  <!-- ===== Edges ===== -->
+  <path class="flow" d="M796 377 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 426 V468 H205 V518" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 426 V518" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 618 V646 H631 V672" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 618 V672" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 772 V814 H205 V864" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 772 V814 H205 V864" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 915 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 915 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 964 V1006 H205 V1056" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 1107 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 964 V1198 H631 V1248" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 1156 V1248" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 1299 H890" marker-end="url(#a-flow)"/>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="1404" x2="1222" y2="1404"/>
+  <path class="flow" d="M40 1432 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1436">runs next</text>
+  <rect class="src" x="174" y="1424" width="22" height="16" rx="4"/>
+  <text class="m s" x="204" y="1436">workspace, git, configuration</text>
+  <rect class="core" x="412" y="1424" width="22" height="16" rx="4"/>
+  <text class="m s" x="442" y="1436">hub Kubernetes API</text>
+</svg>

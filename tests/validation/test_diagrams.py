@@ -13,7 +13,7 @@ DIAGRAMS = ROOT / "docs" / "diagrams"
 PIPELINES = ROOT / "tekton" / "pipelines"
 
 # Pipelines that have a task flowchart: <pipeline>-flow.mermaid and .svg
-FLOWS = ["deprovision"]
+FLOWS = ["pre-provision", "deprovision"]
 # Pipelines that have a sequence diagram: <pipeline>-sequence.mermaid and .svg
 SEQUENCES = ["deprovision"]
 

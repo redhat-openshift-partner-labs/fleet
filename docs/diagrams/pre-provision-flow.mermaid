@@ -1,0 +1,58 @@
+%% Trigger: a push to main of fleet-clusters that adds provision/NAME/, unless the commit message contains [skip-provision]
+%% Parameters: cluster-name, git-repo-url and git-revision come from the push event; the others from ConfigMap fleet-pipeline-config
+%% Start: load-config and git-clone have no runAfter and start first
+%% Credential mode: the two scoped tasks are skipped unless metadata.yaml sets aws-credentials-mode: scoped
+%% Failure: a failed task stops the run; trigger-provision does not run
+flowchart TB
+    subgraph Inputs["Inputs"]
+        load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its results<br/>are parameters of the later tasks"]
+        git_clone["git-clone<br/>clones fleet-clusters at the pushed revision<br/>into the shared workspace"]
+        check_prefix_collision["check-prefix-collision<br/>fails if another cluster in git, on the hub or in<br/>IAM labels has the same AWS infra prefix"]
+    end
+
+    subgraph Hub["Metadata, namespace and secrets"]
+        read_cluster_metadata["read-cluster-metadata<br/>reads provision/NAME/metadata.yaml;<br/>result aws-credentials-mode"]
+        create_cluster_namespace["create-cluster-namespace<br/>creates namespace NAME on the hub"]
+        create_ssh_key["create-ssh-key<br/>generates an ed25519 key pair;<br/>stores Secret NAME-ssh-key"]
+        create_pull_secret["create-pull-secret<br/>copies openshift-config/pull-secret<br/>into the cluster namespace"]
+    end
+
+    subgraph Credentials["AWS credentials"]
+        apply_crossplane_credentials["apply-crossplane-credentials<br/>applies the cluster's crossplane overlay:<br/>IAM users, access keys, roles, policies"]
+        wait_for_aws_credentials["wait-for-aws-credentials<br/>waits up to 10m for Secret aws-credentials-raw,<br/>which Crossplane writes"]
+        transform_aws_credentials["transform-aws-credentials<br/>writes Secret aws-credentials in the<br/>format Hive reads"]
+    end
+
+    subgraph Scoped["aws-credentials-mode: scoped"]
+        wait_for_aws_component_credentials["wait-for-aws-component-credentials<br/>waits for every operator's raw Secret and for<br/>all IAM resources of the cluster to be Ready"]
+        build_aws_credentials_manifests["build-aws-credentials-manifests<br/>writes Secret NAME-cloud-credentials-manifests<br/>for the Hive install manifests"]
+    end
+
+    subgraph Handover["Handover"]
+        validate_cluster_inputs["validate-cluster-inputs<br/>fails if aws-credentials, pull-secret or<br/>NAME-ssh-key is missing"]
+        trigger_provision["trigger-provision<br/>creates the PipelineRun of the<br/>provision pipeline"]
+    end
+
+    git_clone --> check_prefix_collision
+    check_prefix_collision --> read_cluster_metadata
+    check_prefix_collision --> create_cluster_namespace
+    create_cluster_namespace --> create_ssh_key
+    create_cluster_namespace --> create_pull_secret
+    create_ssh_key --> apply_crossplane_credentials
+    create_pull_secret --> apply_crossplane_credentials
+    apply_crossplane_credentials --> wait_for_aws_credentials
+    wait_for_aws_credentials --> transform_aws_credentials
+    transform_aws_credentials --> wait_for_aws_component_credentials
+    wait_for_aws_component_credentials --> build_aws_credentials_manifests
+    transform_aws_credentials --> validate_cluster_inputs
+    build_aws_credentials_manifests --> validate_cluster_inputs
+    validate_cluster_inputs --> trigger_provision
+
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+
+    class load_config,git_clone,read_cluster_metadata src
+    class check_prefix_collision,create_cluster_namespace,create_ssh_key,create_pull_secret core
+    class apply_crossplane_credentials,wait_for_aws_credentials,transform_aws_credentials core
+    class wait_for_aws_component_credentials,build_aws_credentials_manifests core
+    class validate_cluster_inputs,trigger_provision core
