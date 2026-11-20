@@ -11,6 +11,29 @@ import sys
 from fleet.tasks._log import configure, error, info
 
 
+def _cluster_deployment_exists(cluster: str) -> bool:
+    result = subprocess.run(
+        [
+            "oc",
+            "get",
+            "clusterdeployment",
+            cluster,
+            "-n",
+            cluster,
+            "--ignore-not-found=true",
+            "--request-timeout=30s",
+            "-o",
+            "name",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        error(f"Could not check ClusterDeployment {cluster!r}: {result.stderr.strip()}")
+        sys.exit(1)
+    return bool(result.stdout.strip())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
@@ -26,13 +49,7 @@ def main() -> None:
     info(f"  timeout={args.timeout}")
 
     info(f"Checking if ClusterDeployment '{cluster}' still exists in ns '{cluster}'...")
-    result = subprocess.run(
-        ["oc", "get", "clusterdeployment", cluster, "-n", cluster],
-        capture_output=True,
-        text=True,
-    )
-    info(f"  -> oc get exit code: {result.returncode}")
-    if result.returncode != 0:
+    if not _cluster_deployment_exists(cluster):
         info(f"ClusterDeployment already gone (Hive uninstall complete)")
         return
 

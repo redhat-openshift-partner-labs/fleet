@@ -186,7 +186,7 @@ Once merged to `main`, the EventListener detects the new `deprovision/**` path a
 
 1. **terminate-pod-vms** — for `tier=coco`, deletes the peer-pods AccessKey, terminates the cluster's pod VMs, and deletes the cluster's pod VM AMIs, their snapshots and the staging bucket; ends without a change for other tiers
 2. **delete-cluster-resources** — deletes ClusterDeployment, ManagedCluster, and related CRs
-3. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure
+3. **wait-hive-uninstall** — waits for Hive to finish destroying the cloud infrastructure. A failed hub API lookup stops deprovision and preserves the installer credentials for a retry.
 4. **cleanup-hub-artifacts** — removes the cluster namespace, secrets, recurring hub job, and leftover resources from the hub
 5. **verify-deprovision** — confirms all resources have been cleaned up
 
