@@ -1,6 +1,8 @@
 # Architecture
 
-fleet runs the lifecycle of the Red Hat OpenShift Partner Labs clusters from one hub cluster. Git holds the cluster definitions, Tekton pipelines on the hub run the ordered work, and Hive with ACM installs and tracks the clusters. This document describes what the `main` branch implements.
+This document describes the components of the system, the trust boundary, the trigger chain, the tasks of each pipeline, and the AWS credential modes.
+
+fleet runs the lifecycle of the Red Hat OpenShift Partner Labs clusters from one hub cluster. Git holds the cluster definitions, Tekton pipelines on the hub run the ordered work, and Hive with ACM installs and tracks the clusters. Every statement is about what the `main` branch implements.
 
 ## Components
 
