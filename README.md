@@ -64,7 +64,7 @@ Operators start with the user guide. Hub administrators start with the hub setup
 | [Architecture](docs/architecture.md) | Operators and contributors | The components of the system, the trust boundary, the trigger chain, the tasks of each pipeline, and the AWS credential modes |
 | [Per-cluster metadata](docs/per-cluster-metadata.md) | Operators | The keys of `metadata.yaml`: the default, the accepted values and the effect of each |
 | [Confidential containers tier](docs/coco-tier.md) | Operators | Prerequisites, limits and operation of `coco` clusters |
-| [OpenShift AI operator mapping](docs/openshift-ai-operator-and-component-mapping.md) | Operators | Operators and components for OpenShift AI 2.x and 3.x |
+| [AI tier](docs/ai-tier.md) | Operators | What an operator sets for an `ai` cluster, what the pipelines install, in which order, and the messages of a failed task |
 | [Hub setup](docs/hub-setup.md) | Hub administrators | The one-time setup of the hub cluster, in order: the operators, the pipelines, their configuration and Secrets, and the connection to fleet-clusters |
 | [Hub operators](hub-config/README.md) | Hub administrators | How to install, verify, change and uninstall the hub operators that `hub-config/` defines |
 | [fleet-clusters setup](docs/fleet-clusters-setup.md) | Hub administrators | How to connect the fleet-clusters repository to the hub: the repository layout, the triggers, the webhook, the GitHub App, and the archive workflow |

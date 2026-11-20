@@ -17,6 +17,7 @@ DOCUMENTS = [
     "docs/per-cluster-metadata.md",
     "docs/parameter-threading.md",
     "docs/vcluster.md",
+    "docs/ai-tier.md",
 ]
 
 

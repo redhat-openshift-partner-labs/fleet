@@ -446,6 +446,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_vcluster_doc.py` | The skipped tasks of `docs/vcluster.md` differ from the tasks of `post-provision` that the `openshift-cluster` condition gates |
 | | Its parameter table or its task table differs from `tekton/pipelines/test-vcluster.yaml` |
 | | An argument table differs from the arguments of its CLI tool |
+| `tests/validation/test_ai_tier_doc.py` | The operator table of `docs/ai-tier.md` differs from what `apply-ai-workloads` requires for a version and an accelerator, or from the Subscriptions under `workloads/ai/` |
+| | A failure message of the document is not in the module of its task |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

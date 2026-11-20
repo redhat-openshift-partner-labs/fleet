@@ -158,7 +158,7 @@ Diagram source: [diagrams/post-provision-flow.mermaid](diagrams/post-provision-f
 | `create-access-paste` | Hub API, PrivateBin | Uploads console URL, kubeadmin password and kubeconfig to PrivateBin; stores the paste URL | `openshift-cluster` is `true` |
 | `finalize-spoke` | Spoke API | Deletes leftover installer pods and the kubeadmin Secret on the spoke | `openshift-cluster` is `true` |
 
-`openshift-cluster` is `false` in a `test-vcluster` run. The tier documents describe the tier tasks: [coco-tier.md](coco-tier.md) and [openshift-ai-operator-and-component-mapping.md](openshift-ai-operator-and-component-mapping.md).
+`openshift-cluster` is `false` in a `test-vcluster` run. The tier documents describe the tier tasks: [coco-tier.md](coco-tier.md) and [ai-tier.md](ai-tier.md).
 
 ![post-provision sequence diagram](diagrams/post-provision-sequence.svg)
 

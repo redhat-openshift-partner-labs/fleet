@@ -113,7 +113,7 @@ The scaffold writes the tier as the label `tier` of the ManagedCluster. `post-pr
 |---|---|---|---|
 | `base` | OAuth, TLS certificate, RBAC and the `workloads/base` overlay. Every tier includes these. | None | [architecture.md](architecture.md#post-provision) |
 | `virt` | OpenShift Virtualization, and Node Feature Discovery when the spoke catalog has it. The hub adds a bare-metal worker MachinePool. | None | [architecture.md](architecture.md#post-provision) |
-| `ai` | OpenShift AI 2.x or 3.x. With `ai-accelerator: nvidia-gpu`, also the GPU operators and a GPU worker MachinePool. | `openshift-ai-version`, `ai-accelerator` | [per-cluster-metadata.md](per-cluster-metadata.md#ai-accelerator), [operator mapping](openshift-ai-operator-and-component-mapping.md) |
+| `ai` | OpenShift AI 2.x or 3.x. With `ai-accelerator: nvidia-gpu`, also the GPU operators and a GPU worker MachinePool. | `openshift-ai-version`, `ai-accelerator` | [per-cluster-metadata.md](per-cluster-metadata.md#ai-accelerator), [ai-tier.md](ai-tier.md) |
 | `coco` | OpenShift sandboxed containers with peer pods on AWS | Region, OpenShift version and pod VM instance type have limits | [coco-tier.md](coco-tier.md) |
 
 ## Hand over access
@@ -356,6 +356,6 @@ The tasks of the `coco` tier are in [coco-tier.md](coco-tier.md#failure-messages
 | [architecture.md](architecture.md) | Components, trust boundary, and the tasks of each pipeline |
 | [per-cluster-metadata.md](per-cluster-metadata.md) | The `metadata.yaml` keys |
 | [coco-tier.md](coco-tier.md) | Prerequisites, limits and failure messages of the `coco` tier |
-| [openshift-ai-operator-and-component-mapping.md](openshift-ai-operator-and-component-mapping.md) | Operators and components of OpenShift AI 2.x and 3.x |
+| [ai-tier.md](ai-tier.md) | Inputs, operators, install order and failure messages of the `ai` tier |
 | [fleet-clusters-setup.md](fleet-clusters-setup.md) | Repository structure, GitHub App, webhook, archive workflow |
 | [hub-setup.md](hub-setup.md) | The one-time setup of the hub cluster |
