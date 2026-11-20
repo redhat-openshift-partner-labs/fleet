@@ -8,7 +8,9 @@ from fleet.tasks.wait_hive_uninstall import main
 
 
 def _run(args, **kwargs):
-    return subprocess.CompletedProcess(args, returncode=0, stdout="", stderr="")
+    return subprocess.CompletedProcess(
+        args, returncode=0, stdout="clusterdeployment.hive.openshift.io/test-cluster\n"
+    )
 
 
 def _run_fail(args, **kwargs):
@@ -31,6 +33,10 @@ def test_cd_exists_wait_succeeds(mock_run):
             "test-cluster",
             "-n",
             "test-cluster",
+            "--ignore-not-found=true",
+            "--request-timeout=30s",
+            "-o",
+            "name",
         ],
         capture_output=True,
         text=True,
@@ -52,18 +58,21 @@ def test_cd_exists_wait_succeeds(mock_run):
 
 @mock.patch("fleet.tasks.wait_hive_uninstall.subprocess.run")
 def test_cd_already_gone(mock_run):
-    mock_run.return_value = _run_fail([])
+    mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         main()
     mock_run.assert_called_once()
 
 
+@pytest.mark.parametrize("lookup_fails", [True, False])
 @mock.patch("fleet.tasks.wait_hive_uninstall.subprocess.run")
-def test_wait_timeout_exits_1(mock_run):
-    mock_run.side_effect = [_run([]), _run_fail([])]
+def test_lookup_or_wait_failure_exits_1(mock_run, lookup_fails):
+    expected_calls = 1 if lookup_fails else 2
+    mock_run.side_effect = [_run([])] * (expected_calls - 1) + [_run_fail([])]
     with mock.patch("sys.argv", ["prog", "--cluster-name", "test-cluster"]):
         with pytest.raises(SystemExit, match="1"):
             main()
+    assert mock_run.call_count == expected_calls
 
 
 @mock.patch("fleet.tasks.wait_hive_uninstall.subprocess.run")
