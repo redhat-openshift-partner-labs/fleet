@@ -65,7 +65,7 @@ Operators start with the user guide. Hub administrators start with the hub clust
 | [Per-cluster metadata](docs/per-cluster-metadata.md) | Operators | The `metadata.yaml` keys and how their values reach the tasks |
 | [Confidential containers tier](docs/coco-tier.md) | Operators | Prerequisites, limits and operation of `coco` clusters |
 | [OpenShift AI operator mapping](docs/openshift-ai-operator-and-component-mapping.md) | Operators | Operators and components for OpenShift AI 2.x and 3.x |
-| [Hub cluster setup](hub-config/README.md) | Hub administrators | Installing, verifying and uninstalling the hub operators |
+| [Hub operators](hub-config/README.md) | Hub administrators | How to install, verify, change and uninstall the hub operators that `hub-config/` defines |
 | [fleet-clusters setup](docs/fleet-clusters-setup.md) | Hub administrators | Repository structure, GitHub App, webhook and archive workflow |
 | [Image pull secret setup](docs/image-pull-secret-setup.md) | Hub administrators | Credentials for pulling the pipeline image from quay.io |
 | [Developer guide](docs/developer-guide.md) | Contributors | Local setup, checks, adding a Tekton task, the pipeline image, documents and diagrams |

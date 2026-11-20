@@ -411,7 +411,8 @@ and an archived repository receives no updates.
 A refreshed document opens with one purpose sentence below its title:
 `This guide describes ...` or `This document describes ...`. The documentation
 index of `README.md` holds the same text, without `This ... describes` and the
-full stop. `docs/architecture.md` and `docs/user-guide.md` follow the rule.
+full stop. `PURPOSE_DOCS` in `tests/validation/test_readme.py` lists the
+documents that follow the rule.
 
 The index has one row per document: every `docs/*.md` file and
 `hub-config/README.md`. Its columns are Document, Reader and Covers. A new
@@ -432,6 +433,9 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_user_guide.py` | A lifecycle pipeline has no link from the user guide to its task table |
 | | A troubleshooting row of the user guide names a task that no pipeline has |
 | | A command in the user guide uses a Crossplane API group that no task uses |
+| `tests/validation/test_hub_setup.py` | A directory of `hub-config/kustomization.yaml` has no row in the component table of `hub-config/README.md` |
+| | The channel of a `subscription.yaml` is not in its component row |
+| | A `make hub-*` target named in `hub-config/README.md` is not in the `Makefile` |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test
