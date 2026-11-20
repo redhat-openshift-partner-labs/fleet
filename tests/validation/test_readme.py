@@ -48,3 +48,25 @@ def test_relative_links_resolve():
     # Drop a trailing #anchor before the path check.
     missing = [t for t in targets if not (ROOT / t.split("#", 1)[0]).exists()]
     assert not missing, f"README.md links to missing paths: {missing}"
+
+
+# Documents that open with a purpose sentence. The documentation index of
+# README.md holds the same text.
+PURPOSE_DOCS = ["docs/architecture.md", "docs/user-guide.md"]
+PURPOSE = re.compile(r"This (?:guide|document) describes (.+)\.")
+
+
+def test_documentation_index_holds_the_purpose_of_each_document():
+    lines = README.read_text(encoding="utf-8").splitlines()
+    for document in PURPOSE_DOCS:
+        text = (ROOT / document).read_text(encoding="utf-8")
+        # The purpose is the first paragraph below the title.
+        first = text.split("\n\n")[1].strip()
+        match = PURPOSE.fullmatch(first)
+        assert match, f"{document} must open with 'This guide|document describes ... .'"
+        purpose = match[1][0].upper() + match[1][1:]
+
+        rows = [line for line in lines if f"]({document}) |" in line]
+        assert len(rows) == 1, f"README.md needs one index row for {document}"
+        cells = [cell.strip() for cell in rows[0].strip().strip("|").split("|")]
+        assert cells[-1] == purpose, f"README.md index row of {document}"

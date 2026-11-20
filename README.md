@@ -71,9 +71,9 @@ The `tier` label on a ManagedCluster selects what the post-provision pipeline in
 
 | Guide | Covers |
 |---|---|
-| [User guide](docs/user-guide.md) | Provisioning, managing and deprovisioning clusters; troubleshooting |
+| [User guide](docs/user-guide.md) | The tasks an operator performs: provision a cluster, hand over access, monitor a run, deprovision a cluster, and recover from a failed task |
 | [Developer guide](docs/developer-guide.md) | Local setup, checks, adding a Tekton task, the pipeline image |
-| [Architecture](docs/architecture.md) | Components, trust boundary, trigger chain, pipelines, AWS credential modes |
+| [Architecture](docs/architecture.md) | The components of the system, the trust boundary, the trigger chain, the tasks of each pipeline, and the AWS credential modes |
 | [Hub cluster setup](hub-config/README.md) | Installing, verifying and uninstalling the hub operators |
 | [fleet-clusters setup](docs/fleet-clusters-setup.md) | Repository structure, GitHub App, webhook and archive workflow |
 | [Image pull secret setup](docs/image-pull-secret-setup.md) | Credentials for pulling the pipeline image from quay.io |

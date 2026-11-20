@@ -400,6 +400,31 @@ When the switch is not complete on 2027-05-31, a `baseurl` at
 that the Stream 8 precedent indicates. That path does not exist on 2026-11-13,
 and an archived repository receives no updates.
 
+## Documents
+
+A refreshed document opens with one purpose sentence below its title:
+`This guide describes ...` or `This document describes ...`. The documentation
+index of `README.md` holds the same text, without `This ... describes` and the
+full stop. `docs/architecture.md` and `docs/user-guide.md` follow the rule.
+
+Content that belongs to the purpose of another document is a link to that
+document. The task of a pipeline is described once, in the task tables of
+`docs/architecture.md`.
+
+| Test file | Fails when |
+|---|---|
+| `tests/validation/test_readme.py` | A relative link in `README.md` does not resolve |
+| | A task count in the pipelines table differs from the pipeline definition |
+| | The index row of a document differs from the purpose sentence of that document |
+| `tests/validation/test_user_guide.py` | A link or a heading anchor in `docs/user-guide.md` or `docs/architecture.md` does not resolve |
+| | A lifecycle pipeline has no link from the user guide to its task table |
+| | A troubleshooting row of the user guide names a task that no pipeline has |
+| | A command in the user guide uses a Crossplane API group that no task uses |
+
+After a change to a pipeline, check the troubleshooting tables and the
+"Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test
+compares their messages and wait limits with the code.
+
 ## Diagrams
 
 `docs/diagrams/` holds nine diagrams: the architecture diagram, and a task
