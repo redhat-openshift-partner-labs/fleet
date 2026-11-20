@@ -628,7 +628,7 @@ match `sno.svg` of the aci-assessment repository byte for byte.
 ## Release
 
 The tag of a release is `v` followed by the `version` of `pyproject.toml`.
-The first step of `build-image.yml` compares the two and fails on a
+`build-image.yml` compares the two after the checkout and fails on a
 difference. A failed run pushes no image and creates no GitHub release.
 
 1. Set `version` under `[tool.poetry]` in `pyproject.toml` to the new version.
