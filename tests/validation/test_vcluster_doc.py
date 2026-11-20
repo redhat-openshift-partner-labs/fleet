@@ -56,7 +56,8 @@ def test_parameter_table_holds_the_params_and_defaults_of_the_pipeline():
 
 
 def test_task_table_lists_the_tasks_of_the_pipeline():
-    tasks = [task["name"] for task in pipeline_spec("test-vcluster")["tasks"]]
+    spec = pipeline_spec("test-vcluster")
+    tasks = [task["name"] for task in spec["tasks"] + spec["finally"]]
     assert list(body_rows("## The pipeline")) == tasks
 
 

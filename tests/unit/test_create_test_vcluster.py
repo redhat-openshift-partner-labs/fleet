@@ -7,6 +7,15 @@ import pytest
 from fleet.tasks.create_test_vcluster import main
 
 
+@pytest.fixture(autouse=True)
+def name_of_a_test():
+    """The guard accepts the name; test_refuses_the_name_of_a_real_cluster overrides it."""
+    with mock.patch(
+        "fleet.tasks.create_test_vcluster.refusal", return_value=None
+    ) as guard:
+        yield guard
+
+
 @mock.patch("builtins.open", mock.mock_open())
 @mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
 @mock.patch("os.makedirs")
@@ -381,3 +390,28 @@ def test_route_creation_fails(_mock_sleep, _mock_makedirs, mock_run):
     ):
         with pytest.raises(SystemExit, match="1"):
             main()
+
+
+@mock.patch("fleet.tasks.create_test_vcluster.subprocess.run")
+@mock.patch("os.makedirs")
+def test_refuses_the_name_of_a_real_cluster(mock_makedirs, mock_run, name_of_a_test):
+    name_of_a_test.return_value = (
+        "ClusterDeployment test-vc exists in namespace test-vc"
+    )
+    with mock.patch(
+        "sys.argv",
+        [
+            "prog",
+            "--cluster-name",
+            "test-vc",
+            "--namespace",
+            "test-ns",
+            "--output-dir",
+            "/out",
+        ],
+    ):
+        with pytest.raises(SystemExit, match="1"):
+            main()
+    name_of_a_test.assert_called_once_with("test-vc")
+    mock_run.assert_not_called()
+    mock_makedirs.assert_not_called()

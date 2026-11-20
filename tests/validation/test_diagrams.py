@@ -95,8 +95,17 @@ def parse_flow(name: str) -> dict:
 
 
 def pipeline_tasks(name: str) -> list[dict]:
+    """Tasks of a pipeline, the finally tasks last.
+
+    A finally task runs after every other task. It is given the tasks that no
+    task runs after as its runAfter, so a diagram draws it below them.
+    """
     text = (PIPELINES / f"{name}.yaml").read_text(encoding="utf-8")
-    return yaml.safe_load(text)["spec"]["tasks"]
+    spec = yaml.safe_load(text)["spec"]
+    tasks = spec["tasks"]
+    befores = {before for task in tasks for before in task.get("runAfter", [])}
+    last = [task["name"] for task in tasks if task["name"] not in befores]
+    return tasks + [{**task, "runAfter": last} for task in spec.get("finally", [])]
 
 
 def node_id(task_name: str) -> str:

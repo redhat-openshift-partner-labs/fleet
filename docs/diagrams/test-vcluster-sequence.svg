@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1226" width="1262" height="1226" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1538" width="1262" height="1538" role="img" aria-labelledby="title desc">
   <title id="title">test-vcluster pipeline: sequence</title>
-  <desc id="desc">Sequence of the test-vcluster pipeline between test-vcluster, Hub API, vCluster, post-provision. load-config: test-vcluster to Hub API: get ConfigMap fleet-pipeline-config; Hub API to test-vcluster: pipeline-image. create-test-vcluster: test-vcluster to vCluster: vcluster create NAME in the namespace, with the given or the generated values; test-vcluster to Hub API: after 30 seconds, read Secret vc-NAME; Hub API to test-vcluster: kubeconfig in the workspace; test-vcluster to Hub API: create a passthrough Route when route-san is set. seed-test-vcluster: test-vcluster to Hub API: create namespace NAME; test-vcluster to Hub API: create Secrets NAME-admin-kubeconfig and auto-import-secret; test-vcluster to Hub API: create ManagedCluster NAME with the labels tier, cloud=vcluster, vendor=Kubernetes; test-vcluster to Hub API: create a placeholder Secret aws-credentials when create-aws-creds is true. run-post-provision: test-vcluster to Hub API: create the PipelineRun of post-provision with openshift-cluster=false; Hub API to post-provision: Tekton starts the run; post-provision to vCluster: apply the workloads of the tier with the kubeconfig; test-vcluster to Hub API: read the state of the run every 30 seconds, up to the timeout; Hub API to test-vcluster: Succeeded. delete-test-vcluster: test-vcluster to Hub API: delete ManagedCluster NAME and wait up to 300 seconds for it to be gone; test-vcluster to vCluster: vcluster delete NAME, or delete the namespace when that fails. Constraints: Purpose: runs post-provision against a temporary vCluster on the hub. Order: every task runs after the task before it; a failed task stops the run. Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay.</desc>
+  <desc id="desc">Sequence of the test-vcluster pipeline between test-vcluster, Hub API, vCluster, post-provision. load-config: test-vcluster to Hub API: get ConfigMap fleet-pipeline-config; Hub API to test-vcluster: pipeline-image. create-test-vcluster: test-vcluster to Hub API: read ClusterDeployment NAME and ManagedCluster NAME; Hub API to test-vcluster: NAME belongs to no real cluster; test-vcluster to vCluster: vcluster create NAME in the namespace, with the given or the generated values; test-vcluster to Hub API: after 30 seconds, read Secret vc-NAME; Hub API to test-vcluster: kubeconfig in the workspace; test-vcluster to Hub API: create a passthrough Route when route-san is set. seed-test-vcluster: test-vcluster to Hub API: create namespace NAME with the label fleet-test-vcluster=NAME; test-vcluster to Hub API: create Secrets NAME-admin-kubeconfig and auto-import-secret; test-vcluster to Hub API: create ManagedCluster NAME with the labels tier, cloud=vcluster, vendor=Kubernetes; test-vcluster to Hub API: create a placeholder Secret aws-credentials when create-aws-creds is true. run-post-provision: test-vcluster to Hub API: create the PipelineRun of post-provision with openshift-cluster=false; Hub API to post-provision: Tekton starts the run; post-provision to vCluster: apply the workloads of the tier with the kubeconfig; test-vcluster to Hub API: read the state of the run every 30 seconds, up to the timeout; Hub API to test-vcluster: Succeeded. delete-test-vcluster: test-vcluster to Hub API: read ClusterDeployment NAME and ManagedCluster NAME; Hub API to test-vcluster: NAME belongs to no real cluster; test-vcluster to Hub API: delete ManagedCluster NAME and wait up to 300 seconds for it to be gone; test-vcluster to Hub API: delete Route NAME; test-vcluster to vCluster: vcluster delete NAME, or delete its namespace when that fails; test-vcluster to Hub API: delete namespace NAME when it carries the label; test-vcluster to Hub API: delete CronJob NAME and Secret NAME-spoke-kubeconfig. Constraints: Purpose: runs post-provision against a temporary vCluster on the hub. Order: the first four tasks run in order; a failed task stops them. Cleanup: delete-test-vcluster is the finally task; it runs after the fourth task and after a failed task. Name check: create, seed and delete exit 1 when a ClusterDeployment has the name or its ManagedCluster lacks cloud=vcluster.</desc>
 
   <style>
     .bg { fill: #ffffff; stroke: #d0d7de; }
@@ -73,116 +73,138 @@
   </defs>
 
   <!-- Canvas -->
-  <rect class="bg" x="0.5" y="0.5" width="1261" height="1225" rx="16"/>
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1537" rx="16"/>
 
   <!-- Title -->
   <text class="t h1" x="40" y="46">test-vcluster pipeline: sequence</text>
-  <text class="m b" x="40" y="68">The calls each of the five tasks makes, in the order the tasks run.</text>
+  <text class="m b" x="40" y="68">The calls each of the five tasks makes, in the order the tasks run. The last task is the finally task.</text>
 
   <!-- ===== Constraints ===== -->
   <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
-  <rect class="frame" x="40" y="98" width="1182" height="106" rx="12"/>
+  <rect class="frame" x="40" y="98" width="1182" height="138" rx="12"/>
   <text class="t b k" x="56" y="124">Purpose</text>
   <text class="m b" x="160" y="124">runs post-provision against a temporary vCluster on the hub</text>
   <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
   <text class="t b k" x="56" y="156">Order</text>
-  <text class="m b" x="160" y="156">every task runs after the task before it; a failed task stops the run</text>
+  <text class="m b" x="160" y="156">the first four tasks run in order; a failed task stops them</text>
   <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
   <text class="t b k" x="56" y="188">Cleanup</text>
-  <text class="m b" x="160" y="188">delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay</text>
+  <text class="m b" x="160" y="188">delete-test-vcluster is the finally task; it runs after the fourth task and after a failed task</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Name check</text>
+  <text class="m b" x="160" y="220">create, seed and delete exit 1 when a ClusterDeployment has the name or its ManagedCluster lacks cloud=vcluster</text>
 
   <!-- ===== Frames: one per task ===== -->
-  <rect class="frame" x="24" y="292" width="1214" height="80" rx="14"/>
-  <rect class="frame" x="24" y="382" width="1214" height="168" rx="14"/>
-  <rect class="frame" x="24" y="560" width="1214" height="210" rx="14"/>
-  <rect class="frame" x="24" y="780" width="1214" height="212" rx="14"/>
-  <rect class="frame" x="24" y="1002" width="1214" height="108" rx="14"/>
+  <rect class="frame" x="24" y="324" width="1214" height="80" rx="14"/>
+  <rect class="frame" x="24" y="414" width="1214" height="242" rx="14"/>
+  <rect class="frame" x="24" y="666" width="1214" height="224" rx="14"/>
+  <rect class="frame" x="24" y="900" width="1214" height="212" rx="14"/>
+  <rect class="frame" x="24" y="1122" width="1214" height="300" rx="14"/>
 
   <!-- ===== Participants and lifelines ===== -->
-  <rect class="src" x="313" y="232" width="135" height="40" rx="12"/>
-  <text class="t h2" x="380" y="257" text-anchor="middle">test-vcluster</text>
-  <line class="rule" x1="380" y1="272" x2="380" y2="1120"/>
-  <text class="m lbl" x="40" y="257">TASK</text>
-  <rect class="core" x="598" y="232" width="85" height="40" rx="12"/>
-  <text class="t h2" x="640" y="257" text-anchor="middle">Hub API</text>
-  <line class="rule" x1="640" y1="272" x2="640" y2="1120"/>
-  <rect class="out" x="833" y="232" width="94" height="40" rx="12"/>
-  <text class="t h2" x="880" y="257" text-anchor="middle">vCluster</text>
-  <line class="rule" x1="880" y1="272" x2="880" y2="1120"/>
-  <rect class="src" x="1049" y="232" width="143" height="40" rx="12"/>
-  <text class="t h2" x="1120" y="257" text-anchor="middle">post-provision</text>
-  <line class="rule" x1="1120" y1="272" x2="1120" y2="1120"/>
+  <rect class="src" x="313" y="264" width="135" height="40" rx="12"/>
+  <text class="t h2" x="380" y="289" text-anchor="middle">test-vcluster</text>
+  <line class="rule" x1="380" y1="304" x2="380" y2="1432"/>
+  <text class="m lbl" x="40" y="289">TASK</text>
+  <rect class="core" x="598" y="264" width="85" height="40" rx="12"/>
+  <text class="t h2" x="640" y="289" text-anchor="middle">Hub API</text>
+  <line class="rule" x1="640" y1="304" x2="640" y2="1432"/>
+  <rect class="out" x="833" y="264" width="94" height="40" rx="12"/>
+  <text class="t h2" x="880" y="289" text-anchor="middle">vCluster</text>
+  <line class="rule" x1="880" y1="304" x2="880" y2="1432"/>
+  <rect class="src" x="1049" y="264" width="143" height="40" rx="12"/>
+  <text class="t h2" x="1120" y="289" text-anchor="middle">post-provision</text>
+  <line class="rule" x1="1120" y1="304" x2="1120" y2="1432"/>
 
   <!-- ===== Tasks ===== -->
-  <circle class="badge-src" cx="58" cy="314" r="10"/><text class="badge-t" x="58" y="318" text-anchor="middle">1</text>
-  <text class="c b" x="76" y="318">load-config</text>
-  <circle class="badge-src" cx="58" cy="404" r="10"/><text class="badge-t" x="58" y="408" text-anchor="middle">2</text>
-  <text class="c b" x="76" y="408">create-test-vcluster</text>
-  <circle class="badge-src" cx="58" cy="582" r="10"/><text class="badge-t" x="58" y="586" text-anchor="middle">3</text>
-  <text class="c b" x="76" y="586">seed-test-vcluster</text>
-  <circle class="badge-src" cx="58" cy="802" r="10"/><text class="badge-t" x="58" y="806" text-anchor="middle">4</text>
-  <text class="c b" x="76" y="806">run-post-provision</text>
-  <circle class="badge-src" cx="58" cy="1024" r="10"/><text class="badge-t" x="58" y="1028" text-anchor="middle">5</text>
-  <text class="c b" x="76" y="1028">delete-test-vcluster</text>
+  <circle class="badge-src" cx="58" cy="346" r="10"/><text class="badge-t" x="58" y="350" text-anchor="middle">1</text>
+  <text class="c b" x="76" y="350">load-config</text>
+  <circle class="badge-src" cx="58" cy="436" r="10"/><text class="badge-t" x="58" y="440" text-anchor="middle">2</text>
+  <text class="c b" x="76" y="440">create-test-vcluster</text>
+  <circle class="badge-src" cx="58" cy="688" r="10"/><text class="badge-t" x="58" y="692" text-anchor="middle">3</text>
+  <text class="c b" x="76" y="692">seed-test-vcluster</text>
+  <circle class="badge-src" cx="58" cy="922" r="10"/><text class="badge-t" x="58" y="926" text-anchor="middle">4</text>
+  <text class="c b" x="76" y="926">run-post-provision</text>
+  <circle class="badge-src" cx="58" cy="1144" r="10"/><text class="badge-t" x="58" y="1148" text-anchor="middle">5</text>
+  <text class="c b" x="76" y="1148">delete-test-vcluster</text>
 
   <!-- ===== Messages ===== -->
-  <path class="flow" d="M380 324 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="317">get ConfigMap fleet-pipeline-config</text>
-  <path class="ctl" d="M640 354 H382" marker-end="url(#a-ctl)"/>
-  <text class="m s" x="388" y="347">pipeline-image</text>
-  <path class="flow" d="M380 428 H878" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="407">vcluster create NAME in the namespace,</text>
-  <text class="m s" x="388" y="421">with the given or the generated values</text>
-  <path class="flow" d="M380 458 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="451">after 30 seconds, read Secret vc-NAME</text>
-  <path class="ctl" d="M640 488 H382" marker-end="url(#a-ctl)"/>
-  <text class="m s" x="388" y="481">kubeconfig in the workspace</text>
-  <path class="flow" d="M380 532 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="511">create a passthrough Route when</text>
-  <text class="m s" x="388" y="525">route-san is set</text>
-  <path class="flow" d="M380 592 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="585">create namespace NAME</text>
-  <path class="flow" d="M380 636 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="615">create Secrets NAME-admin-kubeconfig and</text>
-  <text class="m s" x="388" y="629">auto-import-secret</text>
-  <path class="flow" d="M380 694 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="659">create ManagedCluster NAME with the</text>
-  <text class="m s" x="388" y="673">labels tier, cloud=vcluster,</text>
-  <text class="m s" x="388" y="687">vendor=Kubernetes</text>
-  <path class="flow" d="M380 752 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="717">create a placeholder Secret</text>
-  <text class="m s" x="388" y="731">aws-credentials when create-aws-creds is</text>
-  <text class="m s" x="388" y="745">true</text>
-  <path class="flow" d="M380 826 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="805">create the PipelineRun of post-provision</text>
-  <text class="m s" x="388" y="819">with openshift-cluster=false</text>
-  <path class="flow" d="M640 856 H1118" marker-end="url(#a-flow)"/>
-  <text class="m s" x="648" y="849">Tekton starts the run</text>
-  <path class="flow" d="M1120 900 H882" marker-end="url(#a-flow)"/>
-  <text class="m s" x="888" y="879">apply the workloads of the tier with</text>
-  <text class="m s" x="888" y="893">the kubeconfig</text>
-  <path class="flow" d="M380 944 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="923">read the state of the run every 30</text>
-  <text class="m s" x="388" y="937">seconds, up to the timeout</text>
-  <path class="ctl" d="M640 974 H382" marker-end="url(#a-ctl)"/>
-  <text class="m s" x="388" y="967">Succeeded</text>
-  <path class="flow" d="M380 1048 H638" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="1027">delete ManagedCluster NAME and wait up</text>
-  <text class="m s" x="388" y="1041">to 300 seconds for it to be gone</text>
-  <path class="flow" d="M380 1092 H878" marker-end="url(#a-flow)"/>
-  <text class="m s" x="388" y="1071">vcluster delete NAME, or delete the</text>
-  <text class="m s" x="388" y="1085">namespace when that fails</text>
+  <path class="flow" d="M380 356 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="349">get ConfigMap fleet-pipeline-config</text>
+  <path class="ctl" d="M640 386 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="379">pipeline-image</text>
+  <path class="flow" d="M380 460 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="439">read ClusterDeployment NAME and</text>
+  <text class="m s" x="388" y="453">ManagedCluster NAME</text>
+  <path class="ctl" d="M640 490 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="483">NAME belongs to no real cluster</text>
+  <path class="flow" d="M380 534 H878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="513">vcluster create NAME in the namespace,</text>
+  <text class="m s" x="388" y="527">with the given or the generated values</text>
+  <path class="flow" d="M380 564 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="557">after 30 seconds, read Secret vc-NAME</text>
+  <path class="ctl" d="M640 594 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="587">kubeconfig in the workspace</text>
+  <path class="flow" d="M380 638 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="617">create a passthrough Route when</text>
+  <text class="m s" x="388" y="631">route-san is set</text>
+  <path class="flow" d="M380 712 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="691">create namespace NAME with the label</text>
+  <text class="m s" x="388" y="705">fleet-test-vcluster=NAME</text>
+  <path class="flow" d="M380 756 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="735">create Secrets NAME-admin-kubeconfig and</text>
+  <text class="m s" x="388" y="749">auto-import-secret</text>
+  <path class="flow" d="M380 814 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="779">create ManagedCluster NAME with the</text>
+  <text class="m s" x="388" y="793">labels tier, cloud=vcluster,</text>
+  <text class="m s" x="388" y="807">vendor=Kubernetes</text>
+  <path class="flow" d="M380 872 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="837">create a placeholder Secret</text>
+  <text class="m s" x="388" y="851">aws-credentials when create-aws-creds is</text>
+  <text class="m s" x="388" y="865">true</text>
+  <path class="flow" d="M380 946 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="925">create the PipelineRun of post-provision</text>
+  <text class="m s" x="388" y="939">with openshift-cluster=false</text>
+  <path class="flow" d="M640 976 H1118" marker-end="url(#a-flow)"/>
+  <text class="m s" x="648" y="969">Tekton starts the run</text>
+  <path class="flow" d="M1120 1020 H882" marker-end="url(#a-flow)"/>
+  <text class="m s" x="888" y="999">apply the workloads of the tier with</text>
+  <text class="m s" x="888" y="1013">the kubeconfig</text>
+  <path class="flow" d="M380 1064 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1043">read the state of the run every 30</text>
+  <text class="m s" x="388" y="1057">seconds, up to the timeout</text>
+  <path class="ctl" d="M640 1094 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="1087">Succeeded</text>
+  <path class="flow" d="M380 1168 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1147">read ClusterDeployment NAME and</text>
+  <text class="m s" x="388" y="1161">ManagedCluster NAME</text>
+  <path class="ctl" d="M640 1198 H382" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="388" y="1191">NAME belongs to no real cluster</text>
+  <path class="flow" d="M380 1242 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1221">delete ManagedCluster NAME and wait up</text>
+  <text class="m s" x="388" y="1235">to 300 seconds for it to be gone</text>
+  <path class="flow" d="M380 1272 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1265">delete Route NAME</text>
+  <path class="flow" d="M380 1316 H878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1295">vcluster delete NAME, or delete its</text>
+  <text class="m s" x="388" y="1309">namespace when that fails</text>
+  <path class="flow" d="M380 1360 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1339">delete namespace NAME when it carries</text>
+  <text class="m s" x="388" y="1353">the label</text>
+  <path class="flow" d="M380 1404 H638" marker-end="url(#a-flow)"/>
+  <text class="m s" x="388" y="1383">delete CronJob NAME and Secret</text>
+  <text class="m s" x="388" y="1397">NAME-spoke-kubeconfig</text>
 
   <!-- ===== Legend ===== -->
-  <line class="rule" x1="40" y1="1160" x2="1222" y2="1160"/>
-  <path class="flow" d="M40 1188 H76" marker-end="url(#a-flow)"/>
-  <text class="m s" x="86" y="1192">call</text>
-  <path class="ctl" d="M144 1188 H180" marker-end="url(#a-ctl)"/>
-  <text class="m s" x="190" y="1192">result or event</text>
-  <rect class="src" x="314" y="1180" width="22" height="16" rx="4"/>
-  <text class="m s" x="344" y="1192">pipeline and hub operators</text>
-  <rect class="core" x="534" y="1180" width="22" height="16" rx="4"/>
-  <text class="m s" x="564" y="1192">hub cluster control</text>
-  <rect class="out" x="712" y="1180" width="22" height="16" rx="4"/>
-  <text class="m s" x="742" y="1192">spoke</text>
+  <line class="rule" x1="40" y1="1472" x2="1222" y2="1472"/>
+  <path class="flow" d="M40 1500 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1504">call</text>
+  <path class="ctl" d="M144 1500 H180" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="190" y="1504">result or event</text>
+  <rect class="src" x="314" y="1492" width="22" height="16" rx="4"/>
+  <text class="m s" x="344" y="1504">pipeline and hub operators</text>
+  <rect class="core" x="534" y="1492" width="22" height="16" rx="4"/>
+  <text class="m s" x="564" y="1504">hub cluster control</text>
+  <rect class="out" x="712" y="1492" width="22" height="16" rx="4"/>
+  <text class="m s" x="742" y="1504">spoke</text>
 </svg>

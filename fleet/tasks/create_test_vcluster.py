@@ -9,6 +9,7 @@ import textwrap
 import time
 
 from fleet.tasks._log import configure, error, info
+from fleet.tasks._test_vcluster import refusal
 
 
 def _generate_values(
@@ -83,6 +84,14 @@ def main() -> None:
     info(f"  cluster-name={args.cluster_name}")
     info(f"  namespace={args.namespace}")
     info(f"  output-dir={args.output_dir}")
+
+    reason = refusal(args.cluster_name)
+    if reason:
+        error(
+            f"{reason}; '{args.cluster_name}' is not free for a test vCluster, "
+            "nothing created"
+        )
+        sys.exit(1)
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)

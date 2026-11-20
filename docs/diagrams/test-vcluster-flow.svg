@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 882" width="1262" height="882" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 896" width="1262" height="896" role="img" aria-labelledby="title desc">
   <title id="title">test-vcluster pipeline</title>
-  <desc id="desc">The test-vcluster pipeline has 5 tasks. Configuration: load-config (reads ConfigMap fleet-pipeline-config; its result pipeline-image is the image of the later tasks). vCluster test: create-test-vcluster (runs vcluster create in the given namespace and writes the kubeconfig to the workspace); seed-test-vcluster (creates namespace NAME, two kubeconfig Secrets and the ManagedCluster with the tier label); run-post-provision (creates a post-provision PipelineRun with openshift-cluster=false and waits for it). Cleanup: delete-test-vcluster (deletes the ManagedCluster, then the vCluster with vcluster delete). create-test-vcluster runs after load-config. seed-test-vcluster runs after create-test-vcluster. run-post-provision runs after seed-test-vcluster. delete-test-vcluster runs after run-post-provision. Constraints: Purpose: runs post-provision against a temporary vCluster on the hub. Parameters: cluster-name and namespace are required; tier defaults to base. Order: every task runs after the task before it; a failed task stops the run. Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay.</desc>
+  <desc id="desc">The test-vcluster pipeline has 5 tasks. Configuration: load-config (reads ConfigMap fleet-pipeline-config; its result pipeline-image is the image of the later tasks). vCluster test: create-test-vcluster (checks the name, runs vcluster create and writes the kubeconfig to the workspace); seed-test-vcluster (creates the labelled namespace NAME, two Secrets and the ManagedCluster with the tier label); run-post-provision (creates a post-provision PipelineRun with openshift-cluster=false and waits for it). Cleanup: delete-test-vcluster (finally task: deletes the ManagedCluster, the Route, the vCluster, the labelled namespace NAME, the CronJob and the Secret NAME-spoke-kubeconfig). create-test-vcluster runs after load-config. seed-test-vcluster runs after create-test-vcluster. run-post-provision runs after seed-test-vcluster. delete-test-vcluster runs after run-post-provision. Constraints: Purpose: runs post-provision against a temporary vCluster on the hub. Parameters: cluster-name and namespace are required; tier defaults to base. Order: the first four tasks run in order; a failed task stops them. Cleanup: delete-test-vcluster is the finally task; it runs after the fourth task and after a failed task. Name check: create, seed and delete exit 1 when a ClusterDeployment has the name or its ManagedCluster lacks cloud=vcluster.</desc>
 
   <style>
     .bg { fill: #ffffff; stroke: #d0d7de; }
@@ -73,15 +73,15 @@
   </defs>
 
   <!-- Canvas -->
-  <rect class="bg" x="0.5" y="0.5" width="1261" height="881" rx="16"/>
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="895" rx="16"/>
 
   <!-- Title -->
   <text class="t h1" x="40" y="46">test-vcluster pipeline</text>
-  <text class="m b" x="40" y="68">Five tasks create a vCluster on the hub, run post-provision against it, and delete it.</text>
+  <text class="m b" x="40" y="68">Four tasks create a vCluster on the hub and run post-provision against it; the finally task deletes what they created.</text>
 
   <!-- ===== Constraints ===== -->
   <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
-  <rect class="frame" x="40" y="98" width="1182" height="138" rx="12"/>
+  <rect class="frame" x="40" y="98" width="1182" height="170" rx="12"/>
   <text class="t b k" x="56" y="124">Purpose</text>
   <text class="m b" x="160" y="124">runs post-provision against a temporary vCluster on the hub</text>
   <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
@@ -89,65 +89,67 @@
   <text class="m b" x="160" y="156">cluster-name and namespace are required; tier defaults to base</text>
   <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
   <text class="t b k" x="56" y="188">Order</text>
-  <text class="m b" x="160" y="188">every task runs after the task before it; a failed task stops the run</text>
+  <text class="m b" x="160" y="188">the first four tasks run in order; a failed task stops them</text>
   <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
   <text class="t b k" x="56" y="220">Cleanup</text>
-  <text class="m b" x="160" y="220">delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay</text>
+  <text class="m b" x="160" y="220">delete-test-vcluster is the finally task; it runs after the fourth task and after a failed task</text>
+  <line class="rule" x1="56" y1="234" x2="1206" y2="234"/>
+  <text class="t b k" x="56" y="252">Name check</text>
+  <text class="m b" x="160" y="252">create, seed and delete exit 1 when a ClusterDeployment has the name or its ManagedCluster lacks cloud=vcluster</text>
 
   <!-- ===== Frames ===== -->
-  <rect class="frame" x="24" y="270" width="1214" height="122" rx="14"/>
-  <rect class="bg" x="40" y="260" width="134" height="20" rx="10"/>
-  <text class="m lbl" x="52" y="274">CONFIGURATION</text>
-  <rect class="frame" x="24" y="444" width="1214" height="140" rx="14"/>
-  <rect class="bg" x="40" y="434" width="134" height="20" rx="10"/>
-  <text class="m lbl" x="52" y="448">VCLUSTER TEST</text>
-  <rect class="frame" x="24" y="636" width="1214" height="140" rx="14"/>
-  <rect class="bg" x="40" y="626" width="84" height="20" rx="10"/>
-  <text class="m lbl" x="52" y="640">CLEANUP</text>
+  <rect class="frame" x="24" y="302" width="1214" height="122" rx="14"/>
+  <rect class="bg" x="40" y="292" width="134" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="306">CONFIGURATION</text>
+  <rect class="frame" x="24" y="476" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="40" y="466" width="134" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="480">VCLUSTER TEST</text>
+  <rect class="frame" x="24" y="668" width="1214" height="122" rx="14"/>
+  <rect class="bg" x="40" y="658" width="84" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="672">CLEANUP</text>
 
   <!-- ===== Cards ===== -->
-  <rect class="src" x="40" y="296" width="1182" height="80" rx="12"/>
-  <circle class="badge-src" cx="58" cy="316" r="10"/><text class="badge-t" x="58" y="320" text-anchor="middle">1</text>
-  <text class="t h2" x="74" y="321">load-config</text>
-  <line class="rule" x1="52" y1="336" x2="1210" y2="336"/>
-  <text class="m s" x="52" y="358">reads ConfigMap fleet-pipeline-config; its result pipeline-image is the image of the later tasks</text>
-  <rect class="core" x="40" y="470" width="330" height="98" rx="12"/>
-  <circle class="badge-core" cx="58" cy="490" r="10"/><text class="badge-t" x="58" y="494" text-anchor="middle">2</text>
-  <text class="t h2" x="74" y="495">create-test-vcluster</text>
-  <line class="rule" x1="52" y1="510" x2="358" y2="510"/>
-  <text class="m s" x="52" y="532">runs vcluster create in the given namespace</text>
-  <text class="m s" x="52" y="550">and writes the kubeconfig to the workspace</text>
-  <rect class="core" x="466" y="470" width="330" height="98" rx="12"/>
-  <circle class="badge-core" cx="484" cy="490" r="10"/><text class="badge-t" x="484" y="494" text-anchor="middle">3</text>
-  <text class="t h2" x="500" y="495">seed-test-vcluster</text>
-  <line class="rule" x1="478" y1="510" x2="784" y2="510"/>
-  <text class="m s" x="478" y="532">creates namespace NAME, two kubeconfig Secrets</text>
-  <text class="m s" x="478" y="550">and the ManagedCluster with the tier label</text>
-  <rect class="core" x="892" y="470" width="330" height="98" rx="12"/>
-  <circle class="badge-core" cx="910" cy="490" r="10"/><text class="badge-t" x="910" y="494" text-anchor="middle">4</text>
-  <text class="t h2" x="926" y="495">run-post-provision</text>
-  <line class="rule" x1="904" y1="510" x2="1210" y2="510"/>
-  <text class="m s" x="904" y="532">creates a post-provision PipelineRun with</text>
-  <text class="m s" x="904" y="550">openshift-cluster=false and waits for it</text>
-  <rect class="core" x="40" y="662" width="330" height="98" rx="12"/>
-  <circle class="badge-core" cx="58" cy="682" r="10"/><text class="badge-t" x="58" y="686" text-anchor="middle">5</text>
-  <text class="t h2" x="74" y="687">delete-test-vcluster</text>
-  <line class="rule" x1="52" y1="702" x2="358" y2="702"/>
-  <text class="m s" x="52" y="724">deletes the ManagedCluster, then the vCluster</text>
-  <text class="m s" x="52" y="742">with vcluster delete</text>
+  <rect class="src" x="40" y="328" width="1182" height="80" rx="12"/>
+  <circle class="badge-src" cx="58" cy="348" r="10"/><text class="badge-t" x="58" y="352" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="353">load-config</text>
+  <line class="rule" x1="52" y1="368" x2="1210" y2="368"/>
+  <text class="m s" x="52" y="390">reads ConfigMap fleet-pipeline-config; its result pipeline-image is the image of the later tasks</text>
+  <rect class="core" x="40" y="502" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="522" r="10"/><text class="badge-t" x="58" y="526" text-anchor="middle">2</text>
+  <text class="t h2" x="74" y="527">create-test-vcluster</text>
+  <line class="rule" x1="52" y1="542" x2="358" y2="542"/>
+  <text class="m s" x="52" y="564">checks the name, runs vcluster create and</text>
+  <text class="m s" x="52" y="582">writes the kubeconfig to the workspace</text>
+  <rect class="core" x="466" y="502" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="522" r="10"/><text class="badge-t" x="484" y="526" text-anchor="middle">3</text>
+  <text class="t h2" x="500" y="527">seed-test-vcluster</text>
+  <line class="rule" x1="478" y1="542" x2="784" y2="542"/>
+  <text class="m s" x="478" y="564">creates the labelled namespace NAME, two Secrets</text>
+  <text class="m s" x="478" y="582">and the ManagedCluster with the tier label</text>
+  <rect class="core" x="892" y="502" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="522" r="10"/><text class="badge-t" x="910" y="526" text-anchor="middle">4</text>
+  <text class="t h2" x="926" y="527">run-post-provision</text>
+  <line class="rule" x1="904" y1="542" x2="1210" y2="542"/>
+  <text class="m s" x="904" y="564">creates a post-provision PipelineRun with</text>
+  <text class="m s" x="904" y="582">openshift-cluster=false and waits for it</text>
+  <rect class="core" x="40" y="694" width="1182" height="80" rx="12"/>
+  <circle class="badge-core" cx="58" cy="714" r="10"/><text class="badge-t" x="58" y="718" text-anchor="middle">5</text>
+  <text class="t h2" x="74" y="719">delete-test-vcluster</text>
+  <line class="rule" x1="52" y1="734" x2="1210" y2="734"/>
+  <text class="m s" x="52" y="756">finally task: deletes the ManagedCluster, the Route, the vCluster, the labelled namespace NAME, the CronJob and the Secret NAME-spoke-kubeconfig</text>
 
   <!-- ===== Edges ===== -->
-  <path class="flow" d="M205 376 V468" marker-end="url(#a-flow)"/>
-  <path class="flow" d="M370 519 H464" marker-end="url(#a-flow)"/>
-  <path class="flow" d="M796 519 H890" marker-end="url(#a-flow)"/>
-  <path class="flow" d="M1057 568 V610 H205 V660" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 408 V500" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 551 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 551 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 600 V692" marker-end="url(#a-flow)"/>
 
   <!-- ===== Legend ===== -->
-  <line class="rule" x1="40" y1="816" x2="1222" y2="816"/>
-  <path class="flow" d="M40 844 H76" marker-end="url(#a-flow)"/>
-  <text class="m s" x="86" y="848">runs next</text>
-  <rect class="src" x="174" y="836" width="22" height="16" rx="4"/>
-  <text class="m s" x="204" y="848">workspace, git, configuration</text>
-  <rect class="core" x="412" y="836" width="22" height="16" rx="4"/>
-  <text class="m s" x="442" y="848">hub Kubernetes API</text>
+  <line class="rule" x1="40" y1="830" x2="1222" y2="830"/>
+  <path class="flow" d="M40 858 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="862">runs next</text>
+  <rect class="src" x="174" y="850" width="22" height="16" rx="4"/>
+  <text class="m s" x="204" y="862">workspace, git, configuration</text>
+  <rect class="core" x="412" y="850" width="22" height="16" rx="4"/>
+  <text class="m s" x="442" y="862">hub Kubernetes API</text>
 </svg>

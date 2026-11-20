@@ -120,14 +120,14 @@ FLOWS = {
     },
     "test-vcluster": {
         "title": "test-vcluster pipeline",
-        "subtitle": "Five tasks create a vCluster on the hub, run post-provision "
-        "against it, and delete it.",
+        "subtitle": "Four tasks create a vCluster on the hub and run post-provision "
+        "against it; the finally task deletes what they created.",
         "place": {
             "load_config": (0, 0, 3),
             "create_test_vcluster": (0, 1, 1),
             "seed_test_vcluster": (1, 1, 1),
             "run_post_provision": (2, 1, 1),
-            "delete_test_vcluster": (0, 2, 1),
+            "delete_test_vcluster": (0, 2, 3),
         },
     },
     "deprovision": {

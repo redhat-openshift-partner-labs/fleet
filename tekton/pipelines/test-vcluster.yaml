@@ -97,18 +97,20 @@ spec:
         - name: timeout
           value: $(params.timeout)
 
+  # Runs after every outcome of the tasks above. It reads no task result: Tekton
+  # skips a finally task whose result reference is missing, and load-config may
+  # be the task that failed.
+  finally:
     - name: delete-test-vcluster
       taskRef:
         name: delete-test-vcluster
-      runAfter:
-        - run-post-provision
       params:
         - name: cluster-name
           value: $(params.cluster-name)
         - name: namespace
           value: $(params.namespace)
         - name: pipeline-image
-          value: $(tasks.load-config.results.pipeline-image)
+          value: $(params.pipeline-image)
       workspaces:
         - name: shared
           workspace: shared-workspace
