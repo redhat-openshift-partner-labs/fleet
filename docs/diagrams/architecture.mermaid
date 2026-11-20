@@ -42,7 +42,6 @@ flowchart TB
 
     EL -->|push adds deprovision/NAME-archive| Deprovision
     EL -->|push adds provision/NAME/| PreProvision
-    EL -->|request body action: post-provision| PostProvision
     PreProvision -->|starts| Provision
     Provision -->|starts| PostProvision
 

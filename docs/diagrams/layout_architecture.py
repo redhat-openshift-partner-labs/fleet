@@ -46,9 +46,8 @@ DESC = (
     "The hub cluster is trusted. ArgoCD syncs Git to the Application fleet-hub-config. "
     "Tekton is the workflow engine. A push to fleet-clusters reaches the EventListener "
     "fleet-cluster-lifecycle through a webhook. A push that adds provision/NAME/ starts the "
-    "pre-provision pipeline, a push that adds deprovision/NAME-archive starts the "
-    "deprovision pipeline, and a request whose body holds action: post-provision starts the "
-    "post-provision pipeline. The pipelines clone Git with the git-clone task. "
+    "pre-provision pipeline, and a push that adds deprovision/NAME-archive starts the "
+    "deprovision pipeline. The pipelines clone Git with the git-clone task. "
     "The pre-provision pipeline creates the namespace, SSH key, pull secret and IAM "
     "credentials and checks the inputs: it applies IAM CRs to Crossplane, which holds the "
     "IAM users, roles and policies of each cluster, waits for the keys, and starts the "
@@ -305,8 +304,6 @@ def render(head: str) -> str:
     d.label(238, 630, "push adds", "deprovision/NAME-archive")
     d.edge("flow", f"M466 {EL_BOTTOM} V{PIPE_Y - 2}")
     d.label(474, 630, "push adds", "provision/NAME/")
-    d.edge("flow", f"M1014 {EL_BOTTOM} V{PIPE_Y - 2}")
-    d.label(1006, 630, "request body", "action: post-provision", anchor="end")
     d.edge("flow", f"M{C[1] + CW} {PIPE_Y + 57} H{C[2] - 2}")
     d.label(603, PIPE_Y + 50, "starts", anchor="middle")
     d.edge("flow", f"M{C[2] + CW} {PIPE_Y + 57} H{C[3] - 2}")

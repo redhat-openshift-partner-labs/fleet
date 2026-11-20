@@ -96,8 +96,8 @@ podvm-instance-type: m6a.large
 - For `tier=coco`, `apply-coco-workloads` fails on an empty value with `podvm-instance-type is empty for <name>; regenerate the overlay with the current fleet-cluster-scaffold`.
 - The other tiers do not use the value.
 
-## Limit
+## Runs created by hand
 
-A `post-provision` run that the EventListener starts for a request with `action: post-provision` receives no value of `metadata.yaml`. It runs with the defaults of the table. For an `ai` cluster that means `v3` and `nvidia-gpu`; for a `coco` cluster the run fails at `apply-coco-workloads`, because `podvm-instance-type` is empty.
+`post-provision` does not read `metadata.yaml`; `trigger-post-provision` passes the values as parameters of the PipelineRun. A `post-provision` PipelineRun that you create receives only the parameters it names, and each parameter it omits takes the default of the table. For an `ai` cluster that means `v3` and `nvidia-gpu`; for a `coco` cluster the run fails at `apply-coco-workloads`, because `podvm-instance-type` is empty.
 
 To run `post-provision` again with the values of the file, start it with the parameters of an earlier run; see the [user guide](user-guide.md#run-a-pipeline-again).

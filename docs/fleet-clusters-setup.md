@@ -19,17 +19,15 @@ The [user guide](user-guide.md) describes how an operator adds a cluster directo
 
 ## Triggers
 
-The EventListener `fleet-cluster-lifecycle` has three triggers.
+The EventListener `fleet-cluster-lifecycle` has two triggers. Both check the signature of the webhook.
 
 | Trigger | Starts the pipeline | Condition | Cluster name |
 |---|---|---|---|
 | `pre-provision` | `pre-provision` | A GitHub push event with a valid signature, on `refs/heads/main`, in which a commit adds a file under `provision/`, and whose head commit message does not contain `[skip-provision]` | The second path segment of the first added file |
 | `deprovision` | `deprovision` | The same, for a file under `deprovision/` and the marker `[skip-deprovision]` | The file name without `-archive` |
-| `post-provision` | `post-provision` | A request whose JSON body holds `action: post-provision` | `cluster_name` of the body |
 
 - A push starts one run. When a push adds files for several clusters, only the first cluster gets a run.
 - A push that only changes or deletes files starts no run.
-- The `post-provision` trigger does not check a signature. Every client that can reach the Route can start it.
 
 ## Webhook
 

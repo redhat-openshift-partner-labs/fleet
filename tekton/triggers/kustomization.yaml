@@ -7,5 +7,3 @@ resources:
   - triggertemplate-pre-provision.yaml
   - triggerbinding-deprovision.yaml
   - triggertemplate-deprovision.yaml
-  - triggerbinding-post-provision.yaml
-  - triggertemplate-post-provision.yaml

@@ -109,4 +109,4 @@ It prints `{}` for a missing or empty file. It exits with 1 when the directory d
 
 ## Limits
 
-- A `post-provision` run that the EventListener starts gets `cluster_name`, `tier` and `dns_zones` from the request body. It receives no metadata value and runs with the defaults of the pipeline parameters.
+- A `post-provision` PipelineRun that you create receives only the parameters it names. A metadata value it omits takes the default of the pipeline parameter; see [per-cluster-metadata.md](per-cluster-metadata.md#runs-created-by-hand).

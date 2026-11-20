@@ -119,6 +119,6 @@ After the fix, start `post-provision` again; see the [user guide](user-guide.md#
 ## Limits
 
 - A `v2` cluster gets the OpenShift AI 2.x operator and no DataScienceCluster. `workloads/ai/common/v2/` holds no DataScienceCluster.
-- A `post-provision` run that the EventListener starts receives no value of `metadata.yaml`. It installs `v3` with `nvidia-gpu`, whatever the file says. See [per-cluster-metadata.md](per-cluster-metadata.md#limit).
+- A `post-provision` PipelineRun created by hand without the parameters `openshift-ai-version` and `ai-accelerator` installs `v3` with `nvidia-gpu`, whatever the file says. See [per-cluster-metadata.md](per-cluster-metadata.md#runs-created-by-hand).
 - `add-ai-workers` creates one GPU node of one instance type. Neither is a parameter.
 - In a `test-vcluster` run with the tier `ai`, both tasks run. `add-ai-workers` reads a ClusterDeployment, which a vCluster does not have. See [vcluster.md](vcluster.md#what-the-test-covers).
