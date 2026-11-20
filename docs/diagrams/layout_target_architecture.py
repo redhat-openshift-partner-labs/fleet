@@ -4,23 +4,18 @@ Usage:
     python docs/diagrams/layout_target_architecture.py           # write the SVG
     python docs/diagrams/layout_target_architecture.py --check   # exit 1 if it differs
 
-The content source is target-architecture.mermaid. The <style> and <defs>
-blocks are read from the existing SVG and written back unchanged.
+The content source is target-architecture.mermaid. drawing.py holds the
+drawing helpers and supplies the shared <style> and <defs> blocks.
 """
 
 import argparse
-import re
-import sys
 from pathlib import Path
-from xml.sax.saxutils import escape
 
-# Drawing helpers take one argument per SVG coordinate.
-# pylint: disable=too-many-arguments,too-many-positional-arguments
+from drawing import DIAGRAMS, Drawing, emit, shared_head
 
-SVG = Path(__file__).parent / "target-architecture.svg"
-SHARED_HEAD = re.compile(r"  <style>[\s\S]*?</defs>")
+SVG = DIAGRAMS / "target-architecture.svg"
 
-W, H = 1262, 1658
+H = 1658
 
 # Hub grid: three card columns, one line channel on each side.
 C1, C2, C3 = 84, 529, 866  # card x per column
@@ -76,103 +71,25 @@ DESC = (
 )
 
 
-class Drawing:
-    """Collects SVG lines; cards are numbered in the order they are added."""
-
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-        self.cards = 0
-
-    def raw(self, line: str = "") -> None:
-        self.lines.append(line)
-
-    def section(self, name: str) -> None:
-        self.raw()
-        self.raw(f"  <!-- ===== {name} ===== -->")
-
-    def text(self, cls: str, x: int, y: int, content: str, anchor: str = "") -> None:
-        attr = f' text-anchor="{anchor}"' if anchor else ""
-        self.raw(
-            f'  <text class="{cls}" x="{x}" y="{y}"{attr}>{escape(content)}</text>'
-        )
-
-    def card(self, role: str, x: int, y: int, w: int, h: int, title: str, body) -> None:
-        """Card with badge, title, rule and body lines at an 18 px pitch."""
-        self.cards += 1
-        self.raw(
-            f'  <rect class="{role}" x="{x}" y="{y}" width="{w}" height="{h}" rx="12"/>'
-        )
-        self.raw(
-            f'  <circle class="badge-{role}" cx="{x + 18}" cy="{y + 20}" r="10"/>'
-            f'<text class="badge-t" x="{x + 18}" y="{y + 24}" text-anchor="middle">'
-            f"{self.cards}</text>"
-        )
-        self.text("t h2", x + 34, y + 25, title)
-        self.raw(
-            f'  <line class="rule" x1="{x + 12}" y1="{y + 40}" '
-            f'x2="{x + w - 12}" y2="{y + 40}"/>'
-        )
-        for i, (cls, line) in enumerate(body):
-            self.text(cls, x + 12, y + 62 + 18 * i, line)
-
-    def frame(
-        self, nested: bool, x: int, y: int, w: int, h: int, px: int, name: str
-    ) -> None:
-        """Subgraph frame with a tag pill at px on its top edge."""
-        cls, pill = ("bg", "frame") if nested else ("frame", "bg")
-        pw = round(8.2 * len(name) + 24)
-        self.raw(
-            f'  <rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}" rx="14"/>'
-        )
-        self.raw(
-            f'  <rect class="{pill}" x="{px}" y="{y - 10}" width="{pw}" height="20" rx="10"/>'
-        )
-        self.text("m lbl", px + 12, y + 4, name)
-
-    def edge(self, cls: str, path: str) -> None:
-        """cls is flow (mermaid -->) or ctl (mermaid -.->)."""
-        self.raw(f'  <path class="{cls}" d="{path}" marker-end="url(#a-{cls})"/>')
-
-    def label(self, x: int, y: int, *lines: str, anchor: str = "") -> None:
-        for i, line in enumerate(lines):
-            self.text("m s", x, y + 14 * i, line, anchor)
-
-
-def render(shared_head: str) -> str:
-    """Return the SVG text; shared_head is the <style>...</defs> block."""
+def render(head: str) -> str:
+    """Return the SVG text; head is the <style>...</defs> block."""
     d = Drawing()
-    d.raw(
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" '
-        f'width="{W}" height="{H}" role="img" aria-labelledby="title desc">'
-    )
-    d.raw('  <title id="title">Target architecture</title>')
-    d.raw(f'  <desc id="desc">{escape(DESC)}</desc>')
-    d.raw()
-    d.raw(shared_head)
-    d.raw()
-    d.raw("  <!-- Canvas -->")
-    d.raw(
-        f'  <rect class="bg" x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="16"/>'
-    )
-    d.raw()
-    d.raw("  <!-- Title -->")
-    d.text("t h1", 40, 46, "Target architecture")
-    d.text(
-        "m b",
-        40,
-        68,
+    d.begin(
+        H,
+        "Target architecture",
+        DESC,
+        head,
         "Git changes trigger Tekton pipelines on the hub; the pipelines drive Crossplane, "
         "Hive, cert-manager and the spoke.",
     )
 
-    d.section("Constraints")
-    d.text("m lbl", 40, 90, "CONSTRAINTS")
-    d.raw('  <rect class="frame" x="40" y="98" width="1182" height="74" rx="12"/>')
-    d.text("t b k", 56, 124, "Hub")
-    d.text("m b", 160, 124, "Tekton + ArgoCD + ACM run on the hub")
-    d.raw('  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>')
-    d.text("t b k", 56, 156, "Spoke")
-    d.text("m b", 160, 156, "third-party accessible")
+    d.constraints(
+        [
+            ("Hub", "m b", "Tekton + ArgoCD + ACM run on the hub"),
+            ("Spoke", "m b", "third-party accessible"),
+        ],
+        160,
+    )
 
     # Each pill sits where no edge crosses the top edge of its frame.
     d.section("Frames")
@@ -417,27 +334,18 @@ def render(shared_head: str) -> str:
     d.edge("flow", f"M{C1 + CW12} {ROW_E + 76} H{XA} V1336 H172 V{SPOKE_CARD_Y - 2}")
     d.label(182, 1329, "delivers workloads")
 
-    d.section("Legend")
-    ly = H - 38
-    d.raw(f'  <line class="rule" x1="40" y1="{H - 66}" x2="1222" y2="{H - 66}"/>')
-    d.raw(f'  <path class="flow" d="M40 {ly} H76" marker-end="url(#a-flow)"/>')
-    d.text("m s", 86, ly + 4, "applies / triggers")
-    d.raw(f'  <path class="ctl" d="M222 {ly} H258" marker-end="url(#a-ctl)"/>')
-    d.text("m s", 268, ly + 4, "waits / watches")
-    for x, role, name in [
-        (390, "gate", "event entry"),
-        (512, "src", "pipelines and operators"),
-        (708, "core", "cluster control"),
-        (857, "store", "git and key material"),
-        (1035, "out", "workloads"),
-    ]:
-        d.raw(
-            f'  <rect class="{role}" x="{x}" y="{ly - 8}" width="22" height="16" rx="4"/>'
-        )
-        d.text("m s", x + 30, ly + 4, name)
-
-    d.raw("</svg>")
-    return "\n".join(d.lines) + "\n"
+    d.legend(
+        H,
+        [(40, "flow", "applies / triggers"), (222, "ctl", "waits / watches")],
+        [
+            (390, "gate", "event entry"),
+            (512, "src", "pipelines and operators"),
+            (708, "core", "cluster control"),
+            (857, "store", "git and key material"),
+            (1035, "out", "workloads"),
+        ],
+    )
+    return d.end()
 
 
 def main() -> None:
@@ -446,18 +354,7 @@ def main() -> None:
         "--check", action="store_true", help="exit 1 if the SVG differs; write nothing"
     )
     args = parser.parse_args()
-
-    current = SVG.read_text(encoding="utf-8")
-    head = SHARED_HEAD.search(current)
-    if head is None:
-        sys.exit(f"{SVG.name}: no <style>...</defs> block; restore the file from git")
-
-    new = render(head.group(0))
-    if args.check:
-        if new != current:
-            sys.exit(f"{SVG.name} differs from the layout; run {Path(__file__).name}")
-        return
-    SVG.write_text(new, encoding="utf-8")
+    emit(SVG, render(shared_head()), args.check, Path(__file__).name)
 
 
 if __name__ == "__main__":

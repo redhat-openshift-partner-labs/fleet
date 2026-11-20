@@ -411,6 +411,7 @@ palettes.
 |---|---|
 | `docs/diagrams/target-architecture.mermaid` | Content source: nodes, edges, labels, subgraphs |
 | `docs/diagrams/layout_target_architecture.py` | Coordinates and text of every card, frame and edge |
+| `docs/diagrams/drawing.py` | Drawing helpers of the layout script; supplies the `<style>` and `<defs>` blocks |
 | `docs/diagrams/target-architecture.svg` | Output of the script |
 
 mermaid-cli does not produce the SVG. After a change to the `.mermaid` file:
@@ -438,8 +439,8 @@ mermaid-cli does not produce the SVG. After a change to the `.mermaid` file:
    SVG differs from the script output, and when the number of cards or edges in
    the SVG differs from the `.mermaid` file.
 
-The script reads the `<style>` and `<defs>` blocks from the existing SVG and
-writes them back unchanged. The style guide requires these blocks to match
+`drawing.py` reads the `<style>` and `<defs>` blocks from the existing SVG and
+the script writes them back unchanged. The style guide requires these blocks to match
 `sno.svg` of the aci-assessment repository byte for byte.
 
 ## Commit Conventions
