@@ -402,46 +402,113 @@ and an archived repository receives no updates.
 
 ## Diagrams
 
-`docs/diagrams/architecture.svg` is the diagram in the `README.md`. It
-follows `SVG-STYLE.md` of the aci-assessment repository: a 1262 px canvas,
-role-colored cards, frames for subgraphs, orthogonal edges, and light and dark
-palettes.
+`docs/diagrams/` holds nine diagrams: the architecture diagram, and a task
+flowchart and a sequence diagram for each of `pre-provision`, `provision`,
+`post-provision` and `deprovision`. `docs/architecture.md` shows all nine.
+`README.md` shows the architecture diagram.
 
-| File | Role |
+Each diagram is two files: a `.mermaid` file that holds the content and an
+`.svg` file that a layout script writes. mermaid-cli does not produce the SVGs.
+The SVGs follow `SVG-STYLE.md` of the aci-assessment repository: a 1262 px
+canvas, role-colored cards, frames for subgraphs, orthogonal edges, and light
+and dark palettes.
+
+| File in `docs/diagrams/` | Role |
 |---|---|
-| `docs/diagrams/architecture.mermaid` | Content source: nodes, edges, labels, subgraphs |
-| `docs/diagrams/layout_architecture.py` | Coordinates and text of every card, frame and edge |
-| `docs/diagrams/drawing.py` | Drawing helpers of the layout script; supplies the `<style>` and `<defs>` blocks |
-| `docs/diagrams/architecture.svg` | Output of the script |
+| `architecture.mermaid` | Content of the architecture diagram |
+| `layout_architecture.py` | Coordinates and text of every card, frame and edge of `architecture.svg` |
+| `<pipeline>-flow.mermaid` | One node per task, one edge per `runAfter` entry, one subgraph per stage, `%%` notes |
+| `layout_pipeline_flows.py` | Reads the flowchart sources. `FLOWS` holds the title, the subtitle and the grid position of each task. |
+| `<pipeline>-sequence.mermaid` | Participants, one `rect` per task with the task's calls, `opt` blocks for `when` conditions, `%%` notes |
+| `layout_pipeline_sequences.py` | Reads the sequence sources. `SEQUENCES` holds the title, the subtitle and the x of each lifeline. |
+| `drawing.py` | Drawing helpers of the three scripts; reads the `<style>` and `<defs>` blocks from `architecture.svg` |
 
-mermaid-cli does not produce the SVG. After a change to the `.mermaid` file:
+### After a change to a pipeline
 
-1. Make the same change in `layout_architecture.py`.
+`tox` fails until the diagrams and the task table match
+`tekton/pipelines/<pipeline>.yaml`.
 
-2. Write the SVG:
+1. Edit `<pipeline>-flow.mermaid`:
+   - A node id is the task name with underscores. The first label line is the
+     task name. The other label lines are the card text.
+   - Write one edge per `runAfter` entry.
+   - State every `when` value in the label of an incoming edge or in the title
+     of the task's subgraph. A parameter compared with `true` is stated by its
+     name.
+
+2. Set the column, the row and the number of columns of the task in `FLOWS` of
+   `layout_pipeline_flows.py`.
+
+3. Edit `<pipeline>-sequence.mermaid`. Add a `rect` whose note is the task
+   name, below every task it runs after. Put it in an `opt` block that states
+   every `when` value.
+
+4. Write the SVGs:
+
+   ```bash
+   python docs/diagrams/layout_pipeline_flows.py
+   ```
+
+   ```bash
+   python docs/diagrams/layout_pipeline_sequences.py
+   ```
+
+   A script exits with an error when a frame is too narrow for its title or
+   when a sequence label needs more than three lines. Shorten the text in the
+   `.mermaid` file.
+
+5. Update the row of the task in the pipeline's section of
+   `docs/architecture.md`.
+
+6. Check the SVGs, as described in [Checking an SVG](#checking-an-svg).
+
+### After a change to the architecture diagram
+
+1. Edit `architecture.mermaid`.
+
+2. Make the same change in `layout_architecture.py`.
+
+3. Write the SVG:
 
    ```bash
    python docs/diagrams/layout_architecture.py
    ```
 
-3. Check the SVG with the checker of the aci-assessment repository. Run it from
-   the root of that repository. It prints `architecture: OK` or the
-   issues, and it writes a light and a dark PNG to the `--out` directory.
+4. Check the SVG, as described in [Checking an SVG](#checking-an-svg).
+
+### Checking an SVG
+
+1. Run the checker of the aci-assessment repository from the root of that
+   repository. It prints `<name>: OK` or the issues, and it writes a light and
+   a dark PNG per file to the `--out` directory.
 
    ```bash
-   node tools/svgcheck.cjs --out /tmp/svg-renders <path-to-fleet>/docs/diagrams/architecture.svg
+   node tools/svgcheck.cjs --out /tmp/svg-renders <path-to-fleet>/docs/diagrams/*.svg
    ```
 
-4. Open both PNGs and confirm that no edge crosses a card and no label sits on
-   a line.
+2. Open both PNGs of each changed file. Confirm that no edge crosses a card
+   and no label sits on a line.
 
-5. Run `tox`. `tests/validation/test_diagrams.py` fails when the
-   SVG differs from the script output, and when the number of cards or edges in
-   the SVG differs from the `.mermaid` file.
+3. Run `tox`.
 
-`drawing.py` reads the `<style>` and `<defs>` blocks from the existing SVG and
-the script writes them back unchanged. The style guide requires these blocks to match
-`sno.svg` of the aci-assessment repository byte for byte.
+`tox` cannot run the checker, because the checker is in another repository.
+
+### What the tests check
+
+| Test file | Fails when |
+|---|---|
+| `tests/validation/test_diagrams.py` | An SVG differs from the output of its layout script |
+| | The cards, edges, frames, messages or constraint rows of an SVG differ in number from its `.mermaid` file |
+| | The nodes of a flowchart differ from the tasks of the pipeline, or its edges from the `runAfter` entries |
+| | The tasks of a sequence diagram differ from the tasks of the pipeline, or a task is shown above a task it runs after |
+| | A `when` value of a task is missing from the flowchart or from the sequence diagram |
+| | The `<style>` and `<defs>` blocks of an SVG differ from `architecture.svg` |
+| `tests/validation/test_architecture_doc.py` | A relative link in `docs/architecture.md` does not resolve |
+| | A diagram in the document has no link to its `.mermaid` file |
+| | The task table of a pipeline differs from the tasks of its definition |
+
+The style guide requires the `<style>` and `<defs>` blocks of every SVG to
+match `sno.svg` of the aci-assessment repository byte for byte.
 
 ## Commit Conventions
 
