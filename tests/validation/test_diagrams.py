@@ -15,7 +15,7 @@ PIPELINES = ROOT / "tekton" / "pipelines"
 # Pipelines that have a task flowchart: <pipeline>-flow.mermaid and .svg
 FLOWS = ["pre-provision", "provision", "post-provision", "deprovision"]
 # Pipelines that have a sequence diagram: <pipeline>-sequence.mermaid and .svg
-SEQUENCES = ["pre-provision", "deprovision"]
+SEQUENCES = ["pre-provision", "provision", "deprovision"]
 
 SHARED_HEAD = re.compile(r"  <style>[\s\S]*?</defs>")
 SUBGRAPH = re.compile(r'\s*subgraph \w+\["(.+)"\]')
