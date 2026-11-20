@@ -67,8 +67,8 @@ Operators start with the user guide. Hub administrators start with the hub setup
 | [OpenShift AI operator mapping](docs/openshift-ai-operator-and-component-mapping.md) | Operators | Operators and components for OpenShift AI 2.x and 3.x |
 | [Hub setup](docs/hub-setup.md) | Hub administrators | The one-time setup of the hub cluster, in order: the operators, the pipelines, their configuration and Secrets, and the connection to fleet-clusters |
 | [Hub operators](hub-config/README.md) | Hub administrators | How to install, verify, change and uninstall the hub operators that `hub-config/` defines |
-| [fleet-clusters setup](docs/fleet-clusters-setup.md) | Hub administrators | Repository structure, GitHub App, webhook and archive workflow |
-| [Image pull secret setup](docs/image-pull-secret-setup.md) | Hub administrators | Credentials for pulling the pipeline image from quay.io |
+| [fleet-clusters setup](docs/fleet-clusters-setup.md) | Hub administrators | How to connect the fleet-clusters repository to the hub: the repository layout, the triggers, the webhook, the GitHub App, and the archive workflow |
+| [Image pull secret setup](docs/image-pull-secret-setup.md) | Hub administrators | How to create, verify and rotate the pull secret of the pipeline image |
 | [Developer guide](docs/developer-guide.md) | Contributors | Local setup, checks, adding a Tekton task, the pipeline image, documents and diagrams |
 | [Parameter threading](docs/parameter-threading.md) | Contributors | How a parameter passes from a trigger to a task |
 | [vCluster test infrastructure](docs/vcluster.md) | Contributors | Testing `post-provision` against a temporary vCluster |
