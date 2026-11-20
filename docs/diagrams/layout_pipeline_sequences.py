@@ -64,7 +64,7 @@ SEQUENCES = {
     "test-vcluster": {
         "title": "test-vcluster pipeline: sequence",
         "subtitle": "The calls each of the five tasks makes, in the order the "
-        "tasks run.",
+        "tasks run. The last task is the finally task.",
         "xs": (380, 640, 880, 1120),
     },
     "deprovision": {

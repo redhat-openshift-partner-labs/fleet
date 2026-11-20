@@ -1,4 +1,10 @@
-"""Seed hub resources for a test vCluster."""
+"""Seed hub resources for a test vCluster.
+
+CLI: fleet-seed-test-vcluster --cluster-name NAME --kubeconfig-file PATH --tier TIER
+       [--create-aws-creds]
+Exits 1 and creates nothing when NAME belongs to a real cluster, or when the
+namespace NAME exists and neither a test created it nor the vCluster runs in it.
+"""
 
 import argparse
 import base64
@@ -7,6 +13,13 @@ import sys
 import textwrap
 
 from fleet.tasks._log import configure, error, info
+from fleet.tasks._test_vcluster import (
+    FOREIGN,
+    OWNER_LABEL,
+    has_vcluster,
+    namespace_state,
+    refusal,
+)
 
 
 def main() -> None:
@@ -27,11 +40,34 @@ def main() -> None:
     info(f"  tier={args.tier}")
     info(f"  create-aws-creds={args.create_aws_creds}")
 
+    reason = refusal(cluster)
+    if reason:
+        error(f"{reason}; '{cluster}' is not free for a test vCluster, nothing created")
+        sys.exit(1)
+
+    # delete-test-vcluster deletes the namespace by its label. A namespace that existed
+    # before the test must not get the label, unless vcluster create made it.
+    try:
+        foreign = namespace_state(cluster) == FOREIGN and not has_vcluster(
+            cluster, cluster
+        )
+    except RuntimeError as exc:
+        error(f"{exc}; nothing created")
+        sys.exit(1)
+    if foreign:
+        error(
+            f"Namespace '{cluster}' exists without the label {OWNER_LABEL}={cluster} "
+            f"and holds no vCluster '{cluster}'; nothing created"
+        )
+        sys.exit(1)
+
     ns_yaml = textwrap.dedent(f"""\
         apiVersion: v1
         kind: Namespace
         metadata:
           name: {cluster}
+          labels:
+            {OWNER_LABEL}: {cluster}
     """)
     info(f"Creating namespace '{cluster}'...")
     result = subprocess.run(

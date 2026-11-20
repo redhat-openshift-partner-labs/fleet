@@ -1,6 +1,7 @@
 %% Purpose: runs post-provision against a temporary vCluster on the hub
-%% Order: every task runs after the task before it; a failed task stops the run
-%% Cleanup: delete-test-vcluster is the last task, not a finally task; after a failed task the vCluster and the seeded resources stay
+%% Order: the first four tasks run in order; a failed task stops them
+%% Cleanup: delete-test-vcluster is the finally task; it runs after the fourth task and after a failed task
+%% Name check: create, seed and delete exit 1 when a ClusterDeployment has the name or its ManagedCluster lacks cloud=vcluster
 sequenceDiagram
     participant Pipe as test-vcluster
     participant Hub as Hub API
@@ -15,6 +16,8 @@ sequenceDiagram
 
     rect rgb(246, 248, 250)
         Note over Pipe,PP: create-test-vcluster
+        Pipe->>Hub: read ClusterDeployment NAME and ManagedCluster NAME
+        Hub-->>Pipe: NAME belongs to no real cluster
         Pipe->>VC: vcluster create NAME in the namespace, with the given or the generated values
         Pipe->>Hub: after 30 seconds, read Secret vc-NAME
         Hub-->>Pipe: kubeconfig in the workspace
@@ -23,7 +26,7 @@ sequenceDiagram
 
     rect rgb(246, 248, 250)
         Note over Pipe,PP: seed-test-vcluster
-        Pipe->>Hub: create namespace NAME
+        Pipe->>Hub: create namespace NAME with the label fleet-test-vcluster=NAME
         Pipe->>Hub: create Secrets NAME-admin-kubeconfig<br/>and auto-import-secret
         Pipe->>Hub: create ManagedCluster NAME with the labels tier, cloud=vcluster, vendor=Kubernetes
         Pipe->>Hub: create a placeholder Secret aws-credentials when create-aws-creds is true
@@ -40,6 +43,11 @@ sequenceDiagram
 
     rect rgb(246, 248, 250)
         Note over Pipe,PP: delete-test-vcluster
+        Pipe->>Hub: read ClusterDeployment NAME and ManagedCluster NAME
+        Hub-->>Pipe: NAME belongs to no real cluster
         Pipe->>Hub: delete ManagedCluster NAME and wait<br/>up to 300 seconds for it to be gone
-        Pipe->>VC: vcluster delete NAME, or delete the namespace when that fails
+        Pipe->>Hub: delete Route NAME
+        Pipe->>VC: vcluster delete NAME, or delete its namespace when that fails
+        Pipe->>Hub: delete namespace NAME when it carries the label
+        Pipe->>Hub: delete CronJob NAME and Secret NAME-spoke-kubeconfig
     end

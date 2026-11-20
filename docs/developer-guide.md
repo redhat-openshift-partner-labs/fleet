@@ -498,6 +498,8 @@ document. The task of a pipeline is described once, in the task tables of
 | `tests/validation/test_triggers.py` | A trigger of the EventListener lacks the `github` interceptor with the Secret `fleet-webhook-secret` |
 | | `tekton/triggers/kustomization.yaml` differs from the files of the directory |
 | | A TriggerBinding or TriggerTemplate belongs to no trigger |
+| `tests/validation/test_test_vcluster_pipeline.py` | `delete-test-vcluster` is not the `finally` task of `test-vcluster`, or one of its parameters reads a task result |
+| `tests/validation/test_rbac.py` | The ClusterRole `fleet-pipeline` lacks `delete` on a hub resource that a task deletes |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test
@@ -616,7 +618,7 @@ follow the same steps.
 |---|---|
 | `tests/validation/test_diagrams.py` | An SVG differs from the output of its layout script |
 | | The cards, edges, frames, messages or constraint rows of an SVG differ in number from its `.mermaid` file |
-| | The nodes of a flowchart differ from the tasks of the pipeline, or its edges from the `runAfter` entries |
+| | The nodes of a flowchart differ from the tasks of the pipeline, or its edges from the `runAfter` entries. A `finally` task counts as a task that runs after the last tasks. |
 | | The tasks of a sequence diagram differ from the tasks of the pipeline, or a task is shown above a task it runs after |
 | | A `when` value of a task is missing from the flowchart or from the sequence diagram |
 | | A message of a sequence diagram contains a semicolon |

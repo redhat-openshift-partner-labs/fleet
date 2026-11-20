@@ -29,7 +29,8 @@ def test_pipeline_task_counts_match_definitions():
         assert len(rows) == 1, f"README.md needs one table row linking {path.name}"
 
         cells = [cell.strip() for cell in rows[0].strip().strip("|").split("|")]
-        expected = str(len(definition["spec"]["tasks"]))
+        spec = definition["spec"]
+        expected = str(len(spec["tasks"]) + len(spec.get("finally", [])))
         assert cells[-1] == expected, f"{path.name}: README.md states {cells[-1]}"
         checked += 1
 
