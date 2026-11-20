@@ -1,0 +1,91 @@
+%% Trigger: a push to main of fleet-clusters that adds provision/NAME/, unless the commit message contains [skip-provision]
+%% Order: tasks are shown in an order the pipeline allows; the task flowchart shows which tasks run in parallel
+%% Credential mode: the two scoped tasks are skipped unless metadata.yaml sets aws-credentials-mode: scoped
+%% Failure: a failed task stops the run; trigger-provision does not run
+sequenceDiagram
+    participant Pipe as pre-provision
+    participant Hub as Hub API
+    participant Git
+    participant XP as Crossplane
+    participant AWS
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: load-config
+        Pipe->>Hub: get ConfigMap fleet-pipeline-config
+        Hub-->>Pipe: pipeline parameters
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: git-clone
+        Pipe->>Git: clone fleet-clusters at the pushed revision
+        Git-->>Pipe: provision/NAME/ in the workspace
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: check-prefix-collision
+        Pipe->>Hub: list ClusterDeployments, ManagedClusters<br/>and IAM resource labels
+        Hub-->>Pipe: no other cluster has the AWS infra prefix
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: read-cluster-metadata
+        Git-->>Pipe: metadata.yaml values from the clone,<br/>among them aws-credentials-mode
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: create-cluster-namespace
+        Pipe->>Hub: create namespace NAME
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: create-ssh-key
+        Pipe->>Hub: apply Secret NAME-ssh-key with<br/>a new ed25519 private key
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: create-pull-secret
+        Pipe->>Hub: copy openshift-config/pull-secret<br/>into namespace NAME
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: apply-crossplane-credentials
+        Pipe->>Hub: apply the crossplane overlay of the cluster
+        XP->>AWS: create IAM users, access keys, roles, policies
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: wait-for-aws-credentials
+        Pipe->>Hub: poll for Secret aws-credentials-raw,<br/>up to 10m
+        XP->>Hub: write Secret aws-credentials-raw
+        Hub-->>Pipe: Secret exists
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: transform-aws-credentials
+        Pipe->>Hub: read aws-credentials-raw,<br/>write aws-credentials for Hive
+    end
+
+    opt aws-credentials-mode is scoped
+        rect rgb(246, 248, 250)
+            Note over Pipe,AWS: wait-for-aws-component-credentials
+            Pipe->>Hub: read the operator set from<br/>the annotated AccessKeys
+            XP->>Hub: write one raw Secret per operator
+            Hub-->>Pipe: every Secret exists,<br/>every IAM resource is Ready
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,AWS: build-aws-credentials-manifests
+            Pipe->>Hub: read the raw Secrets, write Secret<br/>NAME-cloud-credentials-manifests
+        end
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: validate-cluster-inputs
+        Pipe->>Hub: get aws-credentials, pull-secret<br/>and NAME-ssh-key
+        Hub-->>Pipe: all present
+    end
+
+    rect rgb(246, 248, 250)
+        Note over Pipe,AWS: trigger-provision
+        Pipe->>Hub: create the PipelineRun of the provision pipeline
+    end
