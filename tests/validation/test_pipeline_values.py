@@ -62,3 +62,29 @@ def test_key_table_names_only_tasks_of_the_pipelines_as_readers():
         # Column 4 names the tasks that read the key.
         named = set(re.findall(r"`([\w-]+)`", cells[3]))
         assert named <= tasks, f"{key}: no pipeline has {sorted(named - tasks)}"
+
+
+THREADING_DOC = ROOT / "docs" / "parameter-threading.md"
+
+
+def test_trace_quotes_are_in_the_files_they_name():
+    rows = table_rows(THREADING_DOC, "## Trace of cluster-name")
+    hops = {key: cells for key, cells in rows.items() if key != "Hop"}
+    assert hops
+
+    for hop, cells in hops.items():
+        # Column 2 names the file, column 3 quotes the expression from it.
+        file = cells[1].strip("`")
+        quote = cells[2].strip("`")
+        text = (ROOT / file).read_text(encoding="utf-8")
+        assert quote in text, f"hop {hop}: {file} no longer holds {quote}"
+
+
+def test_procedure_names_only_files_that_exist():
+    text = THREADING_DOC.read_text(encoding="utf-8")
+    section = text.split("\n## Add a per-cluster value\n", 1)[1].split("\n## ", 1)[0]
+    # A path is a backticked name with a directory and no placeholder.
+    paths = [p for p in re.findall(r"`([\w./-]+/[\w./-]+)`", section) if "<" not in p]
+    assert paths
+    missing = [path for path in paths if not (ROOT / path).exists()]
+    assert not missing, f"docs/parameter-threading.md names missing files: {missing}"

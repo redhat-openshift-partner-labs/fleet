@@ -15,6 +15,7 @@ DOCUMENTS = [
     "docs/fleet-clusters-setup.md",
     "docs/image-pull-secret-setup.md",
     "docs/per-cluster-metadata.md",
+    "docs/parameter-threading.md",
 ]
 
 
