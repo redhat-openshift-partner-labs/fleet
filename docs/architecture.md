@@ -356,7 +356,7 @@ The post-provision pipeline is a **12-task linear Tekton pipeline** triggered by
 1. **Workspace setup** — git-clone of fleet repo, extraction and saving of spoke kubeconfig from hub Secret
 2. **Keycloak + OAuth** — register OIDC client on hub Keycloak (Python CLI entry point, idempotent), configure spoke OAuth with two providers (htpasswd + openid)
 3. **SSL certificate** — request via cert-manager on hub, wait for signing, derive leaf-only material, push to spoke ingress
-4. **Workloads** — apply tier-specific baseline workloads via kustomize
+4. **Workloads** — apply the `workloads/base` overlay via kustomize for every tier; the `virt`, `ai` and `coco` tiers then apply their own overlay under `workloads/`
 5. **RBAC** — create a local `cluster-admins` group on spoke, add per-cluster users, bind to `cluster-admin`
 6. **Access handoff** — create a password-protected PrivateBin paste containing the console URL, kubeadmin password, and kubeconfig
 7. **Finalization** — delete leftover installer pods and the kubeadmin secret to prepare the cluster for handoff
@@ -438,7 +438,7 @@ sequenceDiagram
 
     rect rgb(230, 247, 237)
         Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
-        Pipe->>Spoke: kustomize build workloads/TIER<br/>(NetworkPolicies, monitoring)
+        Pipe->>Spoke: kustomize build workloads/base<br/>(smoke-test ConfigMap)
     end
 
     rect rgb(255, 240, 240)
