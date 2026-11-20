@@ -54,6 +54,12 @@ SEQUENCES = {
         "pipeline allows.",
         "xs": (380, 620, 770, 910, 1050, 1170),
     },
+    "post-provision": {
+        "title": "post-provision pipeline: sequence",
+        "subtitle": "The calls each of the twenty-three tasks makes, in an order the "
+        "pipeline allows.",
+        "xs": (380, 600, 740, 860, 960, 1060, 1170),
+    },
     "deprovision": {
         "title": "deprovision pipeline: sequence",
         "subtitle": "The calls each of the seven tasks makes, in the order the tasks run.",

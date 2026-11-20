@@ -1,96 +1,158 @@
-%% Post-provision pipeline: 11 implemented tasks + 1 aspirational
-%% Aspirational tasks shown in grey (not yet implemented)
+%% Trigger: trigger-post-provision of the provision pipeline creates the PipelineRun; the EventListener starts one for a request whose body holds action: post-provision
+%% Order: tasks are shown in an order the pipeline allows; the task flowchart shows which tasks run in parallel
+%% openshift-cluster: false in a vCluster test run; the tasks marked openshift-cluster is true are then skipped
+%% Tier: every tier applies the base overlay; the virt, ai or coco tasks run for a cluster of that tier
+%% Timeout: 5h for the whole run
 sequenceDiagram
-    autonumber
-    participant Prov as Provision Pipeline
-    participant Pipe as Post-Provision PipelineRun
-    participant Git
-    participant K8s as Hub K8s API
-    participant CertMgr as cert-manager (hub)
-    participant KC as Keycloak (hub)
-    participant Spoke as Spoke K8s API
+    participant Pipe as post-provision
+    participant Hub as Hub API
+    participant Spoke as Spoke API
+    participant KC as Keycloak
+    participant AWS
     participant PB as PrivateBin
-    participant ACM as ACM / Placement
+    participant Git
 
-    Note over Prov,ACM: Triggered by provision pipeline's final task (trigger-post-provision)
-
-    Prov->>Pipe: Create PipelineRun: post-provision<br/>params: cluster-name, tier
-
-    rect rgb(230, 247, 237)
-        Note over Pipe,Git: Task 1: git-clone<br/>(shallow clone of fleet repo into workspace)
-        Pipe->>Git: git clone --depth=1
-        Git-->>Pipe: repo in shared workspace
+    rect rgb(246, 248, 250)
+        Note over Pipe,Git: load-config
+        Pipe->>Hub: get ConfigMap fleet-pipeline-config
+        Hub-->>Pipe: pipeline parameters
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,K8s: Task 2: extract-spoke-kubeconfig<br/>(extract admin kubeconfig from hub Secret)
-        Pipe->>K8s: oc extract secret/NAME-admin-kubeconfig
-        K8s-->>Pipe: kubeconfig (workspace-scoped)
+    rect rgb(246, 248, 250)
+        Note over Pipe,Git: git-clone
+        Pipe->>Git: clone the fleet repository
+        Git-->>Pipe: workloads/ in the workspace
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 3: save-spoke-kubeconfig<br/>(write kubeconfig to workspace for subsequent tasks)
-        Pipe->>Pipe: Save kubeconfig to shared workspace path
+    rect rgb(246, 248, 250)
+        Note over Pipe,Git: extract-spoke-kubeconfig
+        Pipe->>Hub: read the admin kubeconfig Secret<br/>named by the ClusterDeployment
+        Hub-->>Pipe: kubeconfig in the workspace
     end
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,KC: Task 4: register-keycloak-client<br/>(hub-only, Python CLI entry point)
-        Pipe->>KC: fleet-register-keycloak-client<br/>(idempotent, reads cluster-name)
-        KC-->>K8s: Store client-id + client-secret<br/>in hub Secret
+    rect rgb(246, 248, 250)
+        Note over Pipe,Git: save-spoke-kubeconfig
+        Pipe->>Hub: write Secret NAME-spoke-kubeconfig
     end
 
-    rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 5: configure-spoke-oauth<br/>(two identity providers on spoke)
-        Pipe->>K8s: Read htpasswd user list<br/>from cluster definition
-        Pipe->>K8s: Read OIDC client-id + secret<br/>from Keycloak registration
-        Pipe->>Spoke: Create htpasswd Secret<br/>in openshift-config
-        Pipe->>Spoke: Create OIDC client Secret<br/>in openshift-config
-        Pipe->>Spoke: Apply OAuth CR with two providers:<br/>htpasswd (per-cluster users)<br/>openid (hub Keycloak)
+    rect rgb(246, 248, 250)
+        Note over Pipe,Git: create-cluster-cronjob
+        Pipe->>Hub: apply CronJob NAME in namespace default
     end
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,K8s: Task 6: request-ssl-cert<br/>(request via cert-manager on hub)
-        Pipe->>K8s: Apply Certificate CR<br/>(ClusterIssuer, wildcard DNS)
-        CertMgr->>K8s: Sign cert, populate Secret<br/>(CA stays on hub)
+    opt openshift-cluster is true
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: register-keycloak-client
+            Pipe->>Hub: read the Keycloak admin Secret
+            Pipe->>KC: create or update the OIDC client of the cluster
+            Pipe->>Hub: write the client ID and secret<br/>to a hub Secret
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: configure-spoke-oauth
+            Pipe->>Hub: read the OIDC client Secret
+            Pipe->>Spoke: apply the OIDC client Secret, the htpasswd Secret and the OAuth CR
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: create-cluster-issuer
+            Pipe->>Hub: copy the cluster's AWS key into<br/>a Secret for cert-manager
+            Pipe->>Hub: create ClusterIssuer letsencrypt-NAME
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: request-ssl-cert
+            Pipe->>Hub: create Certificate<br/>NAME-wildcard-certificate
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: wait-for-ssl-ready
+            Pipe->>Hub: wait for condition Ready on<br/>the Certificate, timeout 20m
+            Hub->>AWS: cert-manager writes the DNS-01 records to Route53
+            Hub-->>Pipe: Certificate Ready
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: extract-cert-material
+            Pipe->>Hub: copy tls.crt and tls.key into<br/>Secret NAME-leaf-cert
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: configure-spoke-default-cert
+            Pipe->>Hub: read Secret NAME-leaf-cert
+            Pipe->>Spoke: apply the Secret in openshift-ingress, patch the default IngressController
+        end
     end
 
-    rect rgb(255, 248, 220)
-        Note over Pipe,K8s: Task 7: wait-for-ssl-ready<br/>(wait for cert-manager to sign)
-        Pipe->>K8s: oc wait --for=condition=Ready<br/>certificate/NAME --timeout=20m
-        K8s-->>Pipe: Certificate ready
+    opt tier is base, virt, ai or coco
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: apply-base-workloads
+            Pipe->>Spoke: apply the output of kustomize build workloads/base
+        end
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 8: extract-cert-material<br/>(derive leaf-only, push to spoke)
-        Pipe->>K8s: Extract tls.crt + tls.key ONLY<br/>(no ca.crt, no signing material)
-        Pipe->>Spoke: Create Secret in openshift-ingress
-        Pipe->>Spoke: Patch IngressController default<br/>spec.defaultCertificate.name
+    opt tier is virt
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: apply-virt-workloads
+            Pipe->>Spoke: install Node Feature Discovery, then OpenShift Virtualization
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: add-baremetal-workers
+            Pipe->>Hub: create a bare-metal worker MachinePool
+        end
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,Spoke: Task 9: apply-base-workloads<br/>(common to all tiers)
-        Pipe->>Spoke: kustomize build workloads/base<br/>(smoke-test ConfigMap)
+    opt tier is ai
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: apply-ai-workloads
+            Pipe->>Spoke: install the OpenShift AI 2.x or 3.x operators, and the GPU operators for nvidia-gpu
+        end
+
+        opt ai-accelerator is nvidia-gpu
+            rect rgb(246, 248, 250)
+                Note over Pipe,Git: add-ai-workers
+                Pipe->>Hub: create a GPU worker MachinePool
+            end
+        end
     end
 
-    rect rgb(255, 240, 240)
-        Note over Pipe,Spoke: Task 10: configure-spoke-rbac<br/>(local group + ClusterRoleBinding)
-        Pipe->>Spoke: Create Group: cluster-admins
-        Pipe->>Spoke: Add per-cluster users to group
-        Pipe->>Spoke: Create ClusterRoleBinding:<br/>cluster-admins → cluster-admin
+    opt tier is coco
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: prepare-podvm-aws
+            Pipe->>Spoke: read the first worker node
+            Pipe->>AWS: read its VPC, subnet and security groups, open the pod VM ports
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: build-podvm-image-aws
+            Pipe->>Spoke: read the pod VM disk image<br/>of the operator
+            Pipe->>AWS: reuse or build the pod VM AMI of the cluster, timeout 2h
+            AWS-->>Pipe: AMI ID
+        end
+
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: apply-coco-workloads
+            Pipe->>Spoke: write peer-pods-secret and the peer pods configuration
+            Pipe->>Spoke: install sandboxed containers and the KataConfig, timeout 2h
+        end
     end
 
-    rect rgb(230, 247, 237)
-        Note over Pipe,PB: Task 11: create-access-paste<br/>(password-protected cluster handoff)
-        Pipe->>K8s: Read kubeadmin password<br/>from Hive Secret
-        Pipe->>PB: Create encrypted Markdown paste
-        PB-->>K8s: Store paste URL + password<br/>in Hub Secret
-    end
+    opt openshift-cluster is true
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: configure-spoke-rbac
+            Pipe->>Spoke: create group cluster-admins and its ClusterRoleBinding to cluster-admin
+        end
 
-    rect rgb(200, 200, 200)
-        Note over Pipe,ACM: Task 12 (not yet implemented): mark-bootstrapped
-        Pipe->>K8s: oc label managedcluster/NAME<br/>bootstrapped=true
-        ACM-->>ACM: Placement re-evaluates
-        Note over ACM: ApplicationSet picks up cluster<br/>→ day-2 workloads begin
-    end
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: create-access-paste
+            Pipe->>Hub: read the kubeadmin password
+            Pipe->>PB: upload console URL, kubeadmin password and kubeconfig
+            Pipe->>Hub: store the paste URL and its<br/>password in a Secret
+        end
 
-    Note over Prov,ACM: All tasks sequential. Pipeline is idempotent.<br/>No out-of-band manual steps. No sync-wave ordering.
+        rect rgb(246, 248, 250)
+            Note over Pipe,Git: finalize-spoke
+            Pipe->>Spoke: delete leftover installer pods and the kubeadmin Secret
+        end
+    end
