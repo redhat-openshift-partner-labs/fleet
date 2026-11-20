@@ -92,7 +92,7 @@ tox
 
 CI runs on a push to any branch except `main` and on a pull request to `main`.
 
-A tag that starts with `v` builds the pipeline image `quay.io/rhopl/fleet-pipeline` for `linux/amd64` and creates the GitHub release.
+A tag that starts with `v` builds the pipeline image `quay.io/rhopl/fleet-pipeline` for `linux/amd64` and creates the GitHub release. The tag is `v` followed by the `version` of `pyproject.toml`; see [Release](docs/developer-guide.md#release).
 
 ## Contributing
 

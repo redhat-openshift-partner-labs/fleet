@@ -254,7 +254,7 @@ podman build -t fleet-pipeline:dev .
 A tag that starts with `v` runs `.github/workflows/build-image.yml`. The
 workflow builds the image for `linux/amd64`, pushes it to
 `quay.io/rhopl/fleet-pipeline` with the version and `latest` as tags, and
-creates the GitHub release.
+creates the GitHub release. [Release](#release) lists the steps.
 
 ### Maintenance: CentOS signing key
 
@@ -491,6 +491,8 @@ document. The task of a pipeline is described once, in the task tables of
 | | The CI table differs from the jobs of `.github/workflows/ci.yml`, or lacks one of their `tox` commands |
 | | A package of the runtime stage of the `Dockerfile` is not named in "Container Image" |
 | | The platforms named in this guide or in `README.md` differ from the platforms of `.github/workflows/build-image.yml` |
+| | `build-image.yml` lacks the step that compares the tag with the version of `pyproject.toml`, the step runs after the build, or its script accepts a tag that differs |
+| | "Release" does not name `pyproject.toml` or the release commit message |
 | `tests/validation/test_coco_tier_doc.py` | A failure message of `docs/coco-tier.md` is in none of the modules of the `coco` tier |
 | | Its failure table names a task that no pipeline has |
 
@@ -622,6 +624,35 @@ follow the same steps.
 
 The style guide requires the `<style>` and `<defs>` blocks of every SVG to
 match `sno.svg` of the aci-assessment repository byte for byte.
+
+## Release
+
+The tag of a release is `v` followed by the `version` of `pyproject.toml`.
+The first step of `build-image.yml` compares the two and fails on a
+difference. A failed run pushes no image and creates no GitHub release.
+
+1. Set `version` under `[tool.poetry]` in `pyproject.toml` to the new version.
+
+2. Commit the change with the message `chore: release vX.Y.Z`.
+
+3. Merge the branch to `main`.
+
+4. Tag the merge commit and push the tag:
+
+   ```bash
+   git tag -s vX.Y.Z -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+5. Check the run of "Build and Push Container Image" and the release:
+
+   ```bash
+   gh run list --workflow build-image.yml --limit 1
+   gh release view vX.Y.Z
+   ```
+
+The default of `pipeline-image` is the tag `latest`, so a release needs no
+change under `tekton/`.
 
 ## Commit Conventions
 
