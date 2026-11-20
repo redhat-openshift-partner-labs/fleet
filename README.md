@@ -11,9 +11,9 @@ fleet is the control plane for the Red Hat OpenShift Partner Labs cluster fleet.
 
 ## Architecture
 
-![Target architecture](docs/diagrams/target-architecture.svg)
+![Architecture](docs/diagrams/architecture.svg)
 
-Diagram source: [docs/diagrams/target-architecture.mermaid](docs/diagrams/target-architecture.mermaid). Rationale and migration plan: [docs/architecture.md](docs/architecture.md).
+Diagram source: [docs/diagrams/architecture.mermaid](docs/diagrams/architecture.mermaid). Rationale and migration plan: [docs/architecture.md](docs/architecture.md).
 
 | Component | Role |
 |---|---|

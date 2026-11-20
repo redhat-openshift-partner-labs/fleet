@@ -1,0 +1,298 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1612" width="1262" height="1612" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture</title>
+  <desc id="desc">Git is the source of truth. The fleet-clusters repository holds provision/NAME/ with the cluster overlays and metadata.yaml, and deprovision/NAME-archive sentinel files. The fleet repository holds tekton/ and workloads/TIER/ (pipelines, tasks, triggers and tier overlays) and hub-config/ and bootstrap/ (hub operators and their configuration). The hub cluster is trusted. ArgoCD syncs Git to the Application fleet-hub-config. Tekton is the workflow engine. A push to fleet-clusters reaches the EventListener fleet-cluster-lifecycle through a webhook. A push that adds provision/NAME/ starts the pre-provision pipeline, a push that adds deprovision/NAME-archive starts the deprovision pipeline, and a request whose body holds action: post-provision starts the post-provision pipeline. The pipelines clone Git with the git-clone task. The pre-provision pipeline creates the namespace, SSH key, pull secret and IAM credentials and checks the inputs: it applies IAM CRs to Crossplane, which holds the IAM users, roles and policies of each cluster, waits for the keys, and starts the provision pipeline. The provision pipeline applies the cluster CRs to Hive and ACM (ClusterDeployment, ManagedCluster with the tier label), waits for the install and the ACM join, and starts the post-provision pipeline. Hive installs the cluster. The post-provision pipeline creates a ClusterIssuer and a Certificate in cert-manager, which holds one ClusterIssuer per cluster for Let's Encrypt DNS-01 through Route53, registers an OIDC client per cluster in Keycloak, and writes to the spoke: the leaf certificate and key, the OAuth CR and provider Secrets, the cluster-admins group and binding, and the kustomize overlays of the tier. The deprovision pipeline deletes the cluster CRs, waits for the uninstall, deletes the IAM CRs, and posts a deployment status to fleet-clusters. The spoke is third-party accessible. It holds the ingress certificate (leaf certificate and key, no CA key), OAuth with htpasswd and OpenID providers, RBAC with the cluster-admins group, and the tier workloads (base, virt, ai, coco). Constraints: Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub. The spoke receives only artifacts derived on the hub. Triggers are pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="1611" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">Architecture</text>
+  <text class="m b" x="40" y="68">A push to fleet-clusters starts Tekton pipelines on the hub; the pipelines drive Crossplane, Hive, cert-manager, Keycloak and the spoke.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="106" rx="12"/>
+  <text class="t b k" x="56" y="124">Hub</text>
+  <text class="m b" x="160" y="124">Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Spoke</text>
+  <text class="m b" x="160" y="156">third-party accessible; it receives only artifacts derived on the hub</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Triggers</text>
+  <text class="m b" x="160" y="188">pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="238" width="1214" height="162" rx="14"/>
+  <rect class="bg" x="40" y="228" width="196" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="242">GIT · SOURCE OF TRUTH</text>
+  <rect class="frame" x="24" y="456" width="1214" height="718" rx="14"/>
+  <rect class="bg" x="560" y="446" width="196" height="20" rx="10"/>
+  <text class="m lbl" x="572" y="460">HUB CLUSTER · TRUSTED</text>
+  <rect class="frame" x="24" y="1364" width="1214" height="142" rx="14"/>
+  <rect class="bg" x="496" y="1354" width="270" height="20" rx="10"/>
+  <text class="m lbl" x="508" y="1368">SPOKE · THIRD-PARTY ACCESSIBLE</text>
+  <rect class="bg" x="68" y="490" width="1070" height="312" rx="14"/>
+  <rect class="frame" x="600" y="480" width="221" height="20" rx="10"/>
+  <text class="m lbl" x="612" y="494">TEKTON · WORKFLOW ENGINE</text>
+
+  <!-- ===== Cards: Git ===== -->
+  <rect class="store" x="40" y="264" width="366" height="118" rx="12"/>
+  <circle class="badge-store" cx="58" cy="284" r="10"/><text class="badge-t" x="58" y="288" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="289">fleet-clusters</text>
+  <line class="rule" x1="52" y1="304" x2="394" y2="304"/>
+  <text class="c s" x="52" y="326">provision/NAME/ · deprovision/NAME-archive</text>
+  <text class="t b" x="52" y="344">cluster overlays · metadata.yaml</text>
+  <rect class="store" x="448" y="264" width="366" height="118" rx="12"/>
+  <circle class="badge-store" cx="466" cy="284" r="10"/><text class="badge-t" x="466" y="288" text-anchor="middle">2</text>
+  <text class="t h2" x="482" y="289">fleet: pipelines and workloads</text>
+  <line class="rule" x1="460" y1="304" x2="802" y2="304"/>
+  <text class="c s" x="460" y="326">tekton/ · workloads/TIER/</text>
+  <text class="t b" x="460" y="344">pipelines, tasks, triggers, tier overlays</text>
+  <rect class="store" x="856" y="264" width="366" height="118" rx="12"/>
+  <circle class="badge-store" cx="874" cy="284" r="10"/><text class="badge-t" x="874" y="288" text-anchor="middle">3</text>
+  <text class="t h2" x="890" y="289">fleet: hub configuration</text>
+  <line class="rule" x1="868" y1="304" x2="1210" y2="304"/>
+  <text class="c s" x="868" y="326">hub-config/ · bootstrap/</text>
+  <text class="t b" x="868" y="344">hub operators and their configuration</text>
+
+  <!-- ===== Cards: Tekton ===== -->
+  <rect class="gate" x="358" y="516" width="764" height="80" rx="12"/>
+  <circle class="badge-gate" cx="376" cy="536" r="10"/><text class="badge-t" x="376" y="540" text-anchor="middle">4</text>
+  <text class="t h2" x="392" y="541">EventListener</text>
+  <line class="rule" x1="370" y1="556" x2="1110" y2="556"/>
+  <text class="c s" x="370" y="578">fleet-cluster-lifecycle</text>
+  <rect class="src" x="84" y="672" width="216" height="114" rx="12"/>
+  <circle class="badge-src" cx="102" cy="692" r="10"/><text class="badge-t" x="102" y="696" text-anchor="middle">5</text>
+  <text class="t h2" x="118" y="697">deprovision</text>
+  <line class="rule" x1="96" y1="712" x2="288" y2="712"/>
+  <text class="m s" x="96" y="734">deletes the cluster and</text>
+  <text class="m s" x="96" y="752">its hub artifacts</text>
+  <rect class="src" x="358" y="672" width="216" height="114" rx="12"/>
+  <circle class="badge-src" cx="376" cy="692" r="10"/><text class="badge-t" x="376" y="696" text-anchor="middle">6</text>
+  <text class="t h2" x="392" y="697">pre-provision</text>
+  <line class="rule" x1="370" y1="712" x2="562" y2="712"/>
+  <text class="m s" x="370" y="734">namespace, SSH key, pull secret,</text>
+  <text class="m s" x="370" y="752">IAM credentials, input checks</text>
+  <rect class="src" x="632" y="672" width="216" height="114" rx="12"/>
+  <circle class="badge-src" cx="650" cy="692" r="10"/><text class="badge-t" x="650" y="696" text-anchor="middle">7</text>
+  <text class="t h2" x="666" y="697">provision</text>
+  <line class="rule" x1="644" y1="712" x2="836" y2="712"/>
+  <text class="m s" x="644" y="734">applies cluster CRs, waits for</text>
+  <text class="m s" x="644" y="752">install and ACM join</text>
+  <rect class="src" x="906" y="672" width="216" height="114" rx="12"/>
+  <circle class="badge-src" cx="924" cy="692" r="10"/><text class="badge-t" x="924" y="696" text-anchor="middle">8</text>
+  <text class="t h2" x="940" y="697">post-provision</text>
+  <line class="rule" x1="918" y1="712" x2="1110" y2="712"/>
+  <text class="m s" x="918" y="734">OAuth, TLS, RBAC, tier</text>
+  <text class="m s" x="918" y="752">workloads, access details</text>
+
+  <!-- ===== Cards: hub services ===== -->
+  <rect class="src" x="358" y="880" width="216" height="100" rx="12"/>
+  <circle class="badge-src" cx="376" cy="900" r="10"/><text class="badge-t" x="376" y="904" text-anchor="middle">9</text>
+  <text class="t h2" x="392" y="905">Crossplane</text>
+  <line class="rule" x1="370" y1="920" x2="562" y2="920"/>
+  <text class="t b" x="370" y="942">IAM users, roles and</text>
+  <text class="t b" x="370" y="960">policies per cluster</text>
+  <rect class="core" x="632" y="880" width="216" height="100" rx="12"/>
+  <circle class="badge-core" cx="650" cy="900" r="10"/><text class="badge-t" x="650" y="904" text-anchor="middle">10</text>
+  <text class="t h2" x="666" y="905">Hive and ACM</text>
+  <line class="rule" x1="644" y1="920" x2="836" y2="920"/>
+  <text class="c s" x="644" y="942">ClusterDeployment</text>
+  <text class="c s" x="644" y="960">ManagedCluster · tier label</text>
+  <rect class="src" x="906" y="880" width="216" height="100" rx="12"/>
+  <circle class="badge-src" cx="924" cy="900" r="10"/><text class="badge-t" x="924" y="904" text-anchor="middle">11</text>
+  <text class="t h2" x="940" y="905">cert-manager</text>
+  <line class="rule" x1="918" y1="920" x2="1110" y2="920"/>
+  <text class="t b" x="918" y="942">ClusterIssuer per cluster</text>
+  <text class="m s" x="918" y="960">Let's Encrypt DNS-01, Route53</text>
+  <rect class="src" x="906" y="1024" width="216" height="100" rx="12"/>
+  <circle class="badge-src" cx="924" cy="1044" r="10"/><text class="badge-t" x="924" y="1048" text-anchor="middle">12</text>
+  <text class="t h2" x="940" y="1049">Keycloak</text>
+  <line class="rule" x1="918" y1="1064" x2="1110" y2="1064"/>
+  <text class="t b" x="918" y="1086">OIDC client per cluster</text>
+  <rect class="src" x="84" y="1070" width="216" height="80" rx="12"/>
+  <circle class="badge-src" cx="102" cy="1090" r="10"/><text class="badge-t" x="102" y="1094" text-anchor="middle">13</text>
+  <text class="t h2" x="118" y="1095">ArgoCD Application</text>
+  <line class="rule" x1="96" y1="1110" x2="288" y2="1110"/>
+  <text class="c s" x="96" y="1132">fleet-hub-config</text>
+
+  <!-- ===== Cards: Spoke ===== -->
+  <rect class="store" x="84" y="1390" width="216" height="100" rx="12"/>
+  <circle class="badge-store" cx="102" cy="1410" r="10"/><text class="badge-t" x="102" y="1414" text-anchor="middle">14</text>
+  <text class="t h2" x="118" y="1415">Ingress certificate</text>
+  <line class="rule" x1="96" y1="1430" x2="288" y2="1430"/>
+  <text class="t b" x="96" y="1452">leaf certificate and key</text>
+  <text class="m s" x="96" y="1470">no CA key</text>
+  <rect class="core" x="358" y="1390" width="216" height="100" rx="12"/>
+  <circle class="badge-core" cx="376" cy="1410" r="10"/><text class="badge-t" x="376" y="1414" text-anchor="middle">15</text>
+  <text class="t h2" x="392" y="1415">OAuth</text>
+  <line class="rule" x1="370" y1="1430" x2="562" y2="1430"/>
+  <text class="t b" x="370" y="1452">htpasswd and OpenID providers</text>
+  <rect class="core" x="632" y="1390" width="216" height="100" rx="12"/>
+  <circle class="badge-core" cx="650" cy="1410" r="10"/><text class="badge-t" x="650" y="1414" text-anchor="middle">16</text>
+  <text class="t h2" x="666" y="1415">RBAC</text>
+  <line class="rule" x1="644" y1="1430" x2="836" y2="1430"/>
+  <text class="c s" x="644" y="1452">cluster-admins</text>
+  <text class="t b" x="644" y="1470">group</text>
+  <rect class="out" x="906" y="1390" width="216" height="100" rx="12"/>
+  <circle class="badge-out" cx="924" cy="1410" r="10"/><text class="badge-t" x="924" y="1414" text-anchor="middle">17</text>
+  <text class="t h2" x="940" y="1415">Tier workloads</text>
+  <line class="rule" x1="918" y1="1430" x2="1110" y2="1430"/>
+  <text class="t b" x="918" y="1452">base · virt · ai · coco</text>
+
+  <!-- ===== Edges: Git and hub ===== -->
+  <path class="flow" d="M46 400 V1110 H82" marker-end="url(#a-flow)"/>
+  <text class="m s" x="54" y="434">ArgoCD sync</text>
+  <path class="flow" d="M160 672 V384" marker-end="url(#a-flow)"/>
+  <text class="m s" x="168" y="434">deployment status</text>
+  <path class="flow" d="M390 382 V514" marker-end="url(#a-flow)"/>
+  <text class="m s" x="398" y="434">push webhook</text>
+  <path class="flow" d="M980 400 V488" marker-end="url(#a-flow)"/>
+  <text class="m s" x="988" y="434">cloned by git-clone</text>
+
+  <!-- ===== Edges: EventListener to pipelines, pipeline chain ===== -->
+  <path class="flow" d="M358 556 H230 V670" marker-end="url(#a-flow)"/>
+  <text class="m s" x="238" y="630">push adds</text>
+  <text class="m s" x="238" y="644">deprovision/NAME-archive</text>
+  <path class="flow" d="M466 596 V670" marker-end="url(#a-flow)"/>
+  <text class="m s" x="474" y="630">push adds</text>
+  <text class="m s" x="474" y="644">provision/NAME/</text>
+  <path class="flow" d="M1014 596 V670" marker-end="url(#a-flow)"/>
+  <text class="m s" x="1006" y="630" text-anchor="end">request body</text>
+  <text class="m s" x="1006" y="644" text-anchor="end">action: post-provision</text>
+  <path class="flow" d="M574 729 H630" marker-end="url(#a-flow)"/>
+  <text class="m s" x="603" y="722" text-anchor="middle">starts</text>
+  <path class="flow" d="M848 729 H904" marker-end="url(#a-flow)"/>
+  <text class="m s" x="877" y="722" text-anchor="middle">starts</text>
+
+  <!-- ===== Edges: pre-provision, provision ===== -->
+  <path class="flow" d="M420 786 V878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="412" y="846" text-anchor="end">applies IAM CRs</text>
+  <path class="ctl" d="M500 786 V878" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="508" y="846">waits for keys</text>
+  <path class="flow" d="M694 786 V878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="686" y="846" text-anchor="end">applies CRs</text>
+  <path class="ctl" d="M774 786 V878" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="782" y="838">waits for install</text>
+  <text class="m s" x="782" y="852">and ACM join</text>
+
+  <!-- ===== Edges: post-provision to hub services ===== -->
+  <path class="flow" d="M1014 786 V878" marker-end="url(#a-flow)"/>
+  <text class="m s" x="1022" y="838">ClusterIssuer,</text>
+  <text class="m s" x="1022" y="852">Certificate</text>
+  <path class="flow" d="M930 786 V864 H877 V1074 H904" marker-end="url(#a-flow)"/>
+  <text class="m s" x="885" y="1006">registers OIDC client</text>
+
+  <!-- ===== Edges: deprovision ===== -->
+  <path class="flow" d="M220 786 V930 H356" marker-end="url(#a-flow)"/>
+  <text class="m s" x="228" y="923">deletes IAM CRs</text>
+  <path class="flow" d="M160 786 V1004 H594 V910 H630" marker-end="url(#a-flow)"/>
+  <text class="m s" x="240" y="997">deletes cluster CRs</text>
+  <path class="ctl" d="M120 786 V1032 H612 V950 H630" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="240" y="1025">waits for uninstall</text>
+
+  <!-- ===== Edges: Hive to spoke ===== -->
+  <path class="flow" d="M740 980 V1200 H54 V1362" marker-end="url(#a-flow)"/>
+  <text class="m s" x="62" y="1290">installs the cluster</text>
+
+  <!-- ===== Edges: post-provision to spoke ===== -->
+  <path class="flow" d="M1122 762 H1154 V1226 H250 V1388" marker-end="url(#a-flow)"/>
+  <text class="m s" x="258" y="1330">leaf certificate</text>
+  <text class="m s" x="258" y="1344">and key</text>
+  <path class="flow" d="M1122 740 H1170 V1252 H478 V1388" marker-end="url(#a-flow)"/>
+  <text class="m s" x="486" y="1330">OAuth CR,</text>
+  <text class="m s" x="486" y="1344">provider Secrets</text>
+  <path class="flow" d="M1122 718 H1186 V1278 H784 V1388" marker-end="url(#a-flow)"/>
+  <text class="m s" x="792" y="1330">group and</text>
+  <text class="m s" x="792" y="1344">binding</text>
+  <path class="flow" d="M1122 696 H1202 V1304 H1040 V1388" marker-end="url(#a-flow)"/>
+  <text class="m s" x="1048" y="1330">kustomize</text>
+  <text class="m s" x="1048" y="1344">overlays</text>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="1546" x2="1222" y2="1546"/>
+  <path class="flow" d="M40 1574 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="1578">applies, starts, writes</text>
+  <path class="ctl" d="M222 1574 H258" marker-end="url(#a-ctl)"/>
+  <text class="m s" x="268" y="1578">waits</text>
+  <rect class="gate" x="390" y="1566" width="22" height="16" rx="4"/>
+  <text class="m s" x="420" y="1578">event entry</text>
+  <rect class="src" x="512" y="1566" width="22" height="16" rx="4"/>
+  <text class="m s" x="542" y="1578">pipelines and operators</text>
+  <rect class="core" x="708" y="1566" width="22" height="16" rx="4"/>
+  <text class="m s" x="738" y="1578">cluster control</text>
+  <rect class="store" x="857" y="1566" width="22" height="16" rx="4"/>
+  <text class="m s" x="887" y="1578">git and key material</text>
+  <rect class="out" x="1035" y="1566" width="22" height="16" rx="4"/>
+  <text class="m s" x="1065" y="1578">workloads</text>
+</svg>

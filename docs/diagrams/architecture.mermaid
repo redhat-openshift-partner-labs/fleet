@@ -1,0 +1,76 @@
+%% Hub: Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub
+%% Spoke: third-party accessible; it receives only artifacts derived on the hub
+%% Triggers: pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run
+flowchart TB
+    subgraph Git["Git (source of truth)"]
+        direction TB
+        GitClusters["fleet-clusters<br/>provision/NAME/, deprovision/NAME-archive<br/>(cluster overlays, metadata.yaml)"]
+        GitFleet["fleet: pipelines and workloads<br/>tekton/, workloads/TIER/<br/>(pipelines, tasks, triggers, tier overlays)"]
+        GitHubConfig["fleet: hub configuration<br/>hub-config/, bootstrap/<br/>(hub operators and their configuration)"]
+    end
+
+    subgraph Hub["HUB CLUSTER (trusted)"]
+        direction TB
+
+        subgraph Tekton["Tekton (workflow engine)"]
+            EL["EventListener<br/>fleet-cluster-lifecycle"]
+            Deprovision["deprovision<br/>(deletes the cluster and its hub artifacts)"]
+            PreProvision["pre-provision<br/>(namespace, SSH key, pull secret, IAM credentials, input checks)"]
+            Provision["provision<br/>(applies cluster CRs, waits for install and ACM join)"]
+            PostProvision["post-provision<br/>(OAuth, TLS, RBAC, tier workloads, access details)"]
+        end
+
+        IAM["Crossplane<br/>(IAM users, roles and policies per cluster)"]
+        Hive["Hive and ACM<br/>(ClusterDeployment, ManagedCluster with tier label)"]
+        CertMgr["cert-manager<br/>(ClusterIssuer per cluster, Let's Encrypt DNS-01 through Route53)"]
+        Keycloak["Keycloak<br/>(OIDC client per cluster)"]
+        HubApp["ArgoCD Application<br/>fleet-hub-config"]
+    end
+
+    subgraph Spoke["SPOKE (third-party accessible)"]
+        direction TB
+        SpokeCert["Ingress certificate<br/>(leaf certificate and key, no CA key)"]
+        SpokeOAuth["OAuth<br/>(htpasswd and OpenID providers)"]
+        SpokeRBAC["RBAC<br/>(cluster-admins group)"]
+        SpokeTier["Tier workloads<br/>(base, virt, ai, coco)"]
+    end
+
+    Git -->|ArgoCD sync| HubApp
+    Deprovision -->|deployment status| GitClusters
+    GitClusters -->|push webhook| EL
+    Git -->|cloned by git-clone| Tekton
+
+    EL -->|push adds deprovision/NAME-archive| Deprovision
+    EL -->|push adds provision/NAME/| PreProvision
+    EL -->|request body action: post-provision| PostProvision
+    PreProvision -->|starts| Provision
+    Provision -->|starts| PostProvision
+
+    PreProvision -->|applies IAM CRs| IAM
+    PreProvision -.->|waits for keys| IAM
+    Provision -->|applies CRs| Hive
+    Provision -.->|waits for install and ACM join| Hive
+    PostProvision -->|ClusterIssuer, Certificate| CertMgr
+    PostProvision -->|registers OIDC client| Keycloak
+
+    Deprovision -->|deletes IAM CRs| IAM
+    Deprovision -->|deletes cluster CRs| Hive
+    Deprovision -.->|waits for uninstall| Hive
+
+    Hive -->|installs the cluster| Spoke
+    PostProvision -->|leaf certificate and key| SpokeCert
+    PostProvision -->|OAuth CR, provider Secrets| SpokeOAuth
+    PostProvision -->|group and binding| SpokeRBAC
+    PostProvision -->|kustomize overlays| SpokeTier
+
+    classDef git fill:#eaf7ec,stroke:#2e8b46,color:#000
+    classDef entry fill:#fff4e0,stroke:#c27c0e,color:#000
+    classDef service fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef control fill:#ecf2ff,stroke:#3b6fd8,color:#000
+    classDef workload fill:#f3ecff,stroke:#7a4fd6,color:#000
+
+    class GitClusters,GitFleet,GitHubConfig,SpokeCert git
+    class EL entry
+    class Deprovision,PreProvision,Provision,PostProvision,IAM,CertMgr,Keycloak,HubApp service
+    class Hive,SpokeOAuth,SpokeRBAC control
+    class SpokeTier workload

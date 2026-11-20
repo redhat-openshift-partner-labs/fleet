@@ -13,7 +13,7 @@ from xml.sax.saxutils import escape
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 
 DIAGRAMS = Path(__file__).parent
-HEAD_SOURCE = DIAGRAMS / "target-architecture.svg"
+HEAD_SOURCE = DIAGRAMS / "architecture.svg"
 SHARED_HEAD = re.compile(r"  <style>[\s\S]*?</defs>")
 
 W = 1262  # canvas width of every diagram
