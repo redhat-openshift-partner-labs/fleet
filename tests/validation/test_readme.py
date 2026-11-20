@@ -70,3 +70,40 @@ def test_documentation_index_holds_the_purpose_of_each_document():
         assert len(rows) == 1, f"README.md needs one index row for {document}"
         cells = [cell.strip() for cell in rows[0].strip().strip("|").split("|")]
         assert cells[-1] == purpose, f"README.md index row of {document}"
+
+
+def section(title: str) -> str:
+    """Text of one second-level section of README.md."""
+    text = README.read_text(encoding="utf-8")
+    return text.split(f"\n## {title}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def index_rows() -> dict[str, list[list[str]]]:
+    """Cells of the rows of the documentation index, by the path each row links."""
+    rows: dict[str, list[list[str]]] = {}
+    for line in section("Documentation").splitlines():
+        match = re.match(r"\| \[[^\]]+\]\(([^)]+)\) \|", line)
+        if match:
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            rows.setdefault(match[1], []).append(cells)
+    return rows
+
+
+def test_documentation_index_lists_every_document_once():
+    documents = [f"docs/{path.name}" for path in (ROOT / "docs").glob("*.md")]
+    documents.append("hub-config/README.md")
+    rows = index_rows()
+    assert sorted(rows) == sorted(documents)
+
+    for document, found in rows.items():
+        assert len(found) == 1, f"README.md has {len(found)} index rows for {document}"
+        # The columns are Document, Reader and Covers.
+        assert len(found[0]) == 3 and all(found[0]), f"index row of {document}"
+
+
+def test_repository_layout_lists_existing_paths():
+    block = section("Repository layout").split("```")[1]
+    entries = re.findall(r"[├└]── (\S+)", block)
+    assert entries
+    missing = [entry for entry in entries if not (ROOT / entry).exists()]
+    assert not missing, f"README.md lists paths that do not exist: {missing}"
