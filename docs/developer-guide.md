@@ -180,7 +180,13 @@ script: |
   fleet-<name> --cluster-name "$(params.cluster-name)" "${EXTRA_ARGS[@]}"
 ```
 
-### 5. Verify
+### 5. List the task in the overlay (`tekton/tasks/kustomization.yaml`)
+
+Add `<name>.yaml` to `resources`. `oc apply -k tekton/` installs only the
+tasks that the overlay lists. `tests/validation/test_task_params.py` fails for
+a task file that is not listed.
+
+### 6. Verify
 
 ```bash
 tox                    # all checks pass
