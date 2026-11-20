@@ -1,19 +1,11 @@
 from unittest import mock
 
 import subprocess
-from pathlib import Path
 
 import pytest
 import yaml
 
 from fleet.tasks.trigger_post_provision import PIPELINE_TIMEOUT, main
-
-TRIGGER_TEMPLATE = (
-    Path(__file__).parent.parent.parent
-    / "tekton"
-    / "triggers"
-    / "triggertemplate-post-provision.yaml"
-)
 
 BASE_ARGV = [
     "prog",
@@ -252,10 +244,3 @@ def test_trigger_sets_the_pipeline_timeout(mock_run):
     doc = _run_and_capture_yaml(mock_run, BASE_ARGV)
     assert PIPELINE_TIMEOUT == "5h"
     assert doc["spec"]["timeouts"] == {"pipeline": "5h"}
-
-
-def test_trigger_template_sets_the_same_pipeline_timeout():
-    """The EventListener creates the same PipelineRun from the TriggerTemplate."""
-    template = yaml.safe_load(TRIGGER_TEMPLATE.read_text())
-    (run,) = template["spec"]["resourcetemplates"]
-    assert run["spec"]["timeouts"] == {"pipeline": PIPELINE_TIMEOUT}

@@ -52,8 +52,7 @@ DESC = (
     "Constraints: Tekton passes no value implicitly; every hop names the value it passes. "
     "A pipeline reads the result of a task as $(tasks.TASK.results.NAME). A pipeline "
     "parameter that differs from the built-in default of load-config wins over the "
-    "ConfigMap. A post-provision run started through the EventListener gets cluster-name, "
-    "tier and dns-zones only."
+    "ConfigMap. provision clones the repository and revision that pre-provision cloned."
 )
 
 
@@ -88,10 +87,9 @@ def render(head: str) -> str:
                 "wins over the ConfigMap",
             ),
             (
-                "Limit",
+                "Commit",
                 "m b",
-                "a post-provision run started through the EventListener gets cluster-name, "
-                "tier and dns-zones only",
+                "provision clones the repository and revision that pre-provision cloned",
             ),
         ],
         160,

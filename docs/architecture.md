@@ -48,8 +48,6 @@ A `legacy` cluster is the exception to the third row: its installer key is on th
 4. A push that adds `deprovision/<name>-archive` starts `deprovision` for `<name>`. A commit message that contains `[skip-deprovision]` prevents the run.
 5. The last task of `deprovision` posts a GitHub deployment status to fleet-clusters. The archive workflow of that repository moves `provision/<name>` to `archive/<name>` and removes the sentinel.
 
-The EventListener also starts `post-provision` for a request whose JSON body holds `action: post-provision` and the parameters of the run, among them `cluster_name`, `tier` and `dns_zones`. Such a request runs `post-provision` without the two pipelines before it.
-
 Every pipeline starts with `load-config`, which reads ConfigMap `fleet-pipeline-config` ([tekton/configmap-defaults.yaml](../tekton/configmap-defaults.yaml)). [parameter-threading.md](parameter-threading.md) describes how a value reaches a task.
 
 ## Pipelines
@@ -58,7 +56,7 @@ Every pipeline starts with `load-config`, which reads ConfigMap `fleet-pipeline-
 |---|---|---|---|
 | [`pre-provision`](../tekton/pipelines/pre-provision.yaml) | 14 | Push that adds `provision/<name>/` | `trigger-provision` |
 | [`provision`](../tekton/pipelines/provision.yaml) | 11 | `trigger-provision` | `trigger-post-provision` |
-| [`post-provision`](../tekton/pipelines/post-provision.yaml) | 23 | `trigger-post-provision`, or a request with `action: post-provision` | `finalize-spoke` |
+| [`post-provision`](../tekton/pipelines/post-provision.yaml) | 23 | `trigger-post-provision` | `finalize-spoke` |
 | [`deprovision`](../tekton/pipelines/deprovision.yaml) | 7 | Push that adds `deprovision/<name>-archive` | `create-deployment-status` |
 
 A fifth pipeline, `test-vcluster`, runs `post-provision` against a temporary vCluster. See [vcluster.md](vcluster.md).

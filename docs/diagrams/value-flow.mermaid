@@ -1,7 +1,7 @@
 %% Rule: Tekton passes no value implicitly; every hop names the value it passes
 %% Results: a pipeline reads the result of a task as $(tasks.TASK.results.NAME)
 %% Override: a pipeline parameter that differs from the built-in default of load-config wins over the ConfigMap
-%% Limit: a post-provision run started through the EventListener gets cluster-name, tier and dns-zones only
+%% Commit: provision clones the repository and revision that pre-provision cloned
 flowchart TB
     subgraph Trigger["Trigger"]
         Push["Push event<br/>repository URL, commit SHA,<br/>files each commit adds"]

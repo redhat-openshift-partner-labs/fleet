@@ -14,7 +14,7 @@ import textwrap
 from fleet.tasks._log import configure, error, info
 
 # Limit of the whole PipelineRun: build-podvm-image-aws 2h, apply-coco-workloads 2h, 1h for the
-# other tasks. tekton/triggers/triggertemplate-post-provision.yaml sets the same value.
+# other tasks.
 PIPELINE_TIMEOUT = "5h"
 
 

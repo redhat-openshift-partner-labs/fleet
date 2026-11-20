@@ -495,6 +495,9 @@ document. The task of a pipeline is described once, in the task tables of
 | | "Release" does not name `pyproject.toml` or the release commit message |
 | `tests/validation/test_coco_tier_doc.py` | A failure message of `docs/coco-tier.md` is in none of the modules of the `coco` tier |
 | | Its failure table names a task that no pipeline has |
+| `tests/validation/test_triggers.py` | A trigger of the EventListener lacks the `github` interceptor with the Secret `fleet-webhook-secret` |
+| | `tekton/triggers/kustomization.yaml` differs from the files of the directory |
+| | A TriggerBinding or TriggerTemplate belongs to no trigger |
 
 After a change to a pipeline, check the troubleshooting tables and the
 "Wait for the three pipelines" table of `docs/user-guide.md` by hand: no test

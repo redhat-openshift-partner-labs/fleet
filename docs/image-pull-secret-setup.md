@@ -18,7 +18,7 @@ These files name the Secret. Change all of them to rename it.
 |---|---|
 | `tekton/rbac/quay-pull-secret.yaml` | The Secret |
 | `tekton/rbac/serviceaccount.yaml` | `imagePullSecrets` of `fleet-pipeline` |
-| `tekton/triggers/triggertemplate-pre-provision.yaml`, `tekton/triggers/triggertemplate-post-provision.yaml` | Pod template of the runs the EventListener starts |
+| `tekton/triggers/triggertemplate-pre-provision.yaml` | Pod template of the `pre-provision` run the EventListener starts |
 | `fleet/tasks/trigger_provision.py`, `fleet/tasks/trigger_post_provision.py`, `fleet/tasks/run_post_provision.py` | Pod template of the runs these tasks start |
 | `tekton/pod-template.yaml` | A pod template file. No manifest references it. |
 

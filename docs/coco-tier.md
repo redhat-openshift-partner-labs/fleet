@@ -79,7 +79,7 @@ A delivery value other than `post-provision` fails both tasks with `AccessKey <n
 
 Three tasks run only for `tier=coco`, in this order, after `apply-base-workloads` and before `configure-spoke-rbac`: `prepare-podvm-aws`, `build-podvm-image-aws`, `apply-coco-workloads`.
 
-The post-provision PipelineRun has a timeout of 5 hours (`spec.timeouts.pipeline`): 2 hours for `build-podvm-image-aws`, 2 hours for `apply-coco-workloads` and 1 hour for the other tasks. `trigger-post-provision` and the TriggerTemplate `post-provision-template` set it, and it applies to every tier.
+The post-provision PipelineRun has a timeout of 5 hours (`spec.timeouts.pipeline`): 2 hours for `build-podvm-image-aws`, 2 hours for `apply-coco-workloads` and 1 hour for the other tasks. `trigger-post-provision` sets it, and it applies to every tier.
 
 `prepare-podvm-aws` runs on the hub with the cluster's installer credential (Secret `aws-credentials` in the cluster namespace):
 
@@ -194,7 +194,7 @@ oc get daemonset osc-caa-ds -n openshift-sandboxed-containers-operator
 | `build-podvm-image-aws` | `AMI name <ami-name> is taken by an image without the tags` | Deregister the image of that name, or set both tags on it, then re-run post-provision. |
 | `apply-coco-workloads` | `The pod VM AMI was built from disk image <payload>; <csv> uses <image>; re-run post-provision` | The installed operator version is another version than the catalog named when the AMI was built. Re-run post-provision when `installedCSV` and `currentCSV` of the Subscription are equal. |
 | `apply-coco-workloads` | `Subscription sandboxed-containers-operator has no installedCSV; re-run post-provision` | Re-run post-provision. |
-| `apply-coco-workloads` | `podvm-instance-type is empty` | Regenerate the overlay with the current fleet-cluster-scaffold and `--tier coco`. A run that the EventListener started fails here too; see [Limits](#limits). |
+| `apply-coco-workloads` | `podvm-instance-type is empty` | Regenerate the overlay with the current fleet-cluster-scaffold and `--tier coco`. A run created by hand without the parameter fails here too; see [Limits](#limits). |
 | `apply-coco-workloads` | `OpenShift sandboxed containers operator is unavailable: <reason>` | The catalog `redhat-operators` of the spoke does not offer the package on the channel `stable`; check `oc get packagemanifest sandboxed-containers-operator -n openshift-marketplace` on the spoke. |
 | `apply-coco-workloads` | `Failed to read the peer-pods credential: <error>` | Check `oc get secret <name>-peer-pods-credentials-raw -n <name>` on the hub. |
 | `apply-coco-workloads` | `KataConfig <name> failed to install on: <nodes>` | Check `oc describe kataconfig example-kataconfig` on the spoke. |
@@ -208,7 +208,7 @@ To run `post-provision` or `deprovision` again, see the [user guide](user-guide.
 
 ## Limits
 
-- A `post-provision` run that the EventListener starts for a request with `action: post-provision` receives no `podvm-instance-type`. It builds the pod VM image and then fails at `apply-coco-workloads`. Start the run with the parameters of an earlier run instead; see the [user guide](user-guide.md#run-a-pipeline-again).
+- A `post-provision` PipelineRun created by hand without the parameter `podvm-instance-type` builds the pod VM image and then fails at `apply-coco-workloads`. Start the run with the parameters of an earlier run instead; see the [user guide](user-guide.md#run-a-pipeline-again).
 - Red Hat's OSC 1.13 support matrix has no entry for confidential containers on AWS.
 - No attestation service is deployed and no initdata is set.
 - The OSC AWS guide requires a worker node; compact and sno use the operator's converged-cluster path.
