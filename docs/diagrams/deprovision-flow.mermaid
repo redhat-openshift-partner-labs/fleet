@@ -1,0 +1,35 @@
+%% Trigger: a push to main of fleet-clusters that adds deprovision/NAME-archive
+%% Parameters: cluster-name, orphan-stuck-iam (default false), pipeline-image
+%% Order: every task runs after the task before it; a failed task stops the run
+%% Stuck IAM: cleanup-hub-artifacts fails when IAM resources remain after 10 minutes, unless orphan-stuck-iam is true
+flowchart TB
+    subgraph Config["Configuration"]
+        load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks"]
+    end
+
+    subgraph Cluster["Cluster teardown"]
+        terminate_pod_vms["terminate-pod-vms<br/>coco tier only: deletes the peer-pods AccessKey,<br/>terminates pod VMs, deletes the pod VM image"]
+        delete_cluster_resources["delete-cluster-resources<br/>deletes KlusterletAddonConfig, ManagedCluster,<br/>MachinePools and ClusterDeployment"]
+        wait_hive_uninstall["wait-hive-uninstall<br/>waits until Hive has uninstalled the cluster and<br/>the ClusterDeployment is gone; timeout 30m"]
+    end
+
+    subgraph HubCleanup["Hub cleanup and report"]
+        cleanup_hub_artifacts["cleanup-hub-artifacts<br/>deletes Certificate, ClusterIssuer, CronJob,<br/>Crossplane IAM resources and the namespace"]
+        verify_deprovision["verify-deprovision<br/>fails if the namespace, ManagedCluster, CronJob,<br/>ClusterDeployment or IAM resources remain"]
+        create_deployment_status["create-deployment-status<br/>posts deployment status success to fleet-clusters;<br/>the archive workflow runs on that event"]
+    end
+
+    load_config --> terminate_pod_vms
+    terminate_pod_vms --> delete_cluster_resources
+    delete_cluster_resources --> wait_hive_uninstall
+    wait_hive_uninstall --> cleanup_hub_artifacts
+    cleanup_hub_artifacts --> verify_deprovision
+    verify_deprovision --> create_deployment_status
+
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+    classDef gate fill:#fff4e0,stroke:#c27c0e,color:#000
+
+    class load_config src
+    class delete_cluster_resources,wait_hive_uninstall,cleanup_hub_artifacts,verify_deprovision core
+    class terminate_pod_vms,create_deployment_status gate

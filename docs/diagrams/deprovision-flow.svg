@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 882" width="1262" height="882" role="img" aria-labelledby="title desc">
+  <title id="title">deprovision pipeline</title>
+  <desc id="desc">The deprovision pipeline has 7 tasks. Configuration: load-config (reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks). Cluster teardown: terminate-pod-vms (coco tier only: deletes the peer-pods AccessKey, terminates pod VMs, deletes the pod VM image); delete-cluster-resources (deletes KlusterletAddonConfig, ManagedCluster, MachinePools and ClusterDeployment); wait-hive-uninstall (waits until Hive has uninstalled the cluster and the ClusterDeployment is gone; timeout 30m). Hub cleanup and report: cleanup-hub-artifacts (deletes Certificate, ClusterIssuer, CronJob, Crossplane IAM resources and the namespace); verify-deprovision (fails if the namespace, ManagedCluster, CronJob, ClusterDeployment or IAM resources remain); create-deployment-status (posts deployment status success to fleet-clusters; the archive workflow runs on that event). terminate-pod-vms runs after load-config. delete-cluster-resources runs after terminate-pod-vms. wait-hive-uninstall runs after delete-cluster-resources. cleanup-hub-artifacts runs after wait-hive-uninstall. verify-deprovision runs after cleanup-hub-artifacts. create-deployment-status runs after verify-deprovision. Constraints: Trigger: a push to main of fleet-clusters that adds deprovision/NAME-archive. Parameters: cluster-name, orphan-stuck-iam (default false), pipeline-image. Order: every task runs after the task before it; a failed task stops the run. Stuck IAM: cleanup-hub-artifacts fails when IAM resources remain after 10 minutes, unless orphan-stuck-iam is true.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="881" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">deprovision pipeline</text>
+  <text class="m b" x="40" y="68">Seven tasks delete a cluster, its cloud resources and its hub artifacts, then report the result to fleet-clusters.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="138" rx="12"/>
+  <text class="t b k" x="56" y="124">Trigger</text>
+  <text class="m b" x="160" y="124">a push to main of fleet-clusters that adds deprovision/NAME-archive</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Parameters</text>
+  <text class="m b" x="160" y="156">cluster-name, orphan-stuck-iam (default false), pipeline-image</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">Order</text>
+  <text class="m b" x="160" y="188">every task runs after the task before it; a failed task stops the run</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Stuck IAM</text>
+  <text class="m b" x="160" y="220">cleanup-hub-artifacts fails when IAM resources remain after 10 minutes, unless orphan-stuck-iam is true</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="270" width="1214" height="122" rx="14"/>
+  <rect class="bg" x="40" y="260" width="134" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="274">CONFIGURATION</text>
+  <rect class="frame" x="24" y="444" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="215" y="434" width="160" height="20" rx="10"/>
+  <text class="m lbl" x="227" y="448">CLUSTER TEARDOWN</text>
+  <rect class="frame" x="24" y="636" width="1214" height="140" rx="14"/>
+  <rect class="bg" x="215" y="626" width="211" height="20" rx="10"/>
+  <text class="m lbl" x="227" y="640">HUB CLEANUP AND REPORT</text>
+
+  <!-- ===== Cards ===== -->
+  <rect class="src" x="40" y="296" width="1182" height="80" rx="12"/>
+  <circle class="badge-src" cx="58" cy="316" r="10"/><text class="badge-t" x="58" y="320" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="321">load-config</text>
+  <line class="rule" x1="52" y1="336" x2="1210" y2="336"/>
+  <text class="m s" x="52" y="358">reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks</text>
+  <rect class="gate" x="40" y="470" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="58" cy="490" r="10"/><text class="badge-t" x="58" y="494" text-anchor="middle">2</text>
+  <text class="t h2" x="74" y="495">terminate-pod-vms</text>
+  <line class="rule" x1="52" y1="510" x2="358" y2="510"/>
+  <text class="m s" x="52" y="532">coco tier only: deletes the peer-pods AccessKey,</text>
+  <text class="m s" x="52" y="550">terminates pod VMs, deletes the pod VM image</text>
+  <rect class="core" x="466" y="470" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="490" r="10"/><text class="badge-t" x="484" y="494" text-anchor="middle">3</text>
+  <text class="t h2" x="500" y="495">delete-cluster-resources</text>
+  <line class="rule" x1="478" y1="510" x2="784" y2="510"/>
+  <text class="m s" x="478" y="532">deletes KlusterletAddonConfig, ManagedCluster,</text>
+  <text class="m s" x="478" y="550">MachinePools and ClusterDeployment</text>
+  <rect class="core" x="892" y="470" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="490" r="10"/><text class="badge-t" x="910" y="494" text-anchor="middle">4</text>
+  <text class="t h2" x="926" y="495">wait-hive-uninstall</text>
+  <line class="rule" x1="904" y1="510" x2="1210" y2="510"/>
+  <text class="m s" x="904" y="532">waits until Hive has uninstalled the cluster and</text>
+  <text class="m s" x="904" y="550">the ClusterDeployment is gone; timeout 30m</text>
+  <rect class="core" x="40" y="662" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="682" r="10"/><text class="badge-t" x="58" y="686" text-anchor="middle">5</text>
+  <text class="t h2" x="74" y="687">cleanup-hub-artifacts</text>
+  <line class="rule" x1="52" y1="702" x2="358" y2="702"/>
+  <text class="m s" x="52" y="724">deletes Certificate, ClusterIssuer, CronJob,</text>
+  <text class="m s" x="52" y="742">Crossplane IAM resources and the namespace</text>
+  <rect class="core" x="466" y="662" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="682" r="10"/><text class="badge-t" x="484" y="686" text-anchor="middle">6</text>
+  <text class="t h2" x="500" y="687">verify-deprovision</text>
+  <line class="rule" x1="478" y1="702" x2="784" y2="702"/>
+  <text class="m s" x="478" y="724">fails if the namespace, ManagedCluster, CronJob,</text>
+  <text class="m s" x="478" y="742">ClusterDeployment or IAM resources remain</text>
+  <rect class="gate" x="892" y="662" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="910" cy="682" r="10"/><text class="badge-t" x="910" y="686" text-anchor="middle">7</text>
+  <text class="t h2" x="926" y="687">create-deployment-status</text>
+  <line class="rule" x1="904" y1="702" x2="1210" y2="702"/>
+  <text class="m s" x="904" y="724">posts deployment status success to fleet-clusters;</text>
+  <text class="m s" x="904" y="742">the archive workflow runs on that event</text>
+
+  <!-- ===== Edges ===== -->
+  <path class="flow" d="M205 376 V468" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 519 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 519 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 568 V610 H205 V660" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 711 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 711 H890" marker-end="url(#a-flow)"/>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="816" x2="1222" y2="816"/>
+  <path class="flow" d="M40 844 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="848">runs next</text>
+  <rect class="gate" x="174" y="836" width="22" height="16" rx="4"/>
+  <text class="m s" x="204" y="848">external endpoint</text>
+  <rect class="src" x="340" y="836" width="22" height="16" rx="4"/>
+  <text class="m s" x="370" y="848">workspace, git, configuration</text>
+  <rect class="core" x="578" y="836" width="22" height="16" rx="4"/>
+  <text class="m s" x="608" y="848">hub Kubernetes API</text>
+</svg>
