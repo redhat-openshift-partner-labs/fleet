@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 2204" width="1262" height="2204" role="img" aria-labelledby="title desc">
+  <title id="title">post-provision pipeline</title>
+  <desc id="desc">The post-provision pipeline has 23 tasks. Workspace: load-config (reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks); git-clone (clones the fleet repository, which holds workloads/, into the shared workspace); extract-spoke-kubeconfig (extracts the admin kubeconfig from the Hive Secret into the workspace); save-spoke-kubeconfig (stores the kubeconfig in hub Secret NAME-spoke-kubeconfig); create-cluster-cronjob (creates CronJob NAME in namespace default with the cluster's timezone and schedule). Identity and TLS: openshift-cluster: register-keycloak-client (creates or updates the OIDC client of the cluster in the hub Keycloak); configure-spoke-oauth (writes the htpasswd and OIDC client Secrets and the OAuth CR to the spoke); create-cluster-issuer (creates ClusterIssuer letsencrypt-NAME: Let's Encrypt DNS-01 through Route53); request-ssl-cert (creates Certificate NAME-wildcard-certificate in openshift-ingress on the hub); wait-for-ssl-ready (waits for condition Ready on the Certificate; timeout 20m); extract-cert-material (copies tls.crt and tls.key into hub Secret NAME-leaf-cert); configure-spoke-default-cert (applies the leaf Secret to the spoke and sets it as the default ingress certificate). Workloads: apply-base-workloads (runs kustomize build on workloads/base and applies the output to the spoke); apply-virt-workloads (installs Node Feature Discovery and OpenShift Virtualization on the spoke); add-baremetal-workers (creates a bare-metal worker MachinePool on the hub); apply-ai-workloads (installs the OpenShift AI 2.x or 3.x operators on the spoke; GPU operators for nvidia-gpu); add-ai-workers (creates a GPU worker MachinePool on the hub); prepare-podvm-aws (reads the worker network from EC2 and opens the pod VM ports on its security groups); build-podvm-image-aws (builds or reuses the pod VM AMI of the cluster; timeout 2h); apply-coco-workloads (installs sandboxed containers with peer pods on the spoke; timeout 2h). tier: virt: apply-virt-workloads (installs Node Feature Discovery and OpenShift Virtualization on the spoke); add-baremetal-workers (creates a bare-metal worker MachinePool on the hub). tier: ai: apply-ai-workloads (installs the OpenShift AI 2.x or 3.x operators on the spoke; GPU operators for nvidia-gpu); add-ai-workers (creates a GPU worker MachinePool on the hub). tier: coco: prepare-podvm-aws (reads the worker network from EC2 and opens the pod VM ports on its security groups); build-podvm-image-aws (builds or reuses the pod VM AMI of the cluster; timeout 2h); apply-coco-workloads (installs sandboxed containers with peer pods on the spoke; timeout 2h). Handoff: openshift-cluster: configure-spoke-rbac (creates the cluster-admins group on the spoke and binds it to cluster-admin); create-access-paste (uploads console URL, kubeadmin password and kubeconfig to PrivateBin; stores the paste URL); finalize-spoke (deletes leftover installer pods and the kubeadmin Secret on the spoke). extract-spoke-kubeconfig runs after git-clone. save-spoke-kubeconfig runs after extract-spoke-kubeconfig. create-cluster-cronjob runs after save-spoke-kubeconfig. register-keycloak-client runs after save-spoke-kubeconfig. configure-spoke-oauth runs after register-keycloak-client. create-cluster-issuer runs after configure-spoke-oauth. request-ssl-cert runs after create-cluster-issuer. wait-for-ssl-ready runs after request-ssl-cert. extract-cert-material runs after wait-for-ssl-ready. configure-spoke-default-cert runs after extract-cert-material. apply-base-workloads runs after configure-spoke-default-cert when tier: base, virt, ai, coco. apply-virt-workloads runs after apply-base-workloads. add-baremetal-workers runs after apply-virt-workloads. apply-ai-workloads runs after apply-base-workloads. add-ai-workers runs after apply-ai-workloads when nvidia-gpu. prepare-podvm-aws runs after apply-base-workloads. build-podvm-image-aws runs after prepare-podvm-aws. apply-coco-workloads runs after build-podvm-image-aws. configure-spoke-rbac runs after apply-base-workloads. configure-spoke-rbac runs after add-baremetal-workers. configure-spoke-rbac runs after add-ai-workers. configure-spoke-rbac runs after apply-coco-workloads. create-access-paste runs after configure-spoke-rbac. finalize-spoke runs after create-access-paste. Constraints: Trigger: trigger-post-provision of the provision pipeline creates the PipelineRun; the EventListener starts one for a request whose body holds action: post-provision. Start: load-config and git-clone have no runAfter and start first. openshift-cluster: false in a vCluster test run; the tasks in the two openshift-cluster frames are then skipped. Tier: every tier applies the base overlay; the virt, ai or coco branch runs for a cluster of that tier. Timeout: 5h for the whole run.</desc>
+
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .frame { fill: #f6f8fa; stroke: #d0d7de; }
+    .t { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m { fill: #59636e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .c { fill: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .h1 { font-size: 24px; font-weight: 700; }
+    .h2 { font-size: 14px; font-weight: 650; }
+    .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .b { font-size: 12px; }
+    .s { font-size: 11px; }
+    .k { font-weight: 650; }
+
+    .src  { fill: #e6f6f4; stroke: #1f8f84; }
+    .gate { fill: #fff4e0; stroke: #c27c0e; }
+    .core { fill: #ecf2ff; stroke: #3b6fd8; }
+    .out  { fill: #f3ecff; stroke: #7a4fd6; }
+    .store{ fill: #eaf7ec; stroke: #2e8b46; }
+    .deny { fill: #fdecec; stroke: #d1242f; }
+    .user { fill: #f6f8fa; stroke: #6e7781; }
+
+    /* badge fills are darker than card strokes so the white digit reaches 4.5:1 */
+    .badge-src  { fill: #1c8278; }
+    .badge-gate { fill: #a3680c; }
+    .badge-core { fill: #3b6fd8; }
+    .badge-out  { fill: #7a4fd6; }
+    .badge-store{ fill: #2c8543; }
+    .badge-t    { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; }
+
+    .flow  { stroke: #57606a; stroke-width: 1.8; fill: none; }
+    .ctl   { stroke: #6e7781; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .link  { stroke: #6e7781; stroke-width: 1.6; fill: none; }
+    .rule  { stroke: #d0d7de; stroke-width: 1; }
+    .ah-flow { fill: #57606a; }
+    .ah-ctl  { fill: #6e7781; }
+    .x { stroke: #d1242f; stroke-width: 2; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .frame { fill: #151b23; stroke: #30363d; }
+      .t, .c { fill: #e6edf3; }
+      .m { fill: #9198a1; }
+      .src  { fill: #0f2a28; stroke: #3fb8a9; }
+      .gate { fill: #2e2310; stroke: #e3a33b; }
+      .core { fill: #14213d; stroke: #6d9bff; }
+      .out  { fill: #251a40; stroke: #a888ff; }
+      .store{ fill: #112a19; stroke: #4cc06a; }
+      .deny { fill: #3a1417; stroke: #ff6b6b; }
+      .user { fill: #161b22; stroke: #6e7681; }
+      .badge-src  { fill: #3fb8a9; }
+      .badge-gate { fill: #e3a33b; }
+      .badge-core { fill: #6d9bff; }
+      .badge-out  { fill: #a888ff; }
+      .badge-store{ fill: #4cc06a; }
+      .badge-t    { fill: #0d1117; }
+      .flow  { stroke: #8b949e; }
+      .ctl   { stroke: #768390; }
+      .link  { stroke: #768390; }
+      .rule  { stroke: #30363d; }
+      .ah-flow { fill: #8b949e; }
+      .ah-ctl  { fill: #768390; }
+      .x { stroke: #ff6b6b; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-flow" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="a-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-ctl" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect class="bg" x="0.5" y="0.5" width="1261" height="2203" rx="16"/>
+
+  <!-- Title -->
+  <text class="t h1" x="40" y="46">post-provision pipeline</text>
+  <text class="m b" x="40" y="68">Twenty-three tasks configure identity, TLS and RBAC on the spoke, apply the tier workloads, and publish the access details.</text>
+
+  <!-- ===== Constraints ===== -->
+  <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
+  <rect class="frame" x="40" y="98" width="1182" height="170" rx="12"/>
+  <text class="t b k" x="56" y="124">Trigger</text>
+  <text class="m b" x="202" y="124">trigger-post-provision of the provision pipeline creates the PipelineRun; the EventListener starts one for a request whose body holds action: post-provision</text>
+  <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
+  <text class="t b k" x="56" y="156">Start</text>
+  <text class="m b" x="202" y="156">load-config and git-clone have no runAfter and start first</text>
+  <line class="rule" x1="56" y1="170" x2="1206" y2="170"/>
+  <text class="t b k" x="56" y="188">openshift-cluster</text>
+  <text class="m b" x="202" y="188">false in a vCluster test run; the tasks in the two openshift-cluster frames are then skipped</text>
+  <line class="rule" x1="56" y1="202" x2="1206" y2="202"/>
+  <text class="t b k" x="56" y="220">Tier</text>
+  <text class="m b" x="202" y="220">every tier applies the base overlay; the virt, ai or coco branch runs for a cluster of that tier</text>
+  <line class="rule" x1="56" y1="234" x2="1206" y2="234"/>
+  <text class="t b k" x="56" y="252">Timeout</text>
+  <text class="m b" x="202" y="252">5h for the whole run</text>
+
+  <!-- ===== Frames ===== -->
+  <rect class="frame" x="24" y="302" width="1214" height="294" rx="14"/>
+  <rect class="bg" x="40" y="292" width="100" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="306">WORKSPACE</text>
+  <rect class="frame" x="24" y="648" width="1214" height="448" rx="14"/>
+  <rect class="bg" x="215" y="638" width="322" height="20" rx="10"/>
+  <text class="m lbl" x="227" y="652">IDENTITY AND TLS: OPENSHIFT-CLUSTER</text>
+  <rect class="frame" x="24" y="1148" width="1214" height="622" rx="14"/>
+  <rect class="bg" x="40" y="1138" width="100" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="1152">WORKLOADS</text>
+  <rect class="frame" x="24" y="1822" width="1214" height="276" rx="14"/>
+  <rect class="bg" x="641" y="1812" width="245" height="20" rx="10"/>
+  <text class="m lbl" x="653" y="1826">HANDOFF: OPENSHIFT-CLUSTER</text>
+  <rect class="bg" x="24" y="1306" width="362" height="448" rx="14"/>
+  <rect class="frame" x="40" y="1296" width="109" height="20" rx="10"/>
+  <text class="m lbl" x="52" y="1310">TIER: VIRT</text>
+  <rect class="bg" x="450" y="1306" width="362" height="448" rx="14"/>
+  <rect class="frame" x="466" y="1296" width="92" height="20" rx="10"/>
+  <text class="m lbl" x="478" y="1310">TIER: AI</text>
+  <rect class="bg" x="876" y="1306" width="362" height="448" rx="14"/>
+  <rect class="frame" x="892" y="1296" width="109" height="20" rx="10"/>
+  <text class="m lbl" x="904" y="1310">TIER: COCO</text>
+
+  <!-- ===== Cards ===== -->
+  <rect class="src" x="40" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="58" cy="348" r="10"/><text class="badge-t" x="58" y="352" text-anchor="middle">1</text>
+  <text class="t h2" x="74" y="353">load-config</text>
+  <line class="rule" x1="52" y1="368" x2="358" y2="368"/>
+  <text class="m s" x="52" y="390">reads ConfigMap fleet-pipeline-config; its results</text>
+  <text class="m s" x="52" y="408">are parameters of the later tasks</text>
+  <rect class="src" x="466" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-src" cx="484" cy="348" r="10"/><text class="badge-t" x="484" y="352" text-anchor="middle">2</text>
+  <text class="t h2" x="500" y="353">git-clone</text>
+  <line class="rule" x1="478" y1="368" x2="784" y2="368"/>
+  <text class="m s" x="478" y="390">clones the fleet repository, which holds</text>
+  <text class="m s" x="478" y="408">workloads/, into the shared workspace</text>
+  <rect class="core" x="892" y="328" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="348" r="10"/><text class="badge-t" x="910" y="352" text-anchor="middle">3</text>
+  <text class="t h2" x="926" y="353">extract-spoke-kubeconfig</text>
+  <line class="rule" x1="904" y1="368" x2="1210" y2="368"/>
+  <text class="m s" x="904" y="390">extracts the admin kubeconfig from the</text>
+  <text class="m s" x="904" y="408">Hive Secret into the workspace</text>
+  <rect class="core" x="466" y="482" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="502" r="10"/><text class="badge-t" x="484" y="506" text-anchor="middle">4</text>
+  <text class="t h2" x="500" y="507">save-spoke-kubeconfig</text>
+  <line class="rule" x1="478" y1="522" x2="784" y2="522"/>
+  <text class="m s" x="478" y="544">stores the kubeconfig in hub Secret</text>
+  <text class="m s" x="478" y="562">NAME-spoke-kubeconfig</text>
+  <rect class="core" x="892" y="482" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="502" r="10"/><text class="badge-t" x="910" y="506" text-anchor="middle">5</text>
+  <text class="t h2" x="926" y="507">create-cluster-cronjob</text>
+  <line class="rule" x1="904" y1="522" x2="1210" y2="522"/>
+  <text class="m s" x="904" y="544">creates CronJob NAME in namespace default</text>
+  <text class="m s" x="904" y="562">with the cluster's timezone and schedule</text>
+  <rect class="gate" x="40" y="674" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="58" cy="694" r="10"/><text class="badge-t" x="58" y="698" text-anchor="middle">6</text>
+  <text class="t h2" x="74" y="699">register-keycloak-client</text>
+  <line class="rule" x1="52" y1="714" x2="358" y2="714"/>
+  <text class="m s" x="52" y="736">creates or updates the OIDC client of the</text>
+  <text class="m s" x="52" y="754">cluster in the hub Keycloak</text>
+  <rect class="out" x="466" y="674" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="484" cy="694" r="10"/><text class="badge-t" x="484" y="698" text-anchor="middle">7</text>
+  <text class="t h2" x="500" y="699">configure-spoke-oauth</text>
+  <line class="rule" x1="478" y1="714" x2="784" y2="714"/>
+  <text class="m s" x="478" y="736">writes the htpasswd and OIDC client Secrets</text>
+  <text class="m s" x="478" y="754">and the OAuth CR to the spoke</text>
+  <rect class="core" x="892" y="674" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="694" r="10"/><text class="badge-t" x="910" y="698" text-anchor="middle">8</text>
+  <text class="t h2" x="926" y="699">create-cluster-issuer</text>
+  <line class="rule" x1="904" y1="714" x2="1210" y2="714"/>
+  <text class="m s" x="904" y="736">creates ClusterIssuer letsencrypt-NAME:</text>
+  <text class="m s" x="904" y="754">Let's Encrypt DNS-01 through Route53</text>
+  <rect class="core" x="40" y="828" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="848" r="10"/><text class="badge-t" x="58" y="852" text-anchor="middle">9</text>
+  <text class="t h2" x="74" y="853">request-ssl-cert</text>
+  <line class="rule" x1="52" y1="868" x2="358" y2="868"/>
+  <text class="m s" x="52" y="890">creates Certificate NAME-wildcard-certificate</text>
+  <text class="m s" x="52" y="908">in openshift-ingress on the hub</text>
+  <rect class="core" x="466" y="828" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="848" r="10"/><text class="badge-t" x="484" y="852" text-anchor="middle">10</text>
+  <text class="t h2" x="500" y="853">wait-for-ssl-ready</text>
+  <line class="rule" x1="478" y1="868" x2="784" y2="868"/>
+  <text class="m s" x="478" y="890">waits for condition Ready on the</text>
+  <text class="m s" x="478" y="908">Certificate; timeout 20m</text>
+  <rect class="core" x="892" y="828" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="910" cy="848" r="10"/><text class="badge-t" x="910" y="852" text-anchor="middle">11</text>
+  <text class="t h2" x="926" y="853">extract-cert-material</text>
+  <line class="rule" x1="904" y1="868" x2="1210" y2="868"/>
+  <text class="m s" x="904" y="890">copies tls.crt and tls.key into hub Secret</text>
+  <text class="m s" x="904" y="908">NAME-leaf-cert</text>
+  <rect class="out" x="40" y="982" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="58" cy="1002" r="10"/><text class="badge-t" x="58" y="1006" text-anchor="middle">12</text>
+  <text class="t h2" x="74" y="1007">configure-spoke-default-cert</text>
+  <line class="rule" x1="52" y1="1022" x2="358" y2="1022"/>
+  <text class="m s" x="52" y="1044">applies the leaf Secret to the spoke and sets</text>
+  <text class="m s" x="52" y="1062">it as the default ingress certificate</text>
+  <rect class="out" x="40" y="1174" width="1182" height="80" rx="12"/>
+  <circle class="badge-out" cx="58" cy="1194" r="10"/><text class="badge-t" x="58" y="1198" text-anchor="middle">13</text>
+  <text class="t h2" x="74" y="1199">apply-base-workloads</text>
+  <line class="rule" x1="52" y1="1214" x2="1210" y2="1214"/>
+  <text class="m s" x="52" y="1236">runs kustomize build on workloads/base and applies the output to the spoke</text>
+  <rect class="out" x="40" y="1332" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="58" cy="1352" r="10"/><text class="badge-t" x="58" y="1356" text-anchor="middle">14</text>
+  <text class="t h2" x="74" y="1357">apply-virt-workloads</text>
+  <line class="rule" x1="52" y1="1372" x2="358" y2="1372"/>
+  <text class="m s" x="52" y="1394">installs Node Feature Discovery and</text>
+  <text class="m s" x="52" y="1412">OpenShift Virtualization on the spoke</text>
+  <rect class="out" x="466" y="1332" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="484" cy="1352" r="10"/><text class="badge-t" x="484" y="1356" text-anchor="middle">15</text>
+  <text class="t h2" x="500" y="1357">apply-ai-workloads</text>
+  <line class="rule" x1="478" y1="1372" x2="784" y2="1372"/>
+  <text class="m s" x="478" y="1394">installs the OpenShift AI 2.x or 3.x operators</text>
+  <text class="m s" x="478" y="1412">on the spoke; GPU operators for nvidia-gpu</text>
+  <rect class="gate" x="892" y="1332" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="910" cy="1352" r="10"/><text class="badge-t" x="910" y="1356" text-anchor="middle">16</text>
+  <text class="t h2" x="926" y="1357">prepare-podvm-aws</text>
+  <line class="rule" x1="904" y1="1372" x2="1210" y2="1372"/>
+  <text class="m s" x="904" y="1394">reads the worker network from EC2 and opens</text>
+  <text class="m s" x="904" y="1412">the pod VM ports on its security groups</text>
+  <rect class="core" x="40" y="1486" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="58" cy="1506" r="10"/><text class="badge-t" x="58" y="1510" text-anchor="middle">17</text>
+  <text class="t h2" x="74" y="1511">add-baremetal-workers</text>
+  <line class="rule" x1="52" y1="1526" x2="358" y2="1526"/>
+  <text class="m s" x="52" y="1548">creates a bare-metal worker MachinePool</text>
+  <text class="m s" x="52" y="1566">on the hub</text>
+  <rect class="core" x="466" y="1486" width="330" height="98" rx="12"/>
+  <circle class="badge-core" cx="484" cy="1506" r="10"/><text class="badge-t" x="484" y="1510" text-anchor="middle">18</text>
+  <text class="t h2" x="500" y="1511">add-ai-workers</text>
+  <line class="rule" x1="478" y1="1526" x2="784" y2="1526"/>
+  <text class="m s" x="478" y="1548">creates a GPU worker MachinePool</text>
+  <text class="m s" x="478" y="1566">on the hub</text>
+  <rect class="gate" x="892" y="1486" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="910" cy="1506" r="10"/><text class="badge-t" x="910" y="1510" text-anchor="middle">19</text>
+  <text class="t h2" x="926" y="1511">build-podvm-image-aws</text>
+  <line class="rule" x1="904" y1="1526" x2="1210" y2="1526"/>
+  <text class="m s" x="904" y="1548">builds or reuses the pod VM AMI of the</text>
+  <text class="m s" x="904" y="1566">cluster; timeout 2h</text>
+  <rect class="out" x="892" y="1640" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="910" cy="1660" r="10"/><text class="badge-t" x="910" y="1664" text-anchor="middle">20</text>
+  <text class="t h2" x="926" y="1665">apply-coco-workloads</text>
+  <line class="rule" x1="904" y1="1680" x2="1210" y2="1680"/>
+  <text class="m s" x="904" y="1702">installs sandboxed containers with peer pods</text>
+  <text class="m s" x="904" y="1720">on the spoke; timeout 2h</text>
+  <rect class="out" x="40" y="1848" width="1182" height="80" rx="12"/>
+  <circle class="badge-out" cx="58" cy="1868" r="10"/><text class="badge-t" x="58" y="1872" text-anchor="middle">21</text>
+  <text class="t h2" x="74" y="1873">configure-spoke-rbac</text>
+  <line class="rule" x1="52" y1="1888" x2="1210" y2="1888"/>
+  <text class="m s" x="52" y="1910">creates the cluster-admins group on the spoke and binds it to cluster-admin</text>
+  <rect class="gate" x="40" y="1984" width="330" height="98" rx="12"/>
+  <circle class="badge-gate" cx="58" cy="2004" r="10"/><text class="badge-t" x="58" y="2008" text-anchor="middle">22</text>
+  <text class="t h2" x="74" y="2009">create-access-paste</text>
+  <line class="rule" x1="52" y1="2024" x2="358" y2="2024"/>
+  <text class="m s" x="52" y="2046">uploads console URL, kubeadmin password and</text>
+  <text class="m s" x="52" y="2064">kubeconfig to PrivateBin; stores the paste URL</text>
+  <rect class="out" x="466" y="1984" width="330" height="98" rx="12"/>
+  <circle class="badge-out" cx="484" cy="2004" r="10"/><text class="badge-t" x="484" y="2008" text-anchor="middle">23</text>
+  <text class="t h2" x="500" y="2009">finalize-spoke</text>
+  <line class="rule" x1="478" y1="2024" x2="784" y2="2024"/>
+  <text class="m s" x="478" y="2046">deletes leftover installer pods and the</text>
+  <text class="m s" x="478" y="2064">kubeadmin Secret on the spoke</text>
+
+  <!-- ===== Edges ===== -->
+  <path class="flow" d="M796 377 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 426 V454 H631 V480" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 531 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 580 V622 H205 V672" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 723 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 723 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 772 V800 H205 V826" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 877 H464" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M796 877 H890" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 926 V954 H205 V980" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1080 V1172" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1254 V1330" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1430 V1484" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 1254 V1330" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 1430 V1484" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 1254 V1330" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 1430 V1484" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 1584 V1638" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M418 1254 V1846" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1584 V1846" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M631 1584 V1846" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M1057 1738 V1846" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M205 1928 V1982" marker-end="url(#a-flow)"/>
+  <path class="flow" d="M370 2033 H464" marker-end="url(#a-flow)"/>
+  <text class="m s" x="213" y="1137">tier: base, virt, ai, coco</text>
+  <text class="m s" x="639" y="1473">nvidia-gpu</text>
+
+  <!-- ===== Legend ===== -->
+  <line class="rule" x1="40" y1="2138" x2="1222" y2="2138"/>
+  <path class="flow" d="M40 2166 H76" marker-end="url(#a-flow)"/>
+  <text class="m s" x="86" y="2170">runs next</text>
+  <rect class="gate" x="174" y="2158" width="22" height="16" rx="4"/>
+  <text class="m s" x="204" y="2170">external endpoint</text>
+  <rect class="src" x="340" y="2158" width="22" height="16" rx="4"/>
+  <text class="m s" x="370" y="2170">workspace, git, configuration</text>
+  <rect class="core" x="578" y="2158" width="22" height="16" rx="4"/>
+  <text class="m s" x="608" y="2170">hub Kubernetes API</text>
+  <rect class="out" x="750" y="2158" width="22" height="16" rx="4"/>
+  <text class="m s" x="780" y="2170">spoke</text>
+</svg>
