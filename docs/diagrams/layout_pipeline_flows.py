@@ -29,6 +29,7 @@ ROLES = {  # legend text per card role, in legend order
     "out": "spoke",
 }
 
+LANE_01 = 418  # x of the lane between columns 0 and 1
 LANE_12 = 844  # x of the lane between columns 1 and 2
 COL_2 = 1057  # x of the centre of column 2
 
@@ -82,6 +83,40 @@ FLOWS = {
         # It crosses the edge from wait-for-hive-ready to scope-aws-credentials.
         "via": {("read_cluster_metadata", "trigger_post_provision"): LANE_12},
         "frame_cols": {"Membership": (0, 2), "Scoped": (2, 1)},
+    },
+    "post-provision": {
+        "title": "post-provision pipeline",
+        "subtitle": "Twenty-three tasks configure identity, TLS and RBAC on the spoke, "
+        "apply the tier workloads, and publish the access details.",
+        "place": {
+            "load_config": (0, 0, 1),
+            "git_clone": (1, 0, 1),
+            "extract_spoke_kubeconfig": (2, 0, 1),
+            "save_spoke_kubeconfig": (1, 1, 1),
+            "create_cluster_cronjob": (2, 1, 1),
+            "register_keycloak_client": (0, 2, 1),
+            "configure_spoke_oauth": (1, 2, 1),
+            "create_cluster_issuer": (2, 2, 1),
+            "request_ssl_cert": (0, 3, 1),
+            "wait_for_ssl_ready": (1, 3, 1),
+            "extract_cert_material": (2, 3, 1),
+            "configure_spoke_default_cert": (0, 4, 1),
+            "apply_base_workloads": (0, 5, 3),
+            "apply_virt_workloads": (0, 6, 1),
+            "apply_ai_workloads": (1, 6, 1),
+            "prepare_podvm_aws": (2, 6, 1),
+            "add_baremetal_workers": (0, 7, 1),
+            "add_ai_workers": (1, 7, 1),
+            "build_podvm_image_aws": (2, 7, 1),
+            "apply_coco_workloads": (2, 8, 1),
+            "configure_spoke_rbac": (0, 9, 3),
+            "create_access_paste": (0, 10, 1),
+            "finalize_spoke": (1, 10, 1),
+        },
+        # The base tier has no branch: its edge passes between the virt and ai frames.
+        "via": {("apply_base_workloads", "configure_spoke_rbac"): LANE_01},
+        "frame_cols": {"Virt": (0, 1), "Ai": (1, 1), "Coco": (2, 1)},
+        "frame_rows": {"Virt": (6, 8), "Ai": (6, 8)},
     },
     "deprovision": {
         "title": "deprovision pipeline",

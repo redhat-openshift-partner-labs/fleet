@@ -1,0 +1,85 @@
+%% Trigger: trigger-post-provision of the provision pipeline creates the PipelineRun; the EventListener starts one for a request whose body holds action: post-provision
+%% Start: load-config and git-clone have no runAfter and start first
+%% openshift-cluster: false in a vCluster test run; the tasks in the two openshift-cluster frames are then skipped
+%% Tier: every tier applies the base overlay; the virt, ai or coco branch runs for a cluster of that tier
+%% Timeout: 5h for the whole run
+flowchart TB
+    subgraph Workspace["Workspace"]
+        load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its results<br/>are parameters of the later tasks"]
+        git_clone["git-clone<br/>clones the fleet repository, which holds<br/>workloads/, into the shared workspace"]
+        extract_spoke_kubeconfig["extract-spoke-kubeconfig<br/>extracts the admin kubeconfig from the<br/>Hive Secret into the workspace"]
+        save_spoke_kubeconfig["save-spoke-kubeconfig<br/>stores the kubeconfig in hub Secret<br/>NAME-spoke-kubeconfig"]
+        create_cluster_cronjob["create-cluster-cronjob<br/>creates CronJob NAME in namespace default<br/>with the cluster's timezone and schedule"]
+    end
+
+    subgraph Identity["Identity and TLS: openshift-cluster"]
+        register_keycloak_client["register-keycloak-client<br/>creates or updates the OIDC client of the<br/>cluster in the hub Keycloak"]
+        configure_spoke_oauth["configure-spoke-oauth<br/>writes the htpasswd and OIDC client Secrets<br/>and the OAuth CR to the spoke"]
+        create_cluster_issuer["create-cluster-issuer<br/>creates ClusterIssuer letsencrypt-NAME:<br/>Let's Encrypt DNS-01 through Route53"]
+        request_ssl_cert["request-ssl-cert<br/>creates Certificate NAME-wildcard-certificate<br/>in openshift-ingress on the hub"]
+        wait_for_ssl_ready["wait-for-ssl-ready<br/>waits for condition Ready on the<br/>Certificate; timeout 20m"]
+        extract_cert_material["extract-cert-material<br/>copies tls.crt and tls.key into hub Secret<br/>NAME-leaf-cert"]
+        configure_spoke_default_cert["configure-spoke-default-cert<br/>applies the leaf Secret to the spoke and sets<br/>it as the default ingress certificate"]
+    end
+
+    subgraph Workloads["Workloads"]
+        apply_base_workloads["apply-base-workloads<br/>runs kustomize build on workloads/base and applies the output to the spoke"]
+        subgraph Virt["tier: virt"]
+            apply_virt_workloads["apply-virt-workloads<br/>installs Node Feature Discovery and<br/>OpenShift Virtualization on the spoke"]
+            add_baremetal_workers["add-baremetal-workers<br/>creates a bare-metal worker MachinePool<br/>on the hub"]
+        end
+        subgraph Ai["tier: ai"]
+            apply_ai_workloads["apply-ai-workloads<br/>installs the OpenShift AI 2.x or 3.x operators<br/>on the spoke; GPU operators for nvidia-gpu"]
+            add_ai_workers["add-ai-workers<br/>creates a GPU worker MachinePool<br/>on the hub"]
+        end
+        subgraph Coco["tier: coco"]
+            prepare_podvm_aws["prepare-podvm-aws<br/>reads the worker network from EC2 and opens<br/>the pod VM ports on its security groups"]
+            build_podvm_image_aws["build-podvm-image-aws<br/>builds or reuses the pod VM AMI of the<br/>cluster; timeout 2h"]
+            apply_coco_workloads["apply-coco-workloads<br/>installs sandboxed containers with peer pods<br/>on the spoke; timeout 2h"]
+        end
+    end
+
+    subgraph Handoff["Handoff: openshift-cluster"]
+        configure_spoke_rbac["configure-spoke-rbac<br/>creates the cluster-admins group on the spoke and binds it to cluster-admin"]
+        create_access_paste["create-access-paste<br/>uploads console URL, kubeadmin password and<br/>kubeconfig to PrivateBin; stores the paste URL"]
+        finalize_spoke["finalize-spoke<br/>deletes leftover installer pods and the<br/>kubeadmin Secret on the spoke"]
+    end
+
+    git_clone --> extract_spoke_kubeconfig
+    extract_spoke_kubeconfig --> save_spoke_kubeconfig
+    save_spoke_kubeconfig --> create_cluster_cronjob
+    save_spoke_kubeconfig --> register_keycloak_client
+    register_keycloak_client --> configure_spoke_oauth
+    configure_spoke_oauth --> create_cluster_issuer
+    create_cluster_issuer --> request_ssl_cert
+    request_ssl_cert --> wait_for_ssl_ready
+    wait_for_ssl_ready --> extract_cert_material
+    extract_cert_material --> configure_spoke_default_cert
+    configure_spoke_default_cert -->|tier: base, virt, ai, coco| apply_base_workloads
+    apply_base_workloads --> apply_virt_workloads
+    apply_virt_workloads --> add_baremetal_workers
+    apply_base_workloads --> apply_ai_workloads
+    apply_ai_workloads -->|nvidia-gpu| add_ai_workers
+    apply_base_workloads --> prepare_podvm_aws
+    prepare_podvm_aws --> build_podvm_image_aws
+    build_podvm_image_aws --> apply_coco_workloads
+    apply_base_workloads --> configure_spoke_rbac
+    add_baremetal_workers --> configure_spoke_rbac
+    add_ai_workers --> configure_spoke_rbac
+    apply_coco_workloads --> configure_spoke_rbac
+    configure_spoke_rbac --> create_access_paste
+    create_access_paste --> finalize_spoke
+
+    classDef src fill:#e6f6f4,stroke:#1f8f84,color:#000
+    classDef core fill:#ecf2ff,stroke:#3b6fd8,color:#000
+    classDef gate fill:#fff4e0,stroke:#c27c0e,color:#000
+    classDef out fill:#f3ecff,stroke:#7a4fd6,color:#000
+
+    class load_config,git_clone src
+    class extract_spoke_kubeconfig,save_spoke_kubeconfig,create_cluster_cronjob core
+    class create_cluster_issuer,request_ssl_cert,wait_for_ssl_ready,extract_cert_material core
+    class add_baremetal_workers,add_ai_workers core
+    class register_keycloak_client,prepare_podvm_aws,build_podvm_image_aws,create_access_paste gate
+    class configure_spoke_oauth,configure_spoke_default_cert,apply_base_workloads out
+    class apply_virt_workloads,apply_ai_workloads,apply_coco_workloads out
+    class configure_spoke_rbac,finalize_spoke out
