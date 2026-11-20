@@ -186,6 +186,15 @@ def test_sequence_source_holds_the_tasks_of_the_pipeline_in_run_order(name):
 
 
 @pytest.mark.parametrize("name", SEQUENCES)
+def test_sequence_messages_hold_no_semicolon(name):
+    # mermaid ends a sequence statement at a semicolon and then fails to parse.
+    path = DIAGRAMS / f"{name}-sequence.mermaid"
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if re.fullmatch(r"\s*\w+(-->>|->>)\w+: .+", line) or "Note over" in line:
+            assert ";" not in line, line.strip()
+
+
+@pytest.mark.parametrize("name", SEQUENCES)
 def test_sequence_source_states_every_when_condition(name):
     conditions = parse_sequence(name)["conditions"]
     for task in pipeline_tasks(name):
