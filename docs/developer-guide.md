@@ -446,10 +446,12 @@ compares their messages and wait limits with the code.
 
 ## Diagrams
 
-`docs/diagrams/` holds nine diagrams: the architecture diagram, and a task
-flowchart and a sequence diagram for each of `pre-provision`, `provision`,
-`post-provision` and `deprovision`. `docs/architecture.md` shows all nine.
-`README.md` shows the architecture diagram.
+`docs/diagrams/` holds ten diagrams: the architecture diagram, the value-flow
+diagram, and a task flowchart and a sequence diagram for each of
+`pre-provision`, `provision`, `post-provision` and `deprovision`.
+`docs/architecture.md` shows the architecture diagram and the eight pipeline
+diagrams. `README.md` shows the architecture diagram.
+`docs/parameter-threading.md` shows the value-flow diagram.
 
 Each diagram is two files: a `.mermaid` file that holds the content and an
 `.svg` file that a layout script writes. mermaid-cli does not produce the SVGs.
@@ -461,6 +463,8 @@ and dark palettes.
 |---|---|
 | `architecture.mermaid` | Content of the architecture diagram |
 | `layout_architecture.py` | Coordinates and text of every card, frame and edge of `architecture.svg` |
+| `value-flow.mermaid` | Content of the value-flow diagram of `docs/parameter-threading.md` |
+| `layout_value_flow.py` | Coordinates and text of every card, frame and edge of `value-flow.svg` |
 | `<pipeline>-flow.mermaid` | One node per task, one edge per `runAfter` entry, one subgraph per stage, `%%` notes |
 | `layout_pipeline_flows.py` | Reads the flowchart sources. `FLOWS` holds the title, the subtitle and the grid position of each task. |
 | `<pipeline>-sequence.mermaid` | Participants, one `rect` per task with the task's calls, `opt` blocks for `when` conditions, `%%` notes |
@@ -508,7 +512,11 @@ and dark palettes.
 
 6. Check the SVGs, as described in [Checking an SVG](#checking-an-svg).
 
-### After a change to the architecture diagram
+### After a change to the architecture or the value-flow diagram
+
+Both diagrams have a layout script that holds every coordinate. The steps
+name the architecture diagram; `value-flow.mermaid` and `layout_value_flow.py`
+follow the same steps.
 
 1. Edit `architecture.mermaid`.
 
