@@ -30,7 +30,7 @@ flowchart TB
 
     subgraph Handover["Handover"]
         validate_cluster_inputs["validate-cluster-inputs<br/>fails if aws-credentials, pull-secret or<br/>NAME-ssh-key is missing"]
-        trigger_provision["trigger-provision<br/>creates the PipelineRun of the<br/>provision pipeline"]
+        trigger_provision["trigger-provision<br/>creates the PipelineRun of provision with<br/>the repository URL and revision of this run"]
     end
 
     git_clone --> check_prefix_collision

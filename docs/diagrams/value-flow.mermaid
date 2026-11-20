@@ -11,7 +11,7 @@ flowchart TB
     end
 
     subgraph Pipelines["Pipelines"]
-        Pre["pre-provision<br/>last task: trigger-provision creates the<br/>PipelineRun of provision with cluster-name"]
+        Pre["pre-provision<br/>last task: trigger-provision creates the<br/>PipelineRun of provision with 3 params"]
         Prov["provision<br/>last task: trigger-post-provision creates the<br/>PipelineRun of post-provision with 9 params"]
         Post["post-provision<br/>tasks read $(params.NAME); when conditions read<br/>tier, openshift-cluster and ai-accelerator"]
     end

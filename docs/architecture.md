@@ -92,7 +92,7 @@ Diagram source: [diagrams/pre-provision-flow.mermaid](diagrams/pre-provision-flo
 | `wait-for-aws-component-credentials` | Hub API, Crossplane | Waits for every operator's raw Secret and for all IAM resources of the cluster to be Ready | `aws-credentials-mode` is `scoped` |
 | `build-aws-credentials-manifests` | Hub API | Writes Secret NAME-cloud-credentials-manifests for the Hive install manifests | `aws-credentials-mode` is `scoped` |
 | `validate-cluster-inputs` | Hub API | Fails if aws-credentials, pull-secret or NAME-ssh-key is missing | Always |
-| `trigger-provision` | Hub API | Creates the PipelineRun of the provision pipeline | Always |
+| `trigger-provision` | Hub API | Creates the PipelineRun of provision with the repository URL and revision of this run | Always |
 
 ![pre-provision sequence diagram](diagrams/pre-provision-sequence.svg)
 
@@ -109,7 +109,7 @@ Diagram source: [diagrams/provision-flow.mermaid](diagrams/provision-flow.mermai
 | Task | Talks to | Action | Runs when |
 |---|---|---|---|
 | `load-config` | Hub API | Reads ConfigMap fleet-pipeline-config; its results are parameters of the later tasks | Always |
-| `git-clone` | Git | Clones fleet-clusters into the shared workspace | Always |
+| `git-clone` | Git | Clones fleet-clusters at the revision of pre-provision into the shared workspace | Always |
 | `read-cluster-metadata` | Git | Reads provision/NAME/metadata.yaml; its results are parameters of post-provision | Always |
 | `apply-cluster-crs` | Hub API | Applies the hive overlay: ClusterDeployment, MachinePool, ManagedCluster and related CRs | Always |
 | `wait-for-hive-ready` | Hub API, Hive, AWS | Waits for condition Provisioned on the ClusterDeployment; timeout 1h15m | Always |

@@ -42,11 +42,13 @@ The cluster name passes through ten hops from the push to a task of `post-provis
 | 3 | `tekton/triggers/triggertemplate-pre-provision.yaml` | `value: $(tt.params.cluster-name)` | The template writes it into the PipelineRun of `pre-provision` |
 | 4 | `tekton/pipelines/pre-provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
 | 5 | `tekton/tasks/trigger-provision.yaml` | `--cluster-name "$(params.cluster-name)"` | The last task passes it to its CLI |
-| 6 | `fleet/tasks/trigger_provision.py` | `generateName: provision-{cluster}-` | The CLI writes the PipelineRun of `provision` with the parameter `cluster-name` and creates it |
+| 6 | `fleet/tasks/trigger_provision.py` | `generateName: provision-{cluster}-` | The CLI writes the PipelineRun of `provision` with three parameters and creates it |
 | 7 | `tekton/pipelines/provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
 | 8 | `tekton/tasks/trigger-post-provision.yaml` | `--cluster-name "$(params.cluster-name)"` | The last task passes it to its CLI |
 | 9 | `fleet/tasks/trigger_post_provision.py` | `generateName: post-provision-{cluster}-` | The CLI writes the PipelineRun of `post-provision` with nine parameters and creates it |
 | 10 | `tekton/pipelines/post-provision.yaml` | `value: $(params.cluster-name)` | The pipeline passes it to each task that declares it |
+
+The three parameters of hop 6 are `cluster-name`, `git-repo-url` and `git-revision`. The last two are the results of `load-config` in `pre-provision`, so `provision` clones the repository and commit that `pre-provision` cloned.
 
 The nine parameters of hop 9 are `cluster-name`, `tier`, `dns-zones`, and the six metadata values `htpasswd-provider-name`, `openshift-ai-version`, `ai-accelerator`, `timezone`, `schedule` and `podvm-instance-type`. The CLI derives `dns-zones` from the `baseDomain` of the ClusterDeployment.
 
@@ -108,4 +110,3 @@ It prints `{}` for a missing or empty file. It exits with 1 when the directory d
 ## Limits
 
 - A `post-provision` run that the EventListener starts gets `cluster_name`, `tier` and `dns_zones` from the request body. It receives no metadata value and runs with the defaults of the pipeline parameters.
-- `pre-provision` clones fleet-clusters at the pushed commit. `provision` receives only `cluster-name`, so it clones the branch `main`.

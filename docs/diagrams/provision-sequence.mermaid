@@ -1,4 +1,4 @@
-%% Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun
+%% Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun with the repository URL and revision it cloned
 %% Order: tasks are shown in an order the pipeline allows; the task flowchart shows which tasks run in parallel
 %% Credential mode: scope-aws-credentials is skipped unless metadata.yaml sets aws-credentials-mode: scoped
 %% Failure: a failed task stops the run; trigger-post-provision does not run
@@ -18,7 +18,7 @@ sequenceDiagram
 
     rect rgb(246, 248, 250)
         Note over Pipe,Git: git-clone
-        Pipe->>Git: clone fleet-clusters
+        Pipe->>Git: clone fleet-clusters at the revision of pre-provision
         Git-->>Pipe: provision/NAME/ in the workspace
     end
 
