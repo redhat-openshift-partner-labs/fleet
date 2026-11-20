@@ -6,6 +6,10 @@ spec:
   params:
     - name: cluster-name
       type: string
+    - name: git-repo-url
+      type: string
+    - name: git-revision
+      type: string
     - name: pipeline-image
       type: string
   steps:
@@ -16,4 +20,6 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         fleet-trigger-provision \
-          --cluster-name "$(params.cluster-name)"
+          --cluster-name "$(params.cluster-name)" \
+          --git-repo-url "$(params.git-repo-url)" \
+          --git-revision "$(params.git-revision)"

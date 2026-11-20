@@ -39,7 +39,7 @@ DESC = (
     "from $(tt.params.NAME). The PipelineRun of pre-provision gets cluster-name, "
     "git-repo-url and git-revision. "
     "Pipelines: the last task of pre-provision, trigger-provision, creates the PipelineRun "
-    "of provision with cluster-name. The last task of provision, trigger-post-provision, "
+    "of provision with 3 params: cluster-name, git-repo-url and git-revision. The last task of provision, trigger-post-provision, "
     "creates the PipelineRun of post-provision with 9 params. In post-provision the tasks "
     "read $(params.NAME), and when conditions read tier, openshift-cluster and "
     "ai-accelerator. "
@@ -160,7 +160,7 @@ def render(head: str) -> str:
         "pre-provision",
         [
             ("m s", "last task: trigger-provision creates the"),
-            ("m s", "PipelineRun of provision with cluster-name"),
+            ("m s", "PipelineRun of provision with 3 params"),
         ],
     )
     d.card(

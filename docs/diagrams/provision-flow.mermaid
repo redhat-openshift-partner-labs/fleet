@@ -1,11 +1,11 @@
-%% Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun
+%% Trigger: the trigger-provision task of the pre-provision pipeline creates the PipelineRun with the repository URL and revision it cloned
 %% Start: load-config and git-clone have no runAfter and start first
 %% Credential mode: scope-aws-credentials is skipped unless metadata.yaml sets aws-credentials-mode: scoped
 %% Failure: a failed task stops the run; trigger-post-provision does not run
 flowchart TB
     subgraph Inputs["Inputs"]
         load_config["load-config<br/>reads ConfigMap fleet-pipeline-config; its results<br/>are parameters of the later tasks"]
-        git_clone["git-clone<br/>clones fleet-clusters into the<br/>shared workspace"]
+        git_clone["git-clone<br/>clones fleet-clusters at the revision of<br/>pre-provision into the shared workspace"]
         read_cluster_metadata["read-cluster-metadata<br/>reads provision/NAME/metadata.yaml; its results<br/>are parameters of post-provision"]
     end
 

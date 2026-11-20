@@ -1,10 +1,12 @@
 """Trigger the provision pipeline by creating a PipelineRun.
 
-CLI: fleet-trigger-provision --cluster-name NAME
-Creates a PipelineRun for the provision pipeline. Exits 1 on failure.
+CLI: fleet-trigger-provision --cluster-name NAME --git-repo-url URL --git-revision REV
+Creates a PipelineRun for the provision pipeline. The run clones the repository and
+revision that pre-provision cloned. Exits 1 on failure.
 """
 
 import argparse
+import json
 import subprocess
 import sys
 import textwrap
@@ -15,14 +17,21 @@ from fleet.tasks._log import configure, error, info
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-name", required=True)
+    parser.add_argument("--git-repo-url", required=True)
+    parser.add_argument("--git-revision", required=True)
     args = parser.parse_args()
 
     configure("trigger-provision")
 
     cluster = args.cluster_name
+    # A JSON string is a quoted YAML scalar: a commit SHA of digits stays a string.
+    repo_url = json.dumps(args.git_repo_url)
+    revision = json.dumps(args.git_revision)
 
     info("=== Triggering provision pipeline ===")
     info(f"  cluster-name={cluster}")
+    info(f"  git-repo-url={args.git_repo_url}")
+    info(f"  git-revision={args.git_revision}")
 
     pipelinerun_yaml = textwrap.dedent(f"""\
         apiVersion: tekton.dev/v1
@@ -35,6 +44,10 @@ def main() -> None:
           params:
             - name: cluster-name
               value: {cluster}
+            - name: git-repo-url
+              value: {repo_url}
+            - name: git-revision
+              value: {revision}
           taskRunTemplate:
             serviceAccountName: fleet-pipeline
             podTemplate:

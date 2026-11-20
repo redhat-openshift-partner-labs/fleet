@@ -229,5 +229,10 @@ spec:
       params:
         - name: cluster-name
           value: $(params.cluster-name)
+        # provision clones the repository and commit that this run cloned
+        - name: git-repo-url
+          value: $(tasks.load-config.results.git-repo-url)
+        - name: git-revision
+          value: $(tasks.load-config.results.git-revision)
         - name: pipeline-image
           value: $(tasks.load-config.results.pipeline-image)

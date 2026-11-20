@@ -73,3 +73,24 @@ def test_validation_waits_for_manifests():
         "transform-aws-credentials",
         "build-aws-credentials-manifests",
     }
+
+
+def test_provision_receives_the_repository_and_revision_of_pre_provision():
+    # provision must clone what pre-provision cloned: the resolved values of load-config.
+    by_name = _load_tasks_by_name()
+    clone = {p["name"]: p["value"] for p in by_name["git-clone"]["params"]}
+    trigger = {p["name"]: p["value"] for p in by_name["trigger-provision"]["params"]}
+    assert trigger["git-repo-url"] == clone["URL"]
+    assert trigger["git-revision"] == clone["REVISION"]
+    assert trigger["git-revision"] == "$(tasks.load-config.results.git-revision)"
+
+    with open(ROOT / "tekton" / "tasks" / "trigger-provision.yaml") as f:
+        task = yaml.safe_load(f)
+    script = task["spec"]["steps"][0]["script"]
+    assert '--git-repo-url "$(params.git-repo-url)"' in script
+    assert '--git-revision "$(params.git-revision)"' in script
+
+    with open(ROOT / "tekton" / "pipelines" / "provision.yaml") as f:
+        provision = yaml.safe_load(f)
+    declared = {p["name"] for p in provision["spec"]["params"]}
+    assert {"git-repo-url", "git-revision"} <= declared
