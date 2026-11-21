@@ -4,7 +4,7 @@ from fleet.tasks._infra_prefix import infra_prefix
 
 
 def test_passthrough():
-    assert infra_prefix("10f25620-vscopeocpv") == "10f25620-vscopeocpv"
+    assert infra_prefix("0a1b2c3d-partnerlab") == "0a1b2c3d-partnerlab"
 
 
 def test_truncation():
