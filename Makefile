@@ -37,7 +37,7 @@ hub-status: ## Check status of hub cluster operators
 		exit 1; \
 	fi
 	@echo "🔍 Operator Status:"
-	@oc get csv -A --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management|rhsso)" | while read line; do \
+	@oc get csv -A --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management|rhsso)" | while read line; do \
 		echo "  ✅ $$line"; \
 	done || echo "  ❌ No operators found"
 	@echo ""
@@ -51,18 +51,14 @@ hub-status: ## Check status of hub cluster operators
 	@mch_status=$$(oc get multiclusterhub -n open-cluster-management --no-headers 2>/dev/null | awk '{print $$2}' || echo "Not Found"); \
 	echo "  🏗️  MultiClusterHub: $$mch_status"
 	@echo ""
-	@echo "📦 ArgoCD Status:"
-	@argocd_count=$$(oc get argocds -n openshift-gitops --no-headers 2>/dev/null | wc -l || echo "0"); \
-	echo "  🚀 ArgoCD Instances: $$argocd_count"
-	@echo ""
 	@echo "🎮 Console Plugin Status:"
-	@enabled_plugins=$$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null | tr ' ' '\n' | grep -E "(gitops|pipelines)" | sort || echo ""); \
+	@enabled_plugins=$$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null | tr ' ' '\n' | grep -E "pipelines" | sort || echo ""); \
 	if [ -n "$$enabled_plugins" ]; then \
 		echo "$$enabled_plugins" | while read plugin; do \
 			echo "  ✅ $$plugin"; \
 		done; \
 	else \
-		echo "  ⚠️  No GitOps or Pipelines console plugins enabled"; \
+		echo "  ⚠️  Pipelines console plugin not enabled"; \
 	fi
 
 hub-check: ## Check hub-config prerequisites and cluster connection

@@ -1,6 +1,8 @@
 """Checks that the hub setup documents match hub-config/, tekton/ and the Makefile."""
 
 import re
+import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -63,6 +65,88 @@ def test_install_table_has_a_row_for_every_step_of_the_script():
     # The messages of the script carry the number of their step.
     echoed = re.findall(r'^echo ".*Step (\d+):', script, flags=re.MULTILINE)
     assert echoed == steps
+
+
+def subscriptions() -> list[dict]:
+    """Subscription manifests of hub-config/."""
+    found = []
+    for path in sorted(HUB.glob("*/subscription.yaml")):
+        documents = yaml.safe_load_all(path.read_text(encoding="utf-8"))
+        found += [d for d in documents if d and d.get("kind") == "Subscription"]
+    return found
+
+
+def bash_array(script: str, name: str) -> list[str]:
+    """Words of the array assignment name=(...) in a script of hub-config/."""
+    text = (HUB / script).read_text(encoding="utf-8")
+    body = re.search(rf"^{name}=\((.*)\)", text, flags=re.MULTILINE).group(1)
+    return re.findall(r'"([^"]+)"', body)
+
+
+def test_install_script_applies_only_existing_files():
+    script = (HUB / "install-hub-config.sh").read_text(encoding="utf-8")
+    applied = re.findall(r"oc apply -f (\S+\.yaml)", script)
+    assert applied
+    missing = [path for path in applied if not (HUB / path).is_file()]
+    assert not missing, f"install-hub-config.sh applies {missing}"
+
+
+def test_install_script_waits_for_every_subscribed_operator():
+    # The script waits for a ClusterServiceVersion whose name holds the pattern.
+    patterns = bash_array("install-hub-config.sh", "expected_csvs")
+    packages = [subscription["spec"]["name"] for subscription in subscriptions()]
+    assert patterns and packages
+
+    for pattern in patterns:
+        assert sum(pattern in package for package in packages) == 1, pattern
+    for package in packages:
+        assert sum(pattern in package for pattern in patterns) == 1, package
+
+
+def test_uninstall_script_lists_the_namespaces_of_the_manifest():
+    documents = yaml.safe_load_all((HUB / "namespaces.yaml").read_text("utf-8"))
+    names = {document["metadata"]["name"] for document in documents if document}
+    assert set(bash_array("uninstall-hub-config.sh", "namespaces")) == names
+
+
+# The hub runs no ArgoCD: these paths do not name it or OpenShift GitOps.
+GITOPS_FREE = [
+    "hub-config",
+    "tekton",
+    "fleet",
+    "Makefile",
+    "README.md",
+    "docs/hub-setup.md",
+]
+GITOPS = re.compile(r"argo ?cd|argoproj|gitops", re.IGNORECASE)
+
+
+def repository_files(*paths: str) -> list[Path]:
+    """Files under the paths that git tracks, or that are new and not ignored."""
+    listed = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", *paths],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    files = [ROOT / line for line in listed.stdout.splitlines()]
+    # The index still lists a file that is deleted and not yet committed.
+    return [path for path in files if path.is_file()]
+
+
+def test_hub_holds_no_gitops_component():
+    assert not (ROOT / "bootstrap").exists()
+
+    files = repository_files(*GITOPS_FREE)
+    assert files
+    found = [
+        f"{path.relative_to(ROOT)}:{number}"
+        for path in files
+        for number, line in enumerate(path.read_text("utf-8").splitlines(), 1)
+        if GITOPS.search(line)
+    ]
+    assert not found, f"names ArgoCD or OpenShift GitOps: {found}"
 
 
 HUB_SETUP = ROOT / "docs" / "hub-setup.md"

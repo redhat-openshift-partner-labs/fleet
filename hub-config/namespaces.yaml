@@ -21,11 +21,6 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: openshift-gitops
----
-apiVersion: v1
-kind: Namespace
-metadata:
   name: open-cluster-management
 ---
 apiVersion: v1
