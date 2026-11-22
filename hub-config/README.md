@@ -9,7 +9,6 @@ It is one part of the hub setup. [docs/hub-setup.md](../docs/hub-setup.md) gives
 | Directory | Component | Installed as | Namespace | Channel or version |
 |---|---|---|---|---|
 | `acm/` | Advanced Cluster Management with Hive | Operator `advanced-cluster-management` and the MultiClusterHub `multiclusterhub` | `open-cluster-management` | `release-2.16` |
-| `argocd/` | OpenShift GitOps (ArgoCD) | Operator `openshift-gitops-operator` | `openshift-operators` | `gitops-1.20` |
 | `cert-manager/` | cert-manager | Operator `openshift-cert-manager-operator` with its own OperatorGroup | `cert-manager-operator` | `stable-v1.19` |
 | `tekton/` | OpenShift Pipelines (Tekton) | Operator `openshift-pipelines-operator-rh` | `openshift-operators` | `pipelines-1.22` |
 | `partner-labs-auth/` | Red Hat Single Sign-On (Keycloak) | Operator `rhsso-operator` with its own OperatorGroup | `partner-labs-auth` | `stable` |
@@ -33,12 +32,12 @@ The target runs `hub-config/install-hub-config.sh`. The script does this:
 
 | Step | Action | Waits up to |
 |---|---|---|
-| 1 | Applies the namespaces, the OperatorGroups and Subscriptions of the five operators, and the Crossplane RBAC, Helm Job and SCC binding | |
-| 2 | Waits until the five operators report `Succeeded` and the Job `crossplane-helm-installer` is complete. Exits with an error on a failed operator, a failed Job or the timeout. | 600 seconds |
+| 1 | Applies the namespaces, the OperatorGroups and Subscriptions of the four operators, and the Crossplane RBAC, Helm Job and SCC binding | |
+| 2 | Waits until the four operators report `Succeeded` and the Job `crossplane-helm-installer` is complete. Exits with an error on a failed operator, a failed Job or the timeout. | 600 seconds |
 | 3 | Waits for the ACM and Crossplane CRDs, then applies the MultiClusterHub and the Provider | 120 seconds each |
 | 4 | Waits until the Provider is healthy and its CRDs exist, then applies the ProviderConfig `default` | 180 and 90 seconds |
-| 5 | Adds `gitops-plugin` and `pipelines-console-plugin` to the plugins of the web console | |
-| 6 | Prints the state of each operator, the Provider, the ProviderConfig, the MultiClusterHub and ArgoCD | |
+| 5 | Adds `pipelines-console-plugin` to the plugins of the web console | |
+| 6 | Prints the state of each operator, the Provider, the ProviderConfig and the MultiClusterHub | |
 
 The script applies every manifest with `oc apply`, so it can run again after a failure.
 
@@ -51,15 +50,15 @@ These commands do what the script does. Run them in `hub-config/`.
 ```bash
 oc apply -f namespaces.yaml
 oc apply -f cert-manager/operatorgroup.yaml -f cert-manager/subscription.yaml
-oc apply -f tekton/subscription.yaml -f argocd/subscription.yaml -f acm/subscription.yaml
+oc apply -f tekton/subscription.yaml -f acm/subscription.yaml
 oc apply -f partner-labs-auth/operatorgroup.yaml -f partner-labs-auth/subscription.yaml
 oc apply -f crossplane/installation/rbac.yaml -f crossplane/installation/helm-job.yaml -f crossplane/rbac/scc-binding.yaml
 ```
 
-Wait until the five operators report `Succeeded`:
+Wait until the four operators report `Succeeded`:
 
 ```bash
-oc get csv -A | grep -E "cert-manager|gitops|pipelines|advanced-cluster-management|rhsso"
+oc get csv -A | grep -E "cert-manager|pipelines|advanced-cluster-management|rhsso"
 ```
 
 Wait for the Crossplane Job:
@@ -77,7 +76,7 @@ oc wait --for=condition=Healthy provider.pkg.crossplane.io/provider-aws-iam --ti
 oc apply -f crossplane/providerconfig.yaml
 ```
 
-Add `gitops-plugin` and `pipelines-console-plugin` to `spec.plugins`:
+Add `pipelines-console-plugin` to `spec.plugins`:
 
 ```bash
 oc edit console.operator.openshift.io cluster
@@ -134,12 +133,11 @@ The checks one by one:
 
 | Component | Command | Expected |
 |---|---|---|
-| Operators | `oc get csv -A \| grep -E "cert-manager\|gitops\|pipelines\|advanced-cluster-management\|rhsso"` | Each line ends in `Succeeded` |
+| Operators | `oc get csv -A \| grep -E "cert-manager\|pipelines\|advanced-cluster-management\|rhsso"` | Each line ends in `Succeeded` |
 | Crossplane install | `oc get job crossplane-helm-installer -n crossplane-system` | `COMPLETIONS` shows `1/1` |
 | Crossplane Provider | `oc get providers.pkg.crossplane.io` | `provider-aws-iam` with `INSTALLED` and `HEALTHY` `True` |
 | ProviderConfig | `oc get providerconfig.aws.upbound.io` | `default` |
 | ACM | `oc get multiclusterhub -n open-cluster-management` | `STATUS` shows `Running` |
-| ArgoCD | `oc get argocds -n openshift-gitops` | `openshift-gitops` |
 
 ## Channels
 
@@ -161,18 +159,6 @@ Change a channel:
    oc apply -f <directory>/subscription.yaml
    ```
 
-## ArgoCD Application
-
-`bootstrap/` holds the ArgoCD Application `fleet-hub-config`. It syncs the directory `hub-config/` of the `main` branch to the hub, removes resources that leave the directory, and reverts manual changes to synced resources.
-
-Apply it after the operators are installed:
-
-```bash
-oc apply -k bootstrap/
-```
-
-The Application does not manage the ProviderConfig, which `kustomization.yaml` leaves out.
-
 ## Uninstall
 
 The uninstall removes the namespace `openshift-pipelines`, and with it the pipelines, the ConfigMap `fleet-pipeline-config` and the Secrets that [docs/hub-setup.md](../docs/hub-setup.md) creates. Deprovision every cluster first.
@@ -185,15 +171,15 @@ make hub-uninstall
 
 The target runs `hub-config/uninstall-hub-config.sh`. The script asks you to type `yes`, then does this in order:
 
-1. Deletes the validating webhooks of ACM and ArgoCD.
+1. Deletes the validating webhooks of ACM.
 2. Deletes every MultiClusterHub and MultiClusterEngine, and removes their finalizers when the deletion does not finish in 60 seconds.
 3. Deletes every Crossplane Provider and ProviderConfig, and the Job `crossplane-helm-installer`.
-4. Deletes the five Subscriptions, the three OperatorGroups, and every InstallPlan in `openshift-operators`, `open-cluster-management`, `cert-manager-operator` and `partner-labs-auth`.
-5. Deletes the ClusterServiceVersions of the five operators.
+4. Deletes the four Subscriptions, the three OperatorGroups, and every InstallPlan in `openshift-operators`, `open-cluster-management`, `cert-manager-operator` and `partner-labs-auth`.
+5. Deletes the ClusterServiceVersions of the four operators.
 6. Deletes the ClusterRoles, ClusterRoleBindings and ServiceAccounts `crossplane-installer` and `crossplane-privileged-scc`.
-7. Removes `gitops-plugin` and `pipelines-console-plugin` from the web console.
-8. Deletes the eight namespaces of `namespaces.yaml`.
-9. Removes the finalizers of ACM and ArgoCD resources that remain, and of every namespace on the cluster that is in the state `Terminating`.
+7. Removes `pipelines-console-plugin` from the web console.
+8. Deletes the seven namespaces of `namespaces.yaml`.
+9. Removes the finalizers of ACM resources that remain, and of every namespace on the cluster that is in the state `Terminating`.
 
 Two actions reach beyond this directory: step 4 deletes the InstallPlans of every operator in `openshift-operators`, and step 9 acts on every terminating namespace of the cluster.
 
@@ -212,17 +198,17 @@ oc delete job crossplane-helm-installer -n crossplane-system
 ```bash
 oc delete subscription.operators.coreos.com advanced-cluster-management -n open-cluster-management
 oc delete subscription.operators.coreos.com cert-manager -n cert-manager-operator
-oc delete subscription.operators.coreos.com openshift-gitops-operator openshift-pipelines-operator -n openshift-operators
+oc delete subscription.operators.coreos.com openshift-pipelines-operator -n openshift-operators
 oc delete subscription.operators.coreos.com rhsso-operator -n partner-labs-auth
 oc delete operatorgroup open-cluster-management -n open-cluster-management
 oc delete operatorgroup cert-manager-operator -n cert-manager-operator
 oc delete operatorgroup partner-labs-auth -n partner-labs-auth
 ```
 
-List the ClusterServiceVersions of the five operators, then delete each one by name and namespace:
+List the ClusterServiceVersions of the four operators, then delete each one by name and namespace:
 
 ```bash
-oc get csv -A | grep -E "cert-manager-operator|openshift-gitops-operator|openshift-pipelines-operator|advanced-cluster-management|rhsso-operator"
+oc get csv -A | grep -E "cert-manager-operator|openshift-pipelines-operator|advanced-cluster-management|rhsso-operator"
 ```
 
 ```bash
@@ -231,7 +217,7 @@ oc delete csv <name> -n <namespace>
 
 ```bash
 oc delete clusterrole,clusterrolebinding crossplane-installer crossplane-privileged-scc
-oc delete namespace cert-manager crossplane-system multicluster-engine open-cluster-management openshift-gitops openshift-pipelines cert-manager-operator partner-labs-auth
+oc delete namespace cert-manager crossplane-system multicluster-engine open-cluster-management openshift-pipelines cert-manager-operator partner-labs-auth
 ```
 
 Delete the custom resources before the operators. An operator that is gone cannot remove the finalizers of its resources, and their namespaces then stay in `Terminating`.

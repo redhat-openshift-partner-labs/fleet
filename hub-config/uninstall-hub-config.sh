@@ -22,7 +22,6 @@ echo ""
 echo "⚠️  WARNING: This will remove ALL hub cluster operators and configurations!"
 echo "   The following will be deleted:"
 echo "   • Advanced Cluster Management (ACM)"
-echo "   • ArgoCD/OpenShift GitOps"
 echo "   • Tekton/OpenShift Pipelines"
 echo "   • cert-manager"
 echo "   • Crossplane and providers"
@@ -40,8 +39,8 @@ echo "🧹 Starting graceful uninstallation..."
 
 # Pre-Step: Proactively remove validating webhooks to prevent cleanup blocks
 echo "🔓 Pre-cleanup: Removing validating webhooks to prevent blocking..."
-echo "   Removing ACM and ArgoCD validating webhooks..."
-oc get validatingwebhookconfiguration -o name 2>/dev/null | grep -E "(cluster-management|multicluster|gitops|argocd)" | xargs -r oc delete --ignore-not-found=true >/dev/null 2>&1 || true
+echo "   Removing ACM validating webhooks..."
+oc get validatingwebhookconfiguration -o name 2>/dev/null | grep -E "(cluster-management|multicluster)" | xargs -r oc delete --ignore-not-found=true >/dev/null 2>&1 || true
 echo "   ✅ Validating webhooks removed proactively"
 
 echo ""
@@ -99,7 +98,7 @@ sleep 10
 # Step 5: Delete Operator Subscriptions
 echo ""
 echo "5️⃣  Removing Operator Subscriptions..."
-subscriptions=("advanced-cluster-management" "cert-manager" "openshift-gitops-operator" "openshift-pipelines-operator" "rhsso-operator")
+subscriptions=("advanced-cluster-management" "cert-manager" "openshift-pipelines-operator" "rhsso-operator")
 
 for sub in "${subscriptions[@]}"; do
     echo "   Removing subscription: $sub"
@@ -133,7 +132,7 @@ echo "   ✅ InstallPlans removed"
 # Step 6: Delete ClusterServiceVersions
 echo ""
 echo "6️⃣  Removing ClusterServiceVersions (operators)..."
-csv_patterns=("cert-manager-operator" "openshift-gitops-operator" "openshift-pipelines-operator" "advanced-cluster-management" "rhsso-operator")
+csv_patterns=("cert-manager-operator" "openshift-pipelines-operator" "advanced-cluster-management" "rhsso-operator")
 
 for csv_pattern in "${csv_patterns[@]}"; do
     echo "   Removing CSVs matching: $csv_pattern"
@@ -173,7 +172,7 @@ wait_time=0
 check_interval=10
 
 while [[ $wait_time -lt $max_wait ]]; do
-    remaining_csvs=$(oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
+    remaining_csvs=$(oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
 
     if [[ $remaining_csvs -eq 0 ]]; then
         echo "   ✅ All operators cleaned up"
@@ -188,7 +187,7 @@ done
 if [[ $wait_time -ge $max_wait ]]; then
     echo "   ⚠️  Timeout waiting for operators to cleanup. Continuing with namespace removal..."
     echo "   Remaining operators:"
-    oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management)" || echo "     None found"
+    oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management)" || echo "     None found"
 fi
 
 # Step 8.5: Disable Console Plugins
@@ -199,7 +198,7 @@ echo "8️⃣.5️⃣ Disabling console plugins..."
 current_plugins=$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null || echo "")
 
 # Define plugins to remove based on our operators
-plugins_to_remove=("gitops-plugin" "pipelines-console-plugin")
+plugins_to_remove=("pipelines-console-plugin")
 
 # Check which plugins are currently enabled and need removal
 plugins_found=()
@@ -235,7 +234,7 @@ echo ""
 # Step 9: Delete Namespaces
 echo ""
 echo "9️⃣  Removing Namespaces..."
-namespaces=("cert-manager" "crossplane-system" "multicluster-engine" "open-cluster-management" "openshift-gitops" "openshift-pipelines" "cert-manager-operator" "partner-labs-auth")
+namespaces=("cert-manager" "crossplane-system" "multicluster-engine" "open-cluster-management" "openshift-pipelines" "cert-manager-operator" "partner-labs-auth")
 
 for ns in "${namespaces[@]}"; do
     echo "   Removing namespace: $ns"
@@ -304,25 +303,9 @@ fi
 
 echo "   ✅ ACM resources force cleanup completed"
 
-# Step 12: Force cleanup of stuck ArgoCD resources
+# Step 12: Force cleanup terminating namespaces
 echo ""
-echo "1️⃣2️⃣ Step 12: Force cleanup of any stuck ArgoCD resources..."
-
-for ns in $(oc get namespaces --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | grep -E "(openshift-gitops|argocd)"); do
-    if oc get argocd -n "$ns" --no-headers 2>/dev/null | grep -q .; then
-        echo "   Force removing ArgoCD resources in namespace $ns..."
-        for argocd in $(oc get argocd -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null); do
-            echo "     Removing finalizers from ArgoCD $argocd..."
-            oc patch argocd "$argocd" -n "$ns" --type merge -p '{"metadata":{"finalizers":null}}' >/dev/null 2>&1 || true
-        done
-    fi
-done
-
-echo "   ✅ ArgoCD resources force cleanup completed"
-
-# Step 13: Force cleanup terminating namespaces
-echo ""
-echo "1️⃣3️⃣ Step 13: Force cleanup of any terminating namespaces..."
+echo "1️⃣2️⃣ Step 12: Force cleanup of any terminating namespaces..."
 
 terminating_namespaces=$(oc get namespaces --no-headers 2>/dev/null | grep "Terminating" | awk '{print $1}' || echo "")
 if [[ -n "$terminating_namespaces" ]]; then
@@ -348,19 +331,18 @@ fi
 
 echo ""
 
-# Step 14: Final comprehensive verification
-echo "🔍 Step 14: Final comprehensive verification..."
+# Step 13: Final comprehensive verification
+echo "🔍 Step 13: Final comprehensive verification..."
 
 echo "   📊 Checking for any remaining resources..."
 
 # Check operators
-remaining_resources=$(oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
+remaining_resources=$(oc get csv --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
 remaining_providers=$(oc get providers --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
 remaining_mch=$(oc get multiclusterhub --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
 remaining_mce=$(oc get multiclusterengine --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
-remaining_argocd=$(oc get argocd --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
 # FIX: Use correct subscription resource type to avoid CRD conflicts
-remaining_subscriptions=$(oc get subscriptions.operators.coreos.com --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
+remaining_subscriptions=$(oc get subscriptions.operators.coreos.com --all-namespaces --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management)" | wc -l | tr -d ' \n' || echo "0")
 # NEW: Add InstallPlan verification (was missing completely)
 remaining_installplans=$(oc get installplans --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
 remaining_terminating=$(oc get namespaces --no-headers 2>/dev/null | grep "Terminating" | wc -l | tr -d ' \n' || echo "0")
@@ -371,12 +353,11 @@ echo "   • Operator CSVs: $remaining_resources"
 echo "   • Crossplane providers: $remaining_providers"
 echo "   • MultiClusterHubs: $remaining_mch"
 echo "   • MultiClusterEngines: $remaining_mce"
-echo "   • ArgoCD instances: $remaining_argocd"
 echo "   • Operator subscriptions: $remaining_subscriptions"
 echo "   • InstallPlans: $remaining_installplans"
 echo "   • Terminating namespaces: $remaining_terminating"
 
-total_remaining=$((remaining_resources + remaining_providers + remaining_mch + remaining_mce + remaining_argocd + remaining_subscriptions + remaining_installplans + remaining_terminating))
+total_remaining=$((remaining_resources + remaining_providers + remaining_mch + remaining_mce + remaining_subscriptions + remaining_installplans + remaining_terminating))
 
 if [[ $total_remaining -eq 0 ]]; then
     echo ""
@@ -385,12 +366,11 @@ if [[ $total_remaining -eq 0 ]]; then
 else
     echo ""
     echo "⚠️  Some resources may still exist ($total_remaining total). Manual commands for investigation:"
-    echo "   oc get csv -A | grep -E '(cert-manager|gitops|pipelines|advanced-cluster-management)'"
+    echo "   oc get csv -A | grep -E '(cert-manager|pipelines|advanced-cluster-management)'"
     echo "   oc get providers"
     echo "   oc get multiclusterhub -A"
     echo "   oc get multiclusterengine"
-    echo "   oc get argocd -A"
-    echo "   oc get subscriptions.operators.coreos.com -A | grep -E '(cert-manager|gitops|pipelines|advanced-cluster-management)'"
+    echo "   oc get subscriptions.operators.coreos.com -A | grep -E '(cert-manager|pipelines|advanced-cluster-management)'"
     echo "   oc get installplans -A"
     echo "   oc get namespaces | grep Terminating"
 

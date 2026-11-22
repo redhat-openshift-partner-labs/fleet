@@ -11,7 +11,7 @@ fleet is the control plane for the Red Hat OpenShift Partner Labs cluster fleet.
 
 ![Architecture](docs/diagrams/architecture.svg)
 
-A push to the fleet-clusters repository starts a Tekton pipeline on the hub cluster. The pipelines create the AWS credentials of the cluster through Crossplane, install the cluster through Hive, register it in ACM, and configure it with a certificate from cert-manager and an OIDC client in Keycloak. ArgoCD syncs the hub configuration from this repository.
+A push to the fleet-clusters repository starts a Tekton pipeline on the hub cluster. The pipelines create the AWS credentials of the cluster through Crossplane, install the cluster through Hive, register it in ACM, and configure it with a certificate from cert-manager and an OIDC client in Keycloak.
 
 [docs/architecture.md](docs/architecture.md) describes each component, the trust boundary between the hub and a spoke, and the tasks of each pipeline. Diagram source: [docs/diagrams/architecture.mermaid](docs/diagrams/architecture.mermaid).
 
@@ -19,7 +19,7 @@ A push to the fleet-clusters repository starts a Tekton pipeline on the hub clus
 
 - The Tekton pipelines, tasks and triggers that run the cluster lifecycle
 - The Python CLI tools that implement the Tekton tasks, built into one pipeline image
-- The hub cluster configuration (operators, Crossplane, ArgoCD bootstrap)
+- The hub cluster configuration (operators, Crossplane)
 - The tier workload overlays that the post-provision pipeline applies to a spoke
 
 It does not hold cluster definitions or tenant application manifests. Cluster definitions live in [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters); a push to that repository triggers the pipelines defined here.
@@ -42,8 +42,7 @@ It does not hold cluster definitions or tenant application manifests. Cluster de
 
 ```
 .
-├── bootstrap/          # ArgoCD Application that syncs hub-config/ to the hub
-├── hub-config/         # Hub operators: ACM, GitOps, Pipelines, cert-manager, RH-SSO, Crossplane
+├── hub-config/         # Hub operators: ACM, Pipelines, cert-manager, RH-SSO, Crossplane
 ├── tekton/             # Pipeline, Task, EventListener and Trigger definitions
 ├── workloads/          # Tier overlays that post-provision applies: base, virt, ai, coco
 ├── fleet/              # Python CLI tools that implement the Tekton tasks

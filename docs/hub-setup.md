@@ -24,7 +24,7 @@ When the setup is complete, an operator can provision a cluster with the [user g
 make hub-install
 ```
 
-The command installs ACM, OpenShift GitOps, OpenShift Pipelines, cert-manager, RH-SSO and Crossplane. [hub-config/README.md](../hub-config/README.md#install) describes each step and how to check the result.
+The command installs ACM, OpenShift Pipelines, cert-manager, RH-SSO and Crossplane. [hub-config/README.md](../hub-config/README.md#install) describes each step and how to check the result.
 
 ### 2. Create the Crossplane AWS credentials
 

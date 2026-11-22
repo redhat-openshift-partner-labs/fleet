@@ -32,7 +32,6 @@ echo "   📦 Applying operator subscriptions and groups..."
 oc apply -f cert-manager/operatorgroup.yaml
 oc apply -f cert-manager/subscription.yaml
 oc apply -f tekton/subscription.yaml
-oc apply -f argocd/subscription.yaml
 oc apply -f acm/subscription.yaml
 oc apply -f partner-labs-auth/operatorgroup.yaml
 oc apply -f partner-labs-auth/subscription.yaml
@@ -48,7 +47,7 @@ echo ""
 echo "⏱️  Step 2: Waiting for operators to install..."
 echo "   Monitoring ClusterServiceVersion status..."
 
-expected_csvs=("cert-manager" "gitops" "pipelines" "advanced-cluster-management" "rhsso")
+expected_csvs=("cert-manager" "pipelines" "advanced-cluster-management" "rhsso")
 max_wait=600 # 10 minutes
 wait_time=0
 check_interval=15
@@ -105,7 +104,7 @@ if [[ $wait_time -ge $max_wait ]]; then
     echo ""
     echo "⚠️  Timeout waiting for operators to install"
     echo "   Current status:"
-    oc get csv -A --no-headers 2>/dev/null | grep -E "(cert-manager|gitops|pipelines|advanced-cluster-management)" || echo "   No operators found"
+    oc get csv -A --no-headers 2>/dev/null | grep -E "(cert-manager|pipelines|advanced-cluster-management)" || echo "   No operators found"
     echo "   You may need to check operator logs and retry manually"
     exit 1
 fi
@@ -215,22 +214,6 @@ current_plugins=$(oc get console.operator.openshift.io cluster -o jsonpath='{.sp
 
 plugins_to_add=()
 
-# Check GitOps operator and plugin
-if oc get csv -n openshift-gitops --no-headers 2>/dev/null | grep -q "openshift-gitops-operator.*Succeeded"; then
-    if oc get consoleplugin gitops-plugin >/dev/null 2>&1; then
-        if ! echo "$current_plugins" | grep -q "gitops-plugin"; then
-            plugins_to_add+=("gitops-plugin")
-            echo "   📌 GitOps operator installed - will enable gitops-plugin"
-        else
-            echo "   ✅ GitOps plugin already enabled"
-        fi
-    else
-        echo "   ⚠️  GitOps operator installed but plugin not found yet"
-    fi
-else
-    echo "   ℹ️  GitOps operator not installed - skipping gitops-plugin"
-fi
-
 # Check Pipelines operator and plugin
 if oc get csv -n openshift-pipelines --no-headers 2>/dev/null | grep -q "openshift-pipelines-operator.*Succeeded"; then
     if oc get consoleplugin pipelines-console-plugin >/dev/null 2>&1; then
@@ -276,13 +259,11 @@ echo "🔍 Step 6: Final verification..."
 echo "   📊 Operator Status:"
 # Check key operators in their primary namespaces
 cert_manager_status=$(oc get csv -n cert-manager --no-headers 2>/dev/null | grep cert-manager-operator | awk '{print $1 " - " $NF}' || echo "Not Found")
-gitops_status=$(oc get csv -n openshift-gitops --no-headers 2>/dev/null | grep openshift-gitops-operator | awk '{print $1 " - " $NF}' || echo "Not Found")
 pipelines_status=$(oc get csv -n openshift-pipelines --no-headers 2>/dev/null | grep openshift-pipelines-operator-rh | awk '{print $1 " - " $NF}' || echo "Not Found")
 acm_status=$(oc get csv -n open-cluster-management --no-headers 2>/dev/null | grep advanced-cluster-management | awk '{print $1 " - " $NF}' || echo "Not Found")
 rhsso_status=$(oc get csv -n partner-labs-auth --no-headers 2>/dev/null | grep rhsso-operator | awk '{print $1 " - " $NF}' || echo "Not Found")
 
 echo "     🔒 cert-manager: $cert_manager_status"
-echo "     📦 gitops: $gitops_status"
 echo "     🔄 pipelines: $pipelines_status"
 echo "     🌐 acm: $acm_status"
 echo "     🔐 rhsso: $rhsso_status"
@@ -300,31 +281,25 @@ mch_status=$(oc get multiclusterhub -n open-cluster-management --no-headers 2>/d
 echo "     🏗️  MultiClusterHub: $mch_status"
 
 echo ""
-echo "   📦 ArgoCD Status:"
-argocd_status=$(oc get argocds -n openshift-gitops --no-headers 2>/dev/null | wc -l | tr -d ' \n')
-echo "     🚀 ArgoCD Instances: $argocd_status"
-
-echo ""
 echo "   🎮 Console Plugin Status:"
-enabled_plugins=$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null | tr ' ' '\n' | grep -E "(gitops|pipelines)" | sort || echo "")
+enabled_plugins=$(oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins[*]}' 2>/dev/null | tr ' ' '\n' | grep -E "pipelines" | sort || echo "")
 if [[ -n "$enabled_plugins" ]]; then
     echo "$enabled_plugins" | while read plugin; do
         echo "     ✅ $plugin"
     done
 else
-    echo "     ⚠️  No GitOps or Pipelines console plugins enabled"
+    echo "     ⚠️  Pipelines console plugin not enabled"
 fi
 
 echo ""
 echo "🎉 Hub cluster installation completed successfully!"
 echo ""
 echo "🔍 Next Steps:"
-echo "   • Check OpenShift console for operator tabs (Pipelines, GitOps, etc.)"
-echo "   • Configure ArgoCD applications for fleet management"
+echo "   • Check OpenShift console for the Pipelines tab"
 echo "   • Set up ACM cluster import/provisioning"
 echo "   • Configure Crossplane compositions for infrastructure"
 echo ""
 echo "📋 Quick Status Check:"
-echo "   oc get csv -A | grep -E '(cert-manager|gitops|pipelines|advanced-cluster-management)'"
+echo "   oc get csv -A | grep -E '(cert-manager|pipelines|advanced-cluster-management)'"
 echo "   oc get providers"
 echo "   oc get multiclusterhub -A"
