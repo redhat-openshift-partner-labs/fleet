@@ -43,7 +43,7 @@ body:
       options:
         - label: Tekton pipelines (provision / post-provision / deprovision)
         - label: Python CLI tools (fleet/tasks/)
-        - label: Hub config (operators, ArgoCD, hub-config/)
+        - label: Hub config (operators, hub-config/)
         - label: Workload overlays (workloads/)
         - label: Kustomize (cluster-templates/)
         - label: Documentation

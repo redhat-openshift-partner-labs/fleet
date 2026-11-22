@@ -115,8 +115,11 @@ GITOPS_FREE = [
     "hub-config",
     "tekton",
     "fleet",
+    "workloads",
+    ".github",
     "Makefile",
     "README.md",
+    "CLAUDE.md",
     ":(glob)docs/*.md",
     "docs/diagrams",
 ]
