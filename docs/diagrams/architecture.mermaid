@@ -1,4 +1,4 @@
-%% Hub: Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub
+%% Hub: Tekton, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub
 %% Spoke: third-party accessible; it receives only artifacts derived on the hub
 %% Triggers: pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run
 flowchart TB
@@ -6,7 +6,7 @@ flowchart TB
         direction TB
         GitClusters["fleet-clusters<br/>provision/NAME/, deprovision/NAME-archive<br/>(cluster overlays, metadata.yaml)"]
         GitFleet["fleet: pipelines and workloads<br/>tekton/, workloads/TIER/<br/>(pipelines, tasks, triggers, tier overlays)"]
-        GitHubConfig["fleet: hub configuration<br/>hub-config/, bootstrap/<br/>(hub operators and their configuration)"]
+        GitHubConfig["fleet: hub configuration<br/>hub-config/<br/>(hub operators and their configuration)"]
     end
 
     subgraph Hub["HUB CLUSTER (trusted)"]
@@ -24,7 +24,6 @@ flowchart TB
         Hive["Hive and ACM<br/>(ClusterDeployment, ManagedCluster with tier label)"]
         CertMgr["cert-manager<br/>(ClusterIssuer per cluster, Let's Encrypt DNS-01 through Route53)"]
         Keycloak["Keycloak<br/>(OIDC client per cluster)"]
-        HubApp["ArgoCD Application<br/>fleet-hub-config"]
     end
 
     subgraph Spoke["SPOKE (third-party accessible)"]
@@ -35,7 +34,6 @@ flowchart TB
         SpokeTier["Tier workloads<br/>(base, virt, ai, coco)"]
     end
 
-    Git -->|ArgoCD sync| HubApp
     Deprovision -->|deployment status| GitClusters
     GitClusters -->|push webhook| EL
     Git -->|cloned by git-clone| Tekton
@@ -70,6 +68,6 @@ flowchart TB
 
     class GitClusters,GitFleet,GitHubConfig,SpokeCert git
     class EL entry
-    class Deprovision,PreProvision,Provision,PostProvision,IAM,CertMgr,Keycloak,HubApp service
+    class Deprovision,PreProvision,Provision,PostProvision,IAM,CertMgr,Keycloak service
     class Hive,SpokeOAuth,SpokeRBAC control
     class SpokeTier workload

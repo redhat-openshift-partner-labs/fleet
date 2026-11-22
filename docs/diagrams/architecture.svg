@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 1612" width="1262" height="1612" role="img" aria-labelledby="title desc">
   <title id="title">Architecture</title>
-  <desc id="desc">Git is the source of truth. The fleet-clusters repository holds provision/NAME/ with the cluster overlays and metadata.yaml, and deprovision/NAME-archive sentinel files. The fleet repository holds tekton/ and workloads/TIER/ (pipelines, tasks, triggers and tier overlays) and hub-config/ and bootstrap/ (hub operators and their configuration). The hub cluster is trusted. ArgoCD syncs Git to the Application fleet-hub-config. Tekton is the workflow engine. A push to fleet-clusters reaches the EventListener fleet-cluster-lifecycle through a webhook. A push that adds provision/NAME/ starts the pre-provision pipeline, and a push that adds deprovision/NAME-archive starts the deprovision pipeline. The pipelines clone Git with the git-clone task. The pre-provision pipeline creates the namespace, SSH key, pull secret and IAM credentials and checks the inputs: it applies IAM CRs to Crossplane, which holds the IAM users, roles and policies of each cluster, waits for the keys, and starts the provision pipeline. The provision pipeline applies the cluster CRs to Hive and ACM (ClusterDeployment, ManagedCluster with the tier label), waits for the install and the ACM join, and starts the post-provision pipeline. Hive installs the cluster. The post-provision pipeline creates a ClusterIssuer and a Certificate in cert-manager, which holds one ClusterIssuer per cluster for Let's Encrypt DNS-01 through Route53, registers an OIDC client per cluster in Keycloak, and writes to the spoke: the leaf certificate and key, the OAuth CR and provider Secrets, the cluster-admins group and binding, and the kustomize overlays of the tier. The deprovision pipeline deletes the cluster CRs, waits for the uninstall, deletes the IAM CRs, and posts a deployment status to fleet-clusters. The spoke is third-party accessible. It holds the ingress certificate (leaf certificate and key, no CA key), OAuth with htpasswd and OpenID providers, RBAC with the cluster-admins group, and the tier workloads (base, virt, ai, coco). Constraints: Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub. The spoke receives only artifacts derived on the hub. Triggers are pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run.</desc>
+  <desc id="desc">Git is the source of truth. The fleet-clusters repository holds provision/NAME/ with the cluster overlays and metadata.yaml, and deprovision/NAME-archive sentinel files. The fleet repository holds tekton/ and workloads/TIER/ (pipelines, tasks, triggers and tier overlays) and hub-config/ (hub operators and their configuration). The hub cluster is trusted. Tekton is the workflow engine. A push to fleet-clusters reaches the EventListener fleet-cluster-lifecycle through a webhook. A push that adds provision/NAME/ starts the pre-provision pipeline, and a push that adds deprovision/NAME-archive starts the deprovision pipeline. The pipelines clone Git with the git-clone task. The pre-provision pipeline creates the namespace, SSH key, pull secret and IAM credentials and checks the inputs: it applies IAM CRs to Crossplane, which holds the IAM users, roles and policies of each cluster, waits for the keys, and starts the provision pipeline. The provision pipeline applies the cluster CRs to Hive and ACM (ClusterDeployment, ManagedCluster with the tier label), waits for the install and the ACM join, and starts the post-provision pipeline. Hive installs the cluster. The post-provision pipeline creates a ClusterIssuer and a Certificate in cert-manager, which holds one ClusterIssuer per cluster for Let's Encrypt DNS-01 through Route53, registers an OIDC client per cluster in Keycloak, and writes to the spoke: the leaf certificate and key, the OAuth CR and provider Secrets, the cluster-admins group and binding, and the kustomize overlays of the tier. The deprovision pipeline deletes the cluster CRs, waits for the uninstall, deletes the IAM CRs, and posts a deployment status to fleet-clusters. The spoke is third-party accessible. It holds the ingress certificate (leaf certificate and key, no CA key), OAuth with htpasswd and OpenID providers, RBAC with the cluster-admins group, and the tier workloads (base, virt, ai, coco). Constraints: Tekton, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub. The spoke receives only artifacts derived on the hub. Triggers are pushes to main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message skips the run.</desc>
 
   <style>
     .bg { fill: #ffffff; stroke: #d0d7de; }
@@ -83,7 +83,7 @@
   <text class="m lbl" x="40" y="90">CONSTRAINTS</text>
   <rect class="frame" x="40" y="98" width="1182" height="106" rx="12"/>
   <text class="t b k" x="56" y="124">Hub</text>
-  <text class="m b" x="160" y="124">Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub</text>
+  <text class="m b" x="160" y="124">Tekton, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub</text>
   <line class="rule" x1="56" y1="138" x2="1206" y2="138"/>
   <text class="t b k" x="56" y="156">Spoke</text>
   <text class="m b" x="160" y="156">third-party accessible; it receives only artifacts derived on the hub</text>
@@ -122,7 +122,7 @@
   <circle class="badge-store" cx="874" cy="284" r="10"/><text class="badge-t" x="874" y="288" text-anchor="middle">3</text>
   <text class="t h2" x="890" y="289">fleet: hub configuration</text>
   <line class="rule" x1="868" y1="304" x2="1210" y2="304"/>
-  <text class="c s" x="868" y="326">hub-config/ · bootstrap/</text>
+  <text class="c s" x="868" y="326">hub-config/</text>
   <text class="t b" x="868" y="344">hub operators and their configuration</text>
 
   <!-- ===== Cards: Tekton ===== -->
@@ -180,39 +180,32 @@
   <text class="t h2" x="940" y="1049">Keycloak</text>
   <line class="rule" x1="918" y1="1064" x2="1110" y2="1064"/>
   <text class="t b" x="918" y="1086">OIDC client per cluster</text>
-  <rect class="src" x="84" y="1070" width="216" height="80" rx="12"/>
-  <circle class="badge-src" cx="102" cy="1090" r="10"/><text class="badge-t" x="102" y="1094" text-anchor="middle">13</text>
-  <text class="t h2" x="118" y="1095">ArgoCD Application</text>
-  <line class="rule" x1="96" y1="1110" x2="288" y2="1110"/>
-  <text class="c s" x="96" y="1132">fleet-hub-config</text>
 
   <!-- ===== Cards: Spoke ===== -->
   <rect class="store" x="84" y="1390" width="216" height="100" rx="12"/>
-  <circle class="badge-store" cx="102" cy="1410" r="10"/><text class="badge-t" x="102" y="1414" text-anchor="middle">14</text>
+  <circle class="badge-store" cx="102" cy="1410" r="10"/><text class="badge-t" x="102" y="1414" text-anchor="middle">13</text>
   <text class="t h2" x="118" y="1415">Ingress certificate</text>
   <line class="rule" x1="96" y1="1430" x2="288" y2="1430"/>
   <text class="t b" x="96" y="1452">leaf certificate and key</text>
   <text class="m s" x="96" y="1470">no CA key</text>
   <rect class="core" x="358" y="1390" width="216" height="100" rx="12"/>
-  <circle class="badge-core" cx="376" cy="1410" r="10"/><text class="badge-t" x="376" y="1414" text-anchor="middle">15</text>
+  <circle class="badge-core" cx="376" cy="1410" r="10"/><text class="badge-t" x="376" y="1414" text-anchor="middle">14</text>
   <text class="t h2" x="392" y="1415">OAuth</text>
   <line class="rule" x1="370" y1="1430" x2="562" y2="1430"/>
   <text class="t b" x="370" y="1452">htpasswd and OpenID providers</text>
   <rect class="core" x="632" y="1390" width="216" height="100" rx="12"/>
-  <circle class="badge-core" cx="650" cy="1410" r="10"/><text class="badge-t" x="650" y="1414" text-anchor="middle">16</text>
+  <circle class="badge-core" cx="650" cy="1410" r="10"/><text class="badge-t" x="650" y="1414" text-anchor="middle">15</text>
   <text class="t h2" x="666" y="1415">RBAC</text>
   <line class="rule" x1="644" y1="1430" x2="836" y2="1430"/>
   <text class="c s" x="644" y="1452">cluster-admins</text>
   <text class="t b" x="644" y="1470">group</text>
   <rect class="out" x="906" y="1390" width="216" height="100" rx="12"/>
-  <circle class="badge-out" cx="924" cy="1410" r="10"/><text class="badge-t" x="924" y="1414" text-anchor="middle">17</text>
+  <circle class="badge-out" cx="924" cy="1410" r="10"/><text class="badge-t" x="924" y="1414" text-anchor="middle">16</text>
   <text class="t h2" x="940" y="1415">Tier workloads</text>
   <line class="rule" x1="918" y1="1430" x2="1110" y2="1430"/>
   <text class="t b" x="918" y="1452">base · virt · ai · coco</text>
 
   <!-- ===== Edges: Git and hub ===== -->
-  <path class="flow" d="M46 400 V1110 H82" marker-end="url(#a-flow)"/>
-  <text class="m s" x="54" y="434">ArgoCD sync</text>
   <path class="flow" d="M160 672 V384" marker-end="url(#a-flow)"/>
   <text class="m s" x="168" y="434">deployment status</text>
   <path class="flow" d="M390 382 V514" marker-end="url(#a-flow)"/>
