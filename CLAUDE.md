@@ -2,12 +2,11 @@
 
 ## Project Overview
 
-OpenShift cluster fleet management control plane for Red Hat OpenShift Partner Labs. Hub-and-spoke architecture using Tekton (workflows), ArgoCD (manifest delivery), and ACM/Hive (cluster lifecycle). This repo holds Tekton pipelines, hub config, and day-2 workload overlays — cluster specs and templates live in the [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repo.
+OpenShift cluster fleet management control plane for Red Hat OpenShift Partner Labs. Hub-and-spoke architecture using Tekton (workflows) and ACM/Hive (cluster lifecycle). This repo holds Tekton pipelines, hub config, and day-2 workload overlays — cluster specs and templates live in the [fleet-clusters](https://github.com/redhat-openshift-partner-labs/fleet-clusters) repo.
 
 ## Repo Layout
 
 ```
-bootstrap/          — Hub bootstrap (ArgoCD, Tekton install, ACM config)
 tekton/             — Pipeline, Task, EventListener, Trigger definitions
 hub-config/         — cert-manager, baseline hub operators
 workloads/          — Tier-specific day-2 overlays (base / virt / ai / coco)
@@ -130,7 +129,6 @@ tests/
 
 ## Architecture Principles
 
-- ArgoCD reconciles declarative state — never use it as a workflow engine
 - Tekton runs ordered workflows — provision, post-provision, deprovision
 - ACM/Hive controls cluster lifecycle
 - Each tool does one job

@@ -21,7 +21,7 @@ body:
         - Provision pipeline
         - Post-provision pipeline
         - Deprovision pipeline
-        - Hub config (operators, ArgoCD, Crossplane)
+        - Hub config (operators, Crossplane)
         - Python CLI tools (fleet/tasks/)
         - Tekton task definitions
         - Kustomize / workloads
