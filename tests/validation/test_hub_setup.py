@@ -110,13 +110,15 @@ def test_uninstall_script_lists_the_namespaces_of_the_manifest():
 
 
 # The hub runs no ArgoCD: these paths do not name it or OpenShift GitOps.
+# docs/plans/ is left out: a plan stays as it was written.
 GITOPS_FREE = [
     "hub-config",
     "tekton",
     "fleet",
     "Makefile",
     "README.md",
-    "docs/hub-setup.md",
+    ":(glob)docs/*.md",
+    "docs/diagrams",
 ]
 GITOPS = re.compile(r"argo ?cd|argoproj|gitops", re.IGNORECASE)
 

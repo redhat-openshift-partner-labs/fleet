@@ -9,9 +9,8 @@ fleet runs the lifecycle of the Red Hat OpenShift Partner Labs clusters from one
 | Component | Role | Configured in |
 |---|---|---|
 | fleet-clusters repository | Cluster definitions under `provision/<name>/`, deprovision sentinel files, archive records | [fleet-clusters-setup.md](fleet-clusters-setup.md) |
-| fleet repository | Pipelines, tasks, triggers, tier overlays, hub configuration | `tekton/`, `workloads/`, `hub-config/`, `bootstrap/` |
+| fleet repository | Pipelines, tasks, triggers, tier overlays, hub configuration | `tekton/`, `workloads/`, `hub-config/` |
 | Tekton (OpenShift Pipelines) | Runs the four lifecycle pipelines and `test-vcluster` | `tekton/`; operator in `hub-config/tekton/` |
-| ArgoCD (OpenShift GitOps) | Syncs `hub-config/` to the hub through the Application `fleet-hub-config` | `bootstrap/`, `hub-config/argocd/` |
 | Hive and ACM | Hive installs and uninstalls clusters. ACM registers each one as a ManagedCluster, which carries the `tier` label. | `hub-config/acm/` |
 | Crossplane | Creates the IAM users, access keys, roles and policies of each cluster | `hub-config/crossplane/` |
 | cert-manager | Issues one wildcard certificate per cluster with Let's Encrypt DNS-01 through Route53 | `hub-config/cert-manager/` |

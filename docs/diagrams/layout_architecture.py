@@ -20,7 +20,6 @@ H = 1612
 # Hub and spoke grid: four card columns with a 58 px line channel between them.
 C = (84, 358, 632, 906)  # card x per column
 CW = 216  # card width
-XG = 46  # left channel: Git to the ArgoCD Application
 XA, XB, XC, XD = 1154, 1170, 1186, 1202  # right channel: post-provision to the spoke
 
 GIT_Y, GIT_CARD_Y = 238, 264
@@ -35,15 +34,14 @@ PIPE_Y = 672
 PIPE_BOTTOM = PIPE_Y + 114
 ROW_D = 880  # Crossplane, Hive and ACM, cert-manager
 ROW_E = 1024  # Keycloak
-ROW_F = 1070  # ArgoCD Application
 SPOKE_Y, SPOKE_CARD_Y = 1364, 1390
 
 DESC = (
     "Git is the source of truth. The fleet-clusters repository holds provision/NAME/ with "
     "the cluster overlays and metadata.yaml, and deprovision/NAME-archive sentinel files. "
     "The fleet repository holds tekton/ and workloads/TIER/ (pipelines, tasks, triggers and "
-    "tier overlays) and hub-config/ and bootstrap/ (hub operators and their configuration). "
-    "The hub cluster is trusted. ArgoCD syncs Git to the Application fleet-hub-config. "
+    "tier overlays) and hub-config/ (hub operators and their configuration). "
+    "The hub cluster is trusted. "
     "Tekton is the workflow engine. A push to fleet-clusters reaches the EventListener "
     "fleet-cluster-lifecycle through a webhook. A push that adds provision/NAME/ starts the "
     "pre-provision pipeline, and a push that adds deprovision/NAME-archive starts the "
@@ -64,7 +62,7 @@ DESC = (
     "The spoke is third-party accessible. It holds the ingress certificate (leaf "
     "certificate and key, no CA key), OAuth with htpasswd and OpenID providers, RBAC with "
     "the cluster-admins group, and the tier workloads (base, virt, ai, coco). "
-    "Constraints: Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on "
+    "Constraints: Tekton, ACM, Hive, Crossplane, cert-manager and Keycloak run on "
     "the hub. The spoke receives only artifacts derived on the hub. Triggers are pushes to "
     "main of fleet-clusters; [skip-provision] or [skip-deprovision] in the commit message "
     "skips the run."
@@ -88,7 +86,7 @@ def render(head: str) -> str:
             (
                 "Hub",
                 "m b",
-                "Tekton, ArgoCD, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub",
+                "Tekton, ACM, Hive, Crossplane, cert-manager and Keycloak run on the hub",
             ),
             (
                 "Spoke",
@@ -145,7 +143,7 @@ def render(head: str) -> str:
         118,
         "fleet: hub configuration",
         [
-            ("c s", "hub-config/ · bootstrap/"),
+            ("c s", "hub-config/"),
             ("t b", "hub operators and their configuration"),
         ],
     )
@@ -240,15 +238,6 @@ def render(head: str) -> str:
         "Keycloak",
         [("t b", "OIDC client per cluster")],
     )
-    d.card(
-        "src",
-        C[0],
-        ROW_F,
-        CW,
-        80,
-        "ArgoCD Application",
-        [("c s", "fleet-hub-config")],
-    )
 
     d.section("Cards: Spoke")
     d.card(
@@ -290,8 +279,6 @@ def render(head: str) -> str:
 
     # Every path ends 2 px before its target so the arrow tip touches the border.
     d.section("Edges: Git and hub")
-    d.edge("flow", f"M{XG} {GIT_BOTTOM} V{ROW_F + 40} H{C[0] - 2}")
-    d.label(XG + 8, BAND, "ArgoCD sync")
     d.edge("flow", f"M160 {PIPE_Y} V{GIT_CARD_BOTTOM + 2}")
     d.label(168, BAND, "deployment status")
     d.edge("flow", f"M390 {GIT_CARD_BOTTOM} V{EL_Y - 2}")
